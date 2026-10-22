@@ -1,0 +1,702 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+//@version=6
+// Benihime · RTH gaps mapped like NWOGs. RTH gap = the prior RTH close (the 16:14 bar's close, 16:15 ET) to the 09:30 ET
+// open: the overnight move between two regular sessions. Every gap runs right in price. The last 5 sessions' gaps form
+// the staircase: octants plus ±1 / ±2 SD (gap-size multiples above the top and below the bottom). Older gaps show
+// quarters until N sessions old, then edges and CE. The card tracks the average RTH gap and today's gap against it,
+// with odds from NQ + ES + RTY 1-minute 2018–26 (6,169 gaps). Live fill and CE odds follow the gap's size, the time,
+// how far price is from the fill now, how far it has come back so far, and where the open sat in the overnight range.
+// A tally-style card (Desktop / Mobile) with a fill bar, and alerts. Release days (CPI, NFP, PPI, GDP, PCE, retail
+// sales, your own dates) switch the day's regime. Works on ETH and RTH charts. Use a back-adjusted (B-ADJ) continuous
+// chart so roll days do not show as gaps.
+indicator("Benihime — RTH Gaps", "Benihime", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 50)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI  = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, tooltip = "The card. Auto follows the chart background. Its text always follows this theme, so it stays readable whatever chart text colour you pick.", display = display.none)
+lblSzI  = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+txtColI = input.color(#000001, "Chart text colour", group = gV, tooltip = "The labels on the chart. Left at the default it follows the chart background; pick any colour to override. The card keeps its own text colour.", display = display.none)
+lblMode = input.string("Last 5", "Gap labels", options = ["Last 5", "All", "Off"], group = gV, tooltip = "One label per gap at its CE on the right: date, release tag, and CE / filled. Labels at nearly the same price share one. Hover a label for the gap's numbers.", display = display.none)
+dateFmt = input.string("MM/dd", "Label date format", group = gV, display = display.none)
+showCard = input.bool(true, "Card", group = gV, inline = "cd", display = display.none)
+cardPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", display = display.none)
+layI     = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: every row. Mobile: one narrow card for a phone screen: the gap, the fill bar, the CE and ±1 SD (outside RTH: the close, if it opened now, and the next session). Every row keeps its full explanation in the tooltip. For a phone, use a separate chart layout set to Mobile, since layouts sync across devices.", display = display.none)
+barCI    = input.string("Gap direction", "Fill bar", options = ["Gap direction", "Progress"], group = gV, inline = "fb", tooltip = "The FILL bar fills as price trades back from the open toward the prior close; the mark in the middle is the CE.\nGap direction: the first colour for a gap up, the second for a gap down.\nProgress: the second colour until the gap fills, then the first.", display = display.none)
+colBU    = input.color(#26a69a, "", group = gV, inline = "fb", display = display.none)
+colBD    = input.color(#ef5350, "", group = gV, inline = "fb", display = display.none)
+
+gG = "RTH gaps · 16:14 close → 09:30 open (ET)"
+keepN  = input.int(20, "Keep last (sessions)", minval = 5, maxval = 60, group = gG, tooltip = "How many RTH gaps stay on the chart, newest first. They all run right in price.\n\nThe gaps are read from 15-minute bars of this chart's symbol. On a 1-minute ETH chart only the days the chart has loaded can show: scroll left to load more, or use an RTH chart or a 3 / 5 / 15-minute chart for 20+ sessions. The card says how many are loaded.", display = display.none)
+quadN  = input.int(10, "Quarters until (sessions old)", minval = 5, maxval = 60, group = gG, tooltip = "Gaps older than the staircase (last 5) show their quarters (25%, CE, 75%) until they are this many sessions old; older gaps show their edges and CE only.\n\nNQ + ES + RTY 2018–26: a gap still unfilled after 5 sessions filled within the next 15 sessions 49% of the time; one whose CE was untouched after 5 sessions reached it 52% of the time.", display = display.none)
+avgNI  = input.int(20, "Average over (sessions)", minval = 5, maxval = 100, group = gG, tooltip = "The card's average RTH gap: the mean |gap| of this many sessions before today. Every day counts, Mondays included. The size tag and the odds always use the 20-session average they were measured with.", display = display.none)
+colN   = input.color(#26a69a, "Normal day", group = gG, display = display.none)
+shadeI = input.string("Staircase", "Shade", options = ["Staircase", "All", "Off"], group = gG, display = display.none)
+extN   = input.int(10, "Run past the last bar (bars)", minval = 0, maxval = 200, group = gG, display = display.none)
+minTk  = input.int(1, "Skip gaps smaller than (ticks)", minval = 0, group = gG, display = display.none)
+
+gS = "Staircase · last 5 sessions"
+octI  = input.bool(true, "Octants", group = gS, tooltip = "Each of the last 5 gaps split into eighths. The CE (50%) is dashed, the quarters dotted, the eighths faint.", display = display.none)
+sd1I  = input.bool(true, "±1 SD", inline = "sd", group = gS, display = display.none)
+sd2I  = input.bool(true, "±2 SD", inline = "sd", group = gS, tooltip = "k SD = k gap sizes above the gap's top (+) and below its bottom (−), for each of the last 5 gaps (and release days, see below). The ±2 SD lines carry the gap's weekday.\n\nNQ + ES + RTY 2018–26, while a gap is one of the last 5 (to the 5th next open): beyond the open (gap direction) +1 SD 84%, +2 SD 71%; beyond the prior close −1 SD 71%, −2 SD 60%. Small gaps reach theirs far more often (the card shows today's size).", display = display.none)
+sdW   = input.int(1, "SD lines: width", options = [1, 2, 3], inline = "sdw", group = gS, display = display.none)
+sdSt  = input.string("Dashed", "±1 SD", options = ["Solid", "Dashed", "Dotted"], inline = "sdw", group = gS, tooltip = "±2 SD lines are always solid; pick the ±1 SD style here.", display = display.none)
+colSD = input.color(#787b86, "SD colour", inline = "sdc", group = gS, display = display.none)
+sdTie = input.bool(true, "In the gap's colour", inline = "sdc", group = gS, display = display.none)
+sdDay = input.bool(true, "Weekday on the ±2 SD", group = gS, tooltip = "At the right end of each gap's +2 SD and −2 SD lines (±1 SD when ±2 is off): the gap's weekday, e.g. Tue +2 SD, with the release tag on release days. Labels close in price share one.", display = display.none)
+sdRel = input.bool(true, "Release days keep their SD staircase", group = gS, tooltip = "Gaps from CPI, NFP, PPI, GDP, PCE, retail sales or your dates keep their ±1 / ±2 SD lines and weekday labels for as long as they stay on the chart, not only while they are one of the last 5. Their labels then add the date.", display = display.none)
+
+gR = "Release regime · 08:30 ET releases before the open"
+useCPI = input.bool(true, "CPI", inline = "r1", group = gR, display = display.none)
+useNFP = input.bool(true, "NFP", inline = "r1", group = gR, display = display.none)
+colX   = input.color(#ff9800, "", inline = "r1", group = gR, tooltip = "Major releases. NQ + ES + RTY 2018–26: CPI and NFP gaps run 1.4–1.5× the size of normal-day gaps (p < 0.001, both periods and every symbol); 35–40% are over 1.5× the 20-session average, against 21% on normal days. For their size they behave like any other gap (fill, CE and SD odds did not differ), so the card's odds come from the size tables.", display = display.none)
+usePPI = input.bool(true, "PPI", inline = "r2", group = gR, display = display.none)
+useGDP = input.bool(true, "GDP", inline = "r2", group = gR, display = display.none)
+usePCE = input.bool(true, "PCE", inline = "r2", group = gR, display = display.none)
+useRS  = input.bool(true, "Retail sales", inline = "r2", group = gR, display = display.none)
+colY   = input.color(#7e57c2, "", inline = "r2", group = gR, tooltip = "Other 08:30 releases: PPI (BLS), GDP and PCE / personal income and outlays (BEA), retail sales (Census). NQ + ES + RTY 2018–26: their 08:30–08:34 range runs 1.8–3.6× a normal day's (every period and symbol), so they move price at the release; their RTH gaps were not reliably bigger (PPI 1.14×, GDP 1.20×, retail 1.18×, PCE 1.00×; none steady across both periods).", display = display.none)
+ownTx  = input.string("", "Your dates", group = gR, tooltip = "Extra release days, e.g. ISM-free 08:30 data or one-off events: 2026-10-16, 2026-11-13 (commas; 20261016 works too). Tagged NEWS in the other-release colour.", display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alNew = input.bool(true, "New gap at 09:30", group = gA, tooltip = "Each fires once, on the bar it happens, with the numbers in the message: the gap's size against the average and its fill odds; the CE; the fill and the odds of −1 SD after it; ±1 SD.", display = display.none)
+alCE  = input.bool(true, "CE reached", group = gA, display = display.none)
+alFL  = input.bool(true, "Filled", group = gA, display = display.none)
+alSD  = input.bool(false, "±1 SD reached", group = gA, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Release dates (ET, 08:30)
+// Actual release dates (shutdown moves included), from BLS, BEA and Census via their archives and ALFRED (St. Louis Fed).
+// CPI, NFP and PPI are loaded to Dec 2027; GDP, PCE and retail sales to Dec 2026 (2027 schedules not yet published).
+// UPDATE ONCE A YEAR: add the next year's dates to each string and raise LAST_DATE / LAST_DATE2.
+S_CPI  = "20180112,20180214,20180313,20180411,20180510,20180612,20180712,20180810,20180913,20181011,20181114,20181212,"
+     + "20190111,20190213,20190312,20190410,20190510,20190612,20190711,20190813,20190912,20191010,20191113,20191211,"
+     + "20200114,20200213,20200311,20200410,20200512,20200610,20200714,20200812,20200911,20201013,20201112,20201210,"
+     + "20210113,20210210,20210310,20210413,20210512,20210610,20210713,20210811,20210914,20211013,20211110,20211210,"
+     + "20220112,20220210,20220310,20220412,20220511,20220610,20220713,20220810,20220913,20221013,20221110,20221213,"
+     + "20230112,20230214,20230314,20230412,20230510,20230613,20230712,20230810,20230913,20231012,20231114,20231212,"
+     + "20240111,20240213,20240312,20240410,20240515,20240612,20240711,20240814,20240911,20241010,20241113,20241211,"
+     + "20250115,20250212,20250312,20250410,20250513,20250611,20250715,20250812,20250911,20251024,20251218,20260113,"
+     + "20260213,20260311,20260410,20260512,20260610,20260714,20260812,20260911,20261014,20261110,20261210,20270113,"
+     + "20270211,20270310,20270413,20270512,20270610,20270714,20270811,20270914,20271014,20271110,20271210"
+S_NFP  = "20180105,20180202,20180309,20180406,20180504,20180601,20180706,20180803,20180907,20181005,20181102,20181207,"
+     + "20190104,20190201,20190308,20190405,20190503,20190607,20190705,20190802,20190906,20191004,20191101,20191206,"
+     + "20200110,20200207,20200306,20200403,20200508,20200605,20200702,20200807,20200904,20201002,20201106,20201204,"
+     + "20210108,20210205,20210305,20210402,20210507,20210604,20210702,20210806,20210903,20211008,20211105,20211203,"
+     + "20220107,20220204,20220304,20220401,20220506,20220603,20220708,20220805,20220902,20221007,20221104,20221202,"
+     + "20230106,20230203,20230310,20230407,20230505,20230602,20230707,20230804,20230901,20231006,20231103,20231208,"
+     + "20240105,20240202,20240308,20240405,20240503,20240607,20240705,20240802,20240906,20241004,20241101,20241206,"
+     + "20250110,20250207,20250307,20250404,20250502,20250606,20250703,20250801,20250905,20251120,20251216,20260109,"
+     + "20260211,20260306,20260403,20260508,20260605,20260702,20260807,20260904,20261002,20261106,20261204,20270108,"
+     + "20270205,20270305,20270402,20270507,20270604,20270702,20270806,20270903,20271008,20271105,20271203"
+S_PPI  = "20180111,20180215,20180314,20180410,20180509,20180613,20180711,20180809,20180912,20181010,20181109,20181211,"
+     + "20190115,20190214,20190313,20190411,20190509,20190611,20190712,20190809,20190911,20191008,20191114,20191212,"
+     + "20200115,20200219,20200312,20200409,20200513,20200611,20200710,20200811,20200910,20201014,20201113,20201211,"
+     + "20210115,20210217,20210312,20210409,20210513,20210615,20210714,20210812,20210910,20211014,20211109,20211214,"
+     + "20220113,20220215,20220315,20220413,20220512,20220614,20220714,20220811,20220914,20221012,20221115,20221209,"
+     + "20230118,20230216,20230315,20230413,20230511,20230614,20230713,20230811,20230914,20231011,20231115,20231213,"
+     + "20240112,20240216,20240314,20240411,20240514,20240613,20240712,20240813,20240912,20241011,20241114,20241212,"
+     + "20250114,20250213,20250313,20250411,20250515,20250612,20250716,20250814,20250910,20251125,20260114,20260130,"
+     + "20260227,20260318,20260414,20260513,20260611,20260715,20260813,20260910,20261015,20261113,20261215,20270114,"
+     + "20270212,20270312,20270414,20270513,20270611,20270715,20270810,20270910,20271015,20271112,20271215"
+S_GDP  = "20180126,20180228,20180328,20180427,20180530,20180628,20180727,20180829,20180927,20181026,20181128,20181221,"
+     + "20190228,20190328,20190426,20190530,20190627,20190726,20190829,20190926,20191030,20191127,20191220,20200130,"
+     + "20200227,20200326,20200429,20200528,20200625,20200730,20200827,20200930,20201029,20201125,20201222,20210128,"
+     + "20210225,20210325,20210429,20210527,20210624,20210729,20210826,20210930,20211028,20211124,20211222,20220127,"
+     + "20220224,20220330,20220428,20220526,20220629,20220728,20220825,20220929,20221027,20221130,20221222,20230126,"
+     + "20230223,20230330,20230427,20230525,20230629,20230727,20230830,20230928,20231026,20231129,20231221,20240125,"
+     + "20240228,20240328,20240425,20240530,20240627,20240725,20240829,20240926,20241030,20241127,20250130,20250227,"
+     + "20250327,20250430,20250529,20250626,20250730,20250828,20250925,20251223,20260122,20260220,20260313,20260409,"
+     + "20260430,20260528,20260625,20260730,20260826,20260930,20261029,20261125,20261223"
+S_PCE  = "20180129,20180301,20180329,20180430,20180531,20180629,20180731,20180830,20180928,20181029,20181129,20181221,"
+     + "20190301,20190329,20190429,20190531,20190628,20190730,20190830,20190927,20191031,20191127,20191220,20200131,"
+     + "20200228,20200327,20200430,20200529,20200626,20200731,20200828,20201001,20201030,20201125,20201223,20210129,"
+     + "20210226,20210326,20210430,20210528,20210625,20210730,20210827,20211001,20211029,20211124,20211223,20220128,"
+     + "20220225,20220331,20220429,20220527,20220630,20220729,20220826,20220930,20221028,20221201,20221223,20230127,"
+     + "20230224,20230331,20230428,20230526,20230630,20230728,20230831,20230929,20231027,20231130,20231222,20240126,"
+     + "20240229,20240329,20240426,20240531,20240628,20240726,20240830,20240927,20241031,20241127,20241220,20250131,"
+     + "20250228,20250328,20250430,20250530,20250627,20250731,20250829,20250926,20251205,20251223,20260220,20260409,"
+     + "20260430,20260528,20260625,20260730,20260826,20260930,20261029,20261125,20261223"
+S_RS   = "20180112,20180214,20180314,20180416,20180515,20180614,20180716,20180815,20180914,20181015,20181115,20181214,"
+     + "20190214,20190311,20190401,20190418,20190515,20190614,20190716,20190815,20190913,20191016,20191115,20191213,"
+     + "20200116,20200214,20200317,20200415,20200515,20200616,20200716,20200814,20200916,20201016,20201117,20201216,"
+     + "20210115,20210217,20210316,20210415,20210514,20210615,20210716,20210817,20210916,20211015,20211116,20211215,"
+     + "20220114,20220216,20220316,20220414,20220517,20220615,20220715,20220817,20220915,20221014,20221116,20221215,"
+     + "20230118,20230215,20230315,20230414,20230516,20230615,20230718,20230815,20230914,20231017,20231115,20231214,"
+     + "20240117,20240215,20240314,20240415,20240515,20240618,20240716,20240815,20240917,20241017,20241115,20241217,"
+     + "20250116,20250214,20250317,20250416,20250515,20250617,20250717,20250815,20250916,20251125,20251216,20260114,"
+     + "20260210,20260306,20260401,20260421,20260514,20260617,20260716,20260814,20260916,20261015,20261117,20261216"
+LAST_DATE  = 20271215
+LAST_DATE2 = 20261223
+
+parseDates(string s) =>
+    array<int> out = array.new<int>()
+    for p in str.split(str.replace_all(str.replace_all(s, "-", ""), " ", ""), ",")
+        v = str.tonumber(p)
+        if not na(v)
+            out.push(int(v))
+    out
+var array<int> CP = parseDates(S_CPI)
+var array<int> NP = parseDates(S_NFP)
+var array<int> PP = parseDates(S_PPI)
+var array<int> GD_ = parseDates(S_GDP)
+var array<int> PC = parseDates(S_PCE)
+var array<int> RS = parseDates(S_RS)
+var array<int> OW = parseDates(ownTx)
+
+// ═══════════════════════════════════════════════════════════════ Odds (NQ + ES + RTY 1-minute 2018–26, 6,169 RTH gaps)
+// Size = |gap| ÷ the average |gap| of the previous 20 sessions. Buckets: <0.5, 0.5–1, 1–1.5, 1.5–2.5, 2.5+ (33 / 26 / 17 / 15 / 8% of gaps).
+// Live odds (logistic models fitted on the 6,169 gaps, checked out of sample: fitted on 2018–24, scored on 2025–26).
+// Each uses the gap's size (log of |gap| ÷ the 20-session average), the minutes since 09:30, and:
+//   fill: how far price is from the prior close now and how far it has come back so far (both in gap sizes), and where
+//         the open sat in the overnight range (18:00–09:29, 1 = at its extreme in the gap's direction);
+//   CE:   how far price is from the CE now, and the open's place in the overnight range;
+//   −1 SD after the fill: size, the minutes to the fill, and the open's place in the overnight range.
+// Each term held pooled (p < 0.05, errors clustered by date), in 2018–24 and 2025–26, and on NQ, ES and RTY.
+var array<int>   CKM = array.from(0, 15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 405)
+var array<float> FCK = array.from(0.0, -0.514, -0.694, -0.884, -0.987, -1.245, -1.446, -1.779, -2.128, -2.595, -3.284, -3.801)
+var array<float> CCK = array.from(0.0, -0.139, -0.258, -0.412, -0.519, -0.725, -0.882, -1.158, -1.499, -1.960, -2.718, -3.286)
+ONL_AVG = 0.705    // the average open location, used when the overnight range is not available
+var array<float> SC1 = array.from(87.0, 63, 45, 32, 18)    // +1 SD beyond the open, by 16:14
+var array<float> SO1 = array.from(79.0, 40, 20, 12, 5)     // 1 SD beyond the prior close, by 16:14
+var array<float> W5F = array.from(97.0, 86, 80, 73, 63)    // filled while one of the last 5 (to the 5th next open)
+var array<float> W5C = array.from(98.0, 93, 89, 84, 78)    // CE reached while one of the last 5
+var array<float> A5F = array.from(70.0, 60, 60, 56, 53)    // not filled by 16:14 → filled by the 5th next open
+bkOf(float r) => r < 0.5 ? 0 : r < 1.0 ? 1 : r < 1.5 ? 2 : r < 2.5 ? 3 : 4
+bkNm(int b) => b == 0 ? "small" : b == 1 ? "below avg" : b == 2 ? "above avg" : b == 3 ? "large" : "very large"
+clamp(float v, float lo, float hi) => math.max(lo, math.min(hi, v))
+sigP(float z) => 100.0 / (1.0 + math.exp(-z))
+ckOff(array<float> A, float mins) =>
+    float m = clamp(mins, 0, 405)
+    int i = 0
+    while i < 10 and CKM.get(i + 1) <= m
+        i += 1
+    float f = (m - CKM.get(i)) / (CKM.get(i + 1) - CKM.get(i))
+    A.get(i) * (1 - f) + A.get(i + 1) * f
+onlOr(float v) => na(v) ? ONL_AVG : clamp(v, 0, 1.2)
+// odds (%) of a fill by 16:14 / of the CE by 16:14 / of −1 SD by 16:14 once filled
+pFill(float mins, float lr, float dist, float retr, float onl) => sigP(2.026 + ckOff(FCK, mins) - 1.071 * lr - 1.174 * clamp(dist, 0, 3) + 1.323 * clamp(retr, 0, 1) - 0.815 * onlOr(onl))
+pCE(float mins, float lr, float dist, float onl) => sigP(2.523 + ckOff(CCK, mins) - 1.022 * lr - 1.389 * clamp(dist - 0.5, 0, 3) - 0.864 * onlOr(onl))
+pAfter(float lr, float fillMin, float onl) => sigP(1.660 - 0.996 * lr - 0.296 * math.log(1 + math.max(0, fillMin)) - 0.662 * onlOr(onl))
+
+// ═══════════════════════════════════════════════════════════════ Colours and helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+txtCol = color.r(txtColI) == 0 and color.g(txtColI) == 0 and color.b(txtColI) == 1 ? (bgLum < 128 ? #d1d4dc : #131722) : txtColI
+cTxt   = isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = isDark ? #8a93a6 : #5d6476
+lumOf(color c) => 0.299 * color.r(c) + 0.587 * color.g(c) + 0.114 * color.b(c)
+hdrTx(color c) => lumOf(c) > 165 ? #131722 : #ffffff
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+fade(color c, float add) => color.new(c, math.min(100.0, color.t(c) + add))
+px(float v) => str.tostring(v, format.mintick)
+pts(float v) => str.tostring(v, "#,##0.##")
+hhmm(int t) => str.format_time(t, "HH:mm", TZ)
+gauge(float f, int n) =>
+    int k = na(f) ? 0 : int(math.round(clamp(f, 0, 1) * n))
+    str.repeat("█", k) + str.repeat("░", n - k)
+// 10 cells, the CE mark after the 5th
+fillBar(float f) =>
+    string s = gauge(f, 10)
+    str.substring(s, 0, 5) + "│" + str.substring(s, 5)
+pc0(float p) => na(p) ? "—" : str.tostring(math.round(p)) + "%"
+ymdOf(int k) => year(k, "UTC") * 10000 + month(k, "UTC") * 100 + dayofmonth(k, "UTC")
+t930(int k) => timestamp(TZ, year(k, "UTC"), month(k, "UTC"), dayofmonth(k, "UTC"), 9, 30)
+dayTx(int k) => str.format_time(t930(k), dateFmt, TZ)
+whenTx(int t) => str.format_time(t, dateFmt + " HH:mm", TZ)
+// the day's releases: "CPI", "PPI · RETAIL" …; major = CPI or NFP
+tagOf(int k) =>
+    int d = ymdOf(k)
+    string s = ""
+    s += useCPI and CP.includes(d) ? " · CPI" : ""
+    s += useNFP and NP.includes(d) ? " · NFP" : ""
+    s += usePPI and PP.includes(d) ? " · PPI" : ""
+    s += useGDP and GD_.includes(d) ? " · GDP" : ""
+    s += usePCE and PC.includes(d) ? " · PCE" : ""
+    s += useRS and RS.includes(d) ? " · RETAIL" : ""
+    s += OW.includes(d) ? " · NEWS" : ""
+    str.length(s) > 3 ? str.substring(s, 3) : ""
+isMajor(int k) =>
+    int d = ymdOf(k)
+    (useCPI and CP.includes(d)) or (useNFP and NP.includes(d))
+colOf(int k) => isMajor(k) ? colX : tagOf(k) != "" ? colY : colN
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+
+if not timeframe.isintraday
+    runtime.error("Use an intraday chart (1 minute recommended).")
+
+// ═══════════════════════════════════════════════════════════════ Gaps from 15-minute bars
+// 15-minute bars of this chart's symbol (same session and adjustment as the chart): the 16:00 bar's close is the 16:14
+// close, the 09:30 bar's open is the RTH open. Each finished 15-minute bar is checked against every open gap, so the
+// first CE touch and the fill are recorded to the bar. Only the current bar's open and finished bars are used, so
+// reading it with lookahead does not see the future.
+MAXG = 101
+gapCtx() =>
+    var array<int>   gK  = array.new<int>()     // trading day
+    var array<int>   gT  = array.new<int>()     // time of the 09:30 bar
+    var array<float> gO  = array.new<float>()   // 09:30 open
+    var array<float> gC  = array.new<float>()   // prior 16:14 close
+    var array<int>   gCE = array.new<int>()     // first CE touch (bar time, 0 = not yet)
+    var array<int>   gFL = array.new<int>()     // fill (bar time, 0 = not yet)
+    var float c16 = na
+    if bar_index > 0
+        int mp = hour(time[1], TZ) * 60 + minute(time[1], TZ)
+        if mp <= 974 and mp + 15 > 974
+            c16 := close[1]
+        int n = gK.size()
+        if n > 0
+            float h1 = high[1]
+            float l1 = low[1]
+            int   t1 = time[1]
+            for j = 0 to n - 1
+                if gFL.get(j) == 0 and t1 >= gT.get(j)
+                    float o  = gO.get(j)
+                    float c  = gC.get(j)
+                    bool  up = o > c
+                    if gCE.get(j) == 0 and (up ? l1 <= (o + c) / 2 : h1 >= (o + c) / 2)
+                        gCE.set(j, t1)
+                    if up ? l1 <= c : h1 >= c
+                        gFL.set(j, t1)
+    if hour(time, TZ) * 60 + minute(time, TZ) == 570 and not na(c16)
+        gK.push(time_tradingday)
+        gT.push(time)
+        gO.push(open)
+        gC.push(c16)
+        gCE.push(open == c16 ? time : 0)
+        gFL.push(open == c16 ? time : 0)
+        c16 := na
+        if gK.size() > MAXG
+            gK.shift()
+            gT.shift()
+            gO.shift()
+            gC.shift()
+            gCE.shift()
+            gFL.shift()
+    [gK, gT, gO, gC, gCE, gFL]
+[gK, gT, gO, gC, gCE, gFL] = request.security(syminfo.tickerid, "15", gapCtx(), lookahead = barmerge.lookahead_on)
+
+// ═══════════════════════════════════════════════════════════════ Overnight range (18:00–09:29 ET)
+// From finished 15-minute bars of the extended session, so it is the same on ETH and RTH charts and sees no future data.
+// Pre-market it is the range so far; from 09:30 it is the whole overnight.
+onCtx() =>
+    var float h = na
+    var float l = na
+    if bar_index > 1
+        int  m1 = hour(time[1], TZ) * 60 + minute(time[1], TZ)
+        int  m2 = hour(time[2], TZ) * 60 + minute(time[2], TZ)
+        bool o1 = m1 >= 1080 or m1 < 570
+        bool o2 = m2 >= 1080 or m2 < 570
+        if o1 and not o2
+            h := high[1]
+            l := low[1]
+        else if o1
+            h := na(h) ? high[1] : math.max(h, high[1])
+            l := na(l) ? low[1] : math.min(l, low[1])
+    [h, l]
+[onH, onL] = request.security(ticker.modify(syminfo.tickerid, session.extended), "15", onCtx(), lookahead = barmerge.lookahead_on)
+// the open's place in the overnight range, 1 = at its extreme in the gap's direction
+onlOf(float o, float c, float h, float l) => na(h) or na(l) or h <= l ? na : o > c ? (o - l) / (h - l) : (h - o) / (h - l)
+
+avgPrev(int n, int last) =>
+    // average |gap| of the n sessions before index `last` (zero gaps count); na with fewer than 5
+    float s = 0.0
+    int   c = 0
+    int   i = last - 1
+    while i >= 0 and c < n
+        s += math.abs(gO.get(i) - gC.get(i))
+        c += 1
+        i -= 1
+    c >= 5 ? s / c : na
+
+// ═══════════════════════════════════════════════════════════════ The chart's own RTH: today's touches to the minute
+sessOn(string s) => not na(time(timeframe.period, s, TZ))
+inRTH  = sessOn("0930-1615")
+rthBeg = inRTH and not inRTH[1]
+tdKey  = time_tradingday
+var float rthCl = na     // the last RTH close (16:14 once RTH is over)
+if inRTH
+    rthCl := close
+var int ceT = na
+var int flT = na
+var int s1T = na
+var int s2T = na
+var int u1T = na
+var int u2T = na
+var float exT = na    // today's extreme toward the fill since 09:30 (low for a gap up, high for a gap down)
+var float tLr = na    // log(|gap| ÷ 20-session average)
+var float tOnl = na   // the open's place in the overnight range
+var float tA20 = na
+int  nA = na(gK) ? 0 : gK.size()
+bool gapToday = nA > 0 and gK.get(nA - 1) == tdKey and inRTH
+if rthBeg
+    ceT := na
+    flT := na
+    s1T := na
+    s2T := na
+    u1T := na
+    u2T := na
+    exT := na
+    tLr := na
+    tOnl := na
+    tA20 := na
+if gapToday
+    float gOt = gO.get(nA - 1)
+    float gCt = gC.get(nA - 1)
+    float g   = math.abs(gOt - gCt)
+    if g > 0
+        bool  up  = gOt > gCt
+        float top = math.max(gOt, gCt)
+        float bot = math.min(gOt, gCt)
+        if na(ceT) and (up ? low <= (gOt + gCt) / 2 : high >= (gOt + gCt) / 2)
+            ceT := time
+        if na(flT) and (up ? low <= gCt : high >= gCt)
+            flT := time
+        if na(u1T) and high >= top + g
+            u1T := time
+        if na(u2T) and high >= top + 2 * g
+            u2T := time
+        if na(s1T) and low <= bot - g
+            s1T := time
+        if na(s2T) and low <= bot - 2 * g
+            s2T := time
+        exT := up ? (na(exT) ? low : math.min(exT, low)) : (na(exT) ? high : math.max(exT, high))
+        if na(tA20)
+            tA20 := avgPrev(20, nA - 1)
+            tLr  := na(tA20) or tA20 <= 0 ? na : math.log(g / tA20)
+            tOnl := onlOf(gOt, gCt, onH, onL)
+        // alerts: once, on the bar it happens
+        float  minsA = (time - t930(tdKey)) / 60000.0
+        string pre   = "Benihime · " + syminfo.ticker + " · "
+        float  lrA   = nz(tLr, 0.0)
+        if alNew and rthBeg
+            string tgA = tagOf(tdKey)
+            alert(pre + "RTH gap " + (up ? "▲ " : "▼ ") + pts(g) + " pts" + (na(tA20) ? "" : " (" + str.tostring(g / tA20, "0.0") + "× avg, " + bkNm(bkOf(g / tA20)) + ")") + (tgA != "" ? " · " + tgA : "") + " · fill by 16:14 " + pc0(pFill(0, lrA, 1, 0, tOnl)) + " · CE " + px((gOt + gCt) / 2), alert.freq_once_per_bar)
+        if alCE and ceT == time and (na(flT) or flT != time)
+            alert(pre + "CE " + px((gOt + gCt) / 2) + " reached " + hhmm(time) + " · fill by 16:14 " + pc0(pFill(minsA, lrA, up ? (close - gCt) / g : (gCt - close) / g, up ? (gOt - exT) / g : (exT - gOt) / g, tOnl)), alert.freq_once_per_bar)
+        if alFL and flT == time
+            alert(pre + "RTH gap filled " + hhmm(time) + " at " + px(gCt) + " · −1 SD " + px(up ? bot - g : top + g) + " by 16:14 " + pc0(pAfter(lrA, minsA, tOnl)), alert.freq_once_per_bar)
+        if alSD and (u1T == time or s1T == time)
+            alert(pre + (u1T == time ? "+1 SD " + px(top + g) : "−1 SD " + px(bot - g)) + " reached " + hhmm(time), alert.freq_once_per_bar)
+
+// status of gap i: [first CE touch time, fill time] (0 = not yet); today's gap uses the chart's minute-exact times
+statusOf(int i) =>
+    int kc = gCE.get(i)
+    int kf = gFL.get(i)
+    if i == nA - 1 and gK.get(i) == tdKey
+        kc := kc == 0 and not na(ceT) ? ceT : kc
+        kf := kf == 0 and not na(flT) ? flT : kf
+    [kc, kf]
+
+// ═══════════════════════════════════════════════════════════════ Drawing
+type GD
+    int           key
+    array<line>   ln
+    array<color>  lc           // each line's own colour, for the fade once filled
+    label         lb
+    linefill      fl
+    bool          dim = false  // faded once filled
+    array<label>  sl           // weekday labels on the ±2 SD lines
+    array<float>  sy
+    array<string> sx
+    color         sc
+var array<GD> drawn = array.new<GD>()
+var string    sig   = ""
+
+eraseAll() =>
+    for d in drawn
+        for l in d.ln
+            l.delete()
+        d.lb.delete()
+        d.fl.delete()
+        for l in d.sl
+            l.delete()
+    drawn.clear()
+
+addLn(GD d, int x1, int x2, float y, color c, string st, int w) =>
+    line l = line.new(x1, y, x2, y, xloc = xloc.bar_time, color = c, style = st, width = w)
+    d.ln.push(l)
+    d.lc.push(c)
+    l
+
+// a label prints on its own, or joins the label already within `thr` of it (so labels never print over each other)
+placeLbl(label lb, float y, string tx, array<float> sY, array<label> sL, float thr) =>
+    int jm = -1
+    for [j, yy] in sY
+        if jm < 0 and math.abs(yy - y) <= thr
+            jm := j
+    if jm >= 0
+        sL.get(jm).set_text(sL.get(jm).get_text() + "\n" + tx)
+        lb.set_text("")
+    else
+        lb.set_text(tx)
+        sY.push(y)
+        sL.push(lb)
+
+if barstate.islast and nA > 0
+    int x2 = time + extN * timeframe.in_seconds() * 1000
+    int nK = math.min(keepN, nA)
+    string sg = str.tostring(gK.get(nA - 1)) + "|" + str.tostring(nK)
+    if sg != sig
+        eraseAll()
+        sig := sg
+        for r = 0 to nK - 1
+            int   i   = nA - 1 - r
+            float O   = gO.get(i)
+            float Cc  = gC.get(i)
+            float g   = math.abs(O - Cc)
+            int   K   = gK.get(i)
+            GD    d   = GD.new(key = K, ln = array.new<line>(), lc = array.new<color>(), sl = array.new<label>(), sy = array.new<float>(), sx = array.new<string>())
+            if g >= minTk * syminfo.mintick and g > 0
+                int   x1  = gT.get(i)
+                float top = math.max(O, Cc)
+                float bot = math.min(O, Cc)
+                color base = colOf(K)
+                color c   = r < 5 ? base : fade(base, r < quadN ? 30 : 50)
+                line lt  = addLn(d, x1, x2, top, c, line.style_solid, 1)
+                line lbt = addLn(d, x1, x2, bot, c, line.style_solid, 1)
+                addLn(d, x1, x2, (O + Cc) / 2, c, line.style_dashed, 1)
+                string tg = tagOf(K)
+                if r < 5 and octI
+                    for k = 1 to 7
+                        if k != 4
+                            addLn(d, x1, x2, bot + k * g / 8, fade(c, k % 2 == 0 ? 35 : 65), line.style_dotted, 1)
+                // the SD staircase: the last 5, and release days for as long as they stay on the chart
+                if r < 5 or (sdRel and tg != "")
+                    color cs = sdTie ? c : colSD
+                    d.sc := cs
+                    if sd1I
+                        addLn(d, x1, x2, top + g, cs, sdSt == "Solid" ? line.style_solid : sdSt == "Dotted" ? line.style_dotted : line.style_dashed, sdW)
+                        addLn(d, x1, x2, bot - g, cs, sdSt == "Solid" ? line.style_solid : sdSt == "Dotted" ? line.style_dotted : line.style_dashed, sdW)
+                    if sd2I
+                        addLn(d, x1, x2, top + 2 * g, cs, line.style_solid, sdW)
+                        addLn(d, x1, x2, bot - 2 * g, cs, line.style_solid, sdW)
+                    if sdDay and (sd1I or sd2I)
+                        int    kk = sd2I ? 2 : 1
+                        string dn = str.format_time(t930(K), "EEE", TZ) + (r < 5 ? "" : " " + dayTx(K)) + (tg != "" ? " " + tg : "")
+                        d.sx.push(dn + " +" + str.tostring(kk) + " SD")
+                        d.sy.push(top + kk * g)
+                        d.sx.push(dn + " −" + str.tostring(kk) + " SD")
+                        d.sy.push(bot - kk * g)
+                        for y in d.sy
+                            d.sl.push(label.new(x2, y, "", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = cs, size = tSz))
+                if r >= 5 and r < quadN
+                    addLn(d, x1, x2, bot + g / 4, fade(c, 35), line.style_dotted, 1)
+                    addLn(d, x1, x2, bot + 3 * g / 4, fade(c, 35), line.style_dotted, 1)
+                if shadeI == "All" or (shadeI == "Staircase" and r < 5)
+                    d.fl := linefill.new(lt, lbt, fade(base, r < 5 ? 88 : 94))
+                if lblMode == "All" or (lblMode == "Last 5" and r < 5)
+                    d.lb := label.new(x2, (O + Cc) / 2, "", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = txtCol, size = tSz)
+            drawn.push(d)
+    // every tick: run right, refresh status, labels and colours (a filled gap fades once). Labels whose CEs sit within
+    // a tenth of the average gap share one label, newest first, so they do not print over each other.
+    float thr = 0.1 * nz(avgPrev(20, nA), 0.0)
+    array<float> sY = array.new<float>()
+    array<label> sL = array.new<label>()
+    for d in drawn
+        int i = gK.indexof(d.key)
+        if i >= 0 and d.ln.size() > 0
+            for l in d.ln
+                l.set_x2(x2)
+            float O  = gO.get(i)
+            float Cc = gC.get(i)
+            float g  = math.abs(O - Cc)
+            [kc, kf] = statusOf(i)
+            if kf > 0 and not d.dim
+                d.dim := true
+                for [j, l] in d.ln
+                    l.set_color(fade(d.lc.get(j), 40))
+            if not na(d.lb)
+                string tg = tagOf(d.key)
+                float  aI = avgPrev(20, i)
+                string st = kf > 0 ? " · filled" : kc > 0 ? " · CE" : ""
+                string tx = "RTH " + dayTx(d.key) + (tg != "" ? " · " + tg : "") + st
+                d.lb.set_x(x2)
+                placeLbl(d.lb, (O + Cc) / 2, tx, sY, sL, thr)
+                d.lb.set_textcolor(kf > 0 ? fade(txtCol, 45) : txtCol)
+                d.lb.set_tooltip("RTH gap " + dayTx(d.key) + (tg != "" ? " · " + tg + " day" : "") + "\nprior 16:14 close " + px(Cc) + " → 09:30 open " + px(O) + "\n" + (O > Cc ? "▲ " : "▼ ") + pts(g) + " pts · " + str.tostring(100 * g / Cc, "0.00") + "%" + (na(aI) ? "" : " · " + str.tostring(g / aI, "0.0") + "× the 20-session average") + "\nCE " + px((O + Cc) / 2) + (kc > 0 ? " · reached " + whenTx(kc) : " · not reached") + "\n" + (kf > 0 ? "filled " + whenTx(kf) : "not filled") + "\n+1 SD " + px(math.max(O, Cc) + g) + " · −1 SD " + px(math.min(O, Cc) - g))
+            for [j, l] in d.sl
+                l.set_x(x2)
+                placeLbl(l, d.sy.get(j), d.sx.get(j), sY, sL, thr)
+                l.set_textcolor(kf > 0 ? fade(d.sc, 45) : d.sc)
+                l.set_tooltip(d.sx.get(j) + " · " + px(d.sy.get(j)) + "\nRTH gap " + dayTx(d.key) + ": " + pts(g) + " pts; k SD = k gap sizes beyond the gap's top (+) or bottom (−).")
+
+// ═══════════════════════════════════════════════════════════════ Card: today's gap against the average (tally style)
+// Four columns: key · gauge · value · result. Desktop shows every row; Mobile the gap, the fill bar, the CE and ±1 SD.
+var table TC = na
+mob = layI == "Mobile"
+cRow(int r, string k, string gs, color gc, string v, string w, string tip, color vc, color wbg) =>
+    color tc = na(vc) ? cTxt : vc
+    TC.cell(0, r, k, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(1, r, gs, text_color = na(gc) ? cTxt : gc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(2, r, v, text_color = tc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(3, r, w, text_color = na(wbg) ? tc : hdrTx(wbg), text_size = tSz, text_halign = text.align_right, bgcolor = na(wbg) ? cBody : wbg, text_font_family = font.family_monospace, tooltip = tip)
+
+nextBiz(int k) =>
+    int d = dayofweek(k, "UTC")
+    k + (d == dayofweek.friday ? 3 : d == dayofweek.saturday ? 2 : 1) * 86400000
+
+onTxOf(float onl, bool up) =>
+    na(onl) ? "ON range n/a" : onl >= 0.85 ? (up ? "at the ON high" : "at the ON low") : onl >= 0.5 ? (up ? "upper half of ON" : "lower half of ON") : (up ? "lower half of ON" : "upper half of ON")
+sgn0(float v) => (v >= 0 ? "+" : "−") + str.tostring(math.abs(math.round(v)))
+
+if barstate.islast and showCard and nA > 0
+    if na(TC)
+        TC := table.new(posOf(cardPos), 4, 12, border_width = 0, frame_width = 1, frame_color = color.gray)
+    TC.clear(0, 0, 3, 11)
+    int   mNow = hour(time, TZ) * 60 + minute(time, TZ)
+    bool  live = gapToday
+    // the session the card is about: today's (live), or the next one
+    int   sK   = live ? tdKey : (mNow >= 975 and mNow < 1080 ? nextBiz(tdKey) : tdKey)
+    string tg  = tagOf(sK)
+    bool  maj  = isMajor(sK)
+    color hc   = colOf(sK)
+    float avgN = avgPrev(avgNI, live ? nA - 1 : nA)
+    float a20  = avgPrev(20, live ? nA - 1 : nA)
+    int   nAv  = math.min(avgNI, live ? nA - 1 : nA)
+    string nowT = hhmm(time) + (mob ? "" : " ET")
+    string regTip = maj ? "Major release at 08:30 ET before the open. CPI and NFP gaps run 1.4–1.5× the size of normal-day gaps; for their size they behave the same, so the odds use the size." : tg != "" ? "08:30 ET release before the open. These move price at 08:30 (1.8–3.6× a normal day's 08:30–08:34 range) but their RTH gaps were not reliably bigger; the odds use the size." : "Normal day: none of the selected releases before the open."
+    TC.cell(0, 0, "BENIHIME", text_color = hdrTx(hc), bgcolor = hc, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    // header text kept within the gauge column's width so the bars stay tight
+    TC.cell(1, 0, mob ? dayTx(sK) + " " + nowT : "RTH GAP", text_color = hdrTx(hc), bgcolor = hc, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(2, 0, mob ? "" : dayTx(sK) + " · " + nowT, text_color = hdrTx(hc), bgcolor = hc, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(3, 0, tg != "" ? tg : "NORMAL", text_color = hc, bgcolor = lumOf(hc) > 165 ? #131722 : #ffffff, text_size = tSz, text_halign = text.align_center, text_font_family = font.family_monospace, tooltip = regTip)
+    string avgTip = "Average |RTH gap| of the " + str.tostring(avgNI) + " sessions before today (every day counts, Mondays included). The size and the odds use the 20-session average they were measured with." + (nAv < avgNI ? " Only " + str.tostring(nAv) + " are loaded on this chart: scroll left, or use an RTH chart or a 3 / 5 / 15-minute chart." : "")
+    string avgTx  = (nAv < avgNI ? str.tostring(nAv) + " of " : "") + str.tostring(avgNI) + " sessions · " + (na(avgN) ? "—" : pts(avgN) + " pts")
+    string sizeTip = "Size against the average of the previous 20 sessions (the bar runs to 2.5×): small < 0.5×, below avg 0.5–1×, above avg 1–1.5×, large 1.5–2.5×, very large 2.5×+ (33 / 26 / 17 / 15 / 8% of gaps)."
+    int r = 1
+    if live
+        float O  = gO.get(nA - 1)
+        float Cc = gC.get(nA - 1)
+        float g  = math.abs(O - Cc)
+        if g == 0
+            cRow(r, "GAP", "", na, "none · the open = the prior close", "", "The 09:30 open printed at the prior 16:14 close.", na, na)
+            r += 1
+        else
+            bool  up   = O > Cc
+            float top  = math.max(O, Cc)
+            float bot  = math.min(O, Cc)
+            float ce   = (O + Cc) / 2
+            float rr   = na(a20) or a20 <= 0 ? na : g / a20
+            int   b    = na(rr) ? 1 : bkOf(rr)
+            float lr   = na(rr) ? 0.0 : math.log(rr)
+            float onl  = na(tOnl) ? onlOf(O, Cc, onH, onL) : tOnl
+            float mins = (math.min(timenow, time_close) - t930(tdKey)) / 60000.0
+            float dist = up ? (close - Cc) / g : (Cc - close) / g
+            float retr = na(exT) ? 0.0 : up ? (O - exT) / g : (exT - O) / g
+            bool  fld  = not na(flT)
+            bool  ceh  = not na(ceT)
+            float pF   = fld ? na : pFill(mins, lr, dist, retr, onl)
+            float pC   = ceh ? na : pCE(mins, lr, dist, onl)
+            float pF0  = pFill(0, lr, 1, 0, onl)
+            float onE  = pF0 - pFill(0, lr, 1, 0, ONL_AVG)
+            float fMin = fld ? (flT - t930(tdKey)) / 60000.0 : na
+            int   ovT  = up ? s1T : u1T      // 1 SD beyond the prior close
+            int   cnT  = up ? u1T : s1T      // 1 SD beyond the open
+            float pOv  = fld ? pAfter(lr, fMin, onl) : SO1.get(b)
+            float pCn  = SC1.get(b)
+            float prog = fld ? 1.0 : clamp(retr, 0, 1)
+            color bc   = barCI == "Progress" ? (fld ? colBU : colBD) : (up ? colBU : colBD)
+            string arr = up ? "▲ " : "▼ "
+            string gapTip = "Prior 16:14 close " + px(Cc) + " → 09:30 open " + px(O) + ". " + sizeTip
+            string onTip  = na(onl) ? "The overnight range (18:00–09:29 ET) is not available on this chart, so the odds use an average open location." : "Where the 09:30 open sat in the overnight range " + px(onL) + " – " + px(onH) + " (18:00–09:29 ET): " + str.tostring(math.round(100 * onl)) + "% of the way toward its " + (up ? "high" : "low") + ", the gap's side (the bar). NQ + ES + RTY 2018–26, for the same size: an open at the overnight extreme in the gap's direction fills less often, and one back inside the range more often (held in 2018–24 and 2025–26 and on each symbol). For this gap the fill odds from the open are " + pc0(pF0) + ", " + sgn0(onE) + " points against an average open location."
+            string flTip  = "The bar fills as price trades back from the 09:30 open (" + px(O) + ") toward the prior close (" + px(Cc) + "); the mark in the middle is the CE. So far " + str.tostring(math.round(100 * prog)) + "% of the gap." + (fld ? " Filled at " + hhmm(flT) + "." : " Odds of a fill by 16:14 now: " + pc0(pF) + ". They follow the gap's size (" + (na(rr) ? "—" : str.tostring(rr, "0.0") + "×") + "), the time, how far price is from the prior close now (" + str.tostring(dist, "0.00") + " gap sizes), how far it has come back so far, and where the open sat in the overnight range. NQ + ES + RTY 2018–26, fitted on 2018–24 and checked on 2025–26. If not filled by 16:14, a gap this size filled by the 5th next open " + str.tostring(A5F.get(b), "0") + "% of the time.")
+            string ceTip  = "CE (consequent encroachment) = the gap's midpoint, " + px(ce) + "." + (ceh ? " Reached at " + hhmm(ceT) + "." : " Odds of reaching it by 16:14 now: " + pc0(pC) + ", from the gap's size, the time, how far price is from the CE now and where the open sat in the overnight range.")
+            string sdTip  = "+1 SD = one gap size above the top (" + px(top + g) + "), −1 SD = one below the bottom (" + px(bot - g) + "). Beyond the open, by 16:14 from the open, for a gap this size: " + str.tostring(pCn, "0") + "%. Beyond the prior close: " + (fld ? "once filled, " + pc0(pOv) + " by 16:14 (an early fill goes further more often; from the size, the minutes to the fill and the open's place in the overnight range)" : str.tostring(SO1.get(b), "0") + "% from the open") + "."
+            string upTx = na(u1T) ? pc0(up ? pCn : pOv) : "✓ " + hhmm(u1T)
+            string dnTx = na(s1T) ? pc0(up ? pOv : pCn) : "✓ " + hhmm(s1T)
+            if mob
+                cRow(r, "GAP", gauge(rr / 2.5, 5), hc, "", arr + pts(g) + " · " + (na(rr) ? "—" : str.tostring(rr, "0.0") + "×"), gapTip, na, na)
+                r += 1
+                cRow(r, "FILL", fillBar(prog), bc, "", fld ? "✓ " + hhmm(flT) : pc0(pF), flTip, na, fld ? colBU : na)
+                r += 1
+                cRow(r, "CE", "", na, "", ceh ? "✓ " + hhmm(ceT) : pc0(pC), ceTip, na, ceh ? colBU : na)
+                r += 1
+                cRow(r, "±1 SD", "", na, "", "▲ " + upTx + " ▼ " + dnTx, sdTip, na, na)
+                r += 1
+            else
+                cRow(r, "GAP", gauge(rr / 2.5, 10), hc, arr + pts(g) + " pts · " + str.tostring(100 * g / Cc, "0.00") + "%", na(rr) ? "" : str.tostring(rr, "0.0") + "× · " + bkNm(b), gapTip, na, na)
+                r += 1
+                cRow(r, "OPEN", gauge(onl, 10), cSub, onTxOf(onl, up), na(onl) ? "" : "fill " + sgn0(onE), onTip, na, na)
+                r += 1
+                cRow(r, "FILL", fillBar(prog), bc, (fld ? "filled" : str.tostring(math.round(100 * prog)) + "% back") + " · " + px(Cc), fld ? "✓ " + hhmm(flT) : pc0(pF) + " by 16:14", flTip, na, fld ? colBU : na)
+                r += 1
+                cRow(r, "CE", "", na, px(ce), ceh ? "✓ " + hhmm(ceT) : pc0(pC) + " by 16:14", ceTip, na, ceh ? colBU : na)
+                r += 1
+                cRow(r, "±1 SD", "", na, "▲ " + upTx + " · ▼ " + dnTx, fld and na(ovT) ? "after fill" : "by 16:14", sdTip, na, na)
+                r += 1
+                cRow(r, "5 SESS", "", na, "fill " + str.tostring(W5F.get(b), "0") + "% · CE " + str.tostring(W5C.get(b), "0") + "%", "staircase", "While this gap is one of the last 5 (to the 5th next open), from the open, for a gap this size. All gaps: fill 84%, CE 91%; within 20 sessions 92% and 96%.", na, na)
+                r += 1
+    if not live
+        float g0  = na(rthCl) ? na : close - rthCl
+        float rr  = na(g0) or na(a20) or a20 <= 0 ? na : math.abs(g0) / a20
+        float lr0 = na(rr) or rr <= 0 ? 0.0 : math.log(rr)
+        // pre-market: where price sits in the overnight range so far (none between the close and 18:15)
+        bool  onOK = not (mNow >= 975 and mNow < 1095)
+        float onlN = na(g0) or not onOK ? na : onlOf(close, rthCl, math.max(nz(onH, close), close), math.min(nz(onL, close), close))
+        float pIf  = pFill(0, lr0, 1, 0, onlN)
+        string ifTip = "If the session opened at this price: the gap, its size against the 20-session average (the bar runs to 2.5×), " + (na(onlN) ? "" : "where it would sit in the overnight range so far (" + str.tostring(math.round(100 * nz(onlN))) + "% of the way toward the gap's side), ") + "and the odds of a fill by 16:14 from the open."
+        if mob
+            cRow(r, "CLOSE", "", na, "", "16:14 " + (na(rthCl) ? "—" : px(rthCl)), "The last RTH close: the gap is measured from it to the next 09:30 open.", na, na)
+            r += 1
+            cRow(r, "IF NOW", gauge(rr / 2.5, 5), hc, "", na(g0) ? "—" : (g0 >= 0 ? "▲ " : "▼ ") + pts(math.abs(g0)) + " · fill " + pc0(pIf), ifTip, na, na)
+            r += 1
+            cRow(r, "NEXT", "", na, "", tg != "" ? tg + " 08:30" : "normal", regTip, tg != "" ? hc : na, na)
+            r += 1
+        else
+            cRow(r, "CLOSE", "", na, "16:14 " + (na(rthCl) ? "—" : px(rthCl)), "", "The last RTH close: the gap is measured from it to the next 09:30 open.", na, na)
+            r += 1
+            cRow(r, "IF NOW", gauge(rr / 2.5, 10), hc, na(g0) ? "—" : (g0 >= 0 ? "▲ " : "▼ ") + pts(math.abs(g0)) + " pts" + (na(onlN) ? "" : " · ON " + str.tostring(math.round(100 * onlN)) + "%"), na(rr) ? "" : str.tostring(rr, "0.0") + "× · fill " + pc0(pIf), ifTip, na, na)
+            r += 1
+            cRow(r, "AVG", "", na, avgTx, na(avgN) or na(rthCl) ? "" : str.tostring(100 * avgN / rthCl, "0.00") + "%", avgTip, na, na)
+            r += 1
+            cRow(r, "NEXT", "", na, tg != "" ? tg + " 08:30" + (maj ? " · major" : "") : "normal session", "", "The coming session's releases (CPI, NFP and PPI loaded to " + str.tostring(LAST_DATE) + "; GDP, PCE and retail sales to " + str.tostring(LAST_DATE2) + "). " + regTip, tg != "" ? hc : na, na)
+            r += 1
+            // the latest gap's result
+            int   i  = nA - 1
+            float g1 = math.abs(gO.get(i) - gC.get(i))
+            if g1 > 0
+                [kc, kf] = statusOf(i)
+                float r1 = avgPrev(20, i)
+                int   b1 = na(r1) or r1 <= 0 ? 1 : bkOf(g1 / r1)
+                cRow(r, "LAST", kf > 0 ? gauge(1.0, 10) : kc > 0 ? gauge(0.5, 10) : gauge(0.0, 10), kf > 0 ? colBU : colBD, dayTx(gK.get(i)) + (kf > 0 ? " · filled" : kc > 0 ? " · CE only" : " · open"), kf > 0 ? "" : "5 sess " + str.tostring(A5F.get(b1), "0") + "%", "The latest gap. Not filled by its 16:14 close: filled by the 5th next open " + str.tostring(A5F.get(b1), "0") + "% of the time for its size.", na, na)
+                r += 1
+    if live and not mob
+        cRow(r, "AVG", "", na, avgTx, na(avgN) ? "" : str.tostring(100 * avgN / gC.get(nA - 1), "0.00") + "%", avgTip, na, na)
+        r += 1
+    if not mob
+        // nearest unfilled gap above and below price
+        float ab = na
+        float be = na
+        int   kA = na
+        int   kB = na
+        int nK = math.min(keepN, nA)
+        for q = 0 to nK - 1
+            int i = nA - 1 - q
+            float g = math.abs(gO.get(i) - gC.get(i))
+            if g > 0
+                [kc, kf] = statusOf(i)
+                if kf == 0
+                    float ce = (gO.get(i) + gC.get(i)) / 2
+                    if ce > close and (na(ab) or ce < ab)
+                        ab := ce
+                        kA := gK.get(i)
+                    if ce < close and (na(be) or ce > be)
+                        be := ce
+                        kB := gK.get(i)
+        cRow(r, "ABOVE", "", na, na(ab) ? "no open gap" : "CE " + px(ab), na(kA) ? "" : dayTx(kA), "The nearest gap above price that has not filled yet, among the last " + str.tostring(keepN) + ": its CE and date.", na, na)
+        r += 1
+        cRow(r, "BELOW", "", na, na(be) ? "no open gap" : "CE " + px(be), na(kB) ? "" : dayTx(kB), "The nearest gap below price that has not filled yet, among the last " + str.tostring(keepN) + ": its CE and date.", na, na)
+        r += 1
+    if timeframe.in_seconds() > 900
+        cRow(r, "CHECK", "", na, "use 15 minutes or less", "", "The gaps are read from 15-minute bars; above 15 minutes the chart cannot show the 16:14 close and the 09:30 open as bars.", color.red, na)
+    TC.set_frame_color(fade(hc, 30))
