@@ -1,0 +1,170 @@
+// ═══════════════════════════════════════════════════════════════ Card: today's gap against the average (tally style)
+// Four columns: key · gauge · value · result. Desktop shows every row; Mobile the gap, the fill bar, the CE and ±1 SD.
+var table TC = na
+mob = layI == "Mobile"
+cRow(int r, string k, string gs, color gc, string v, string w, string tip, color vc, color wbg) =>
+    color tc = na(vc) ? cTxt : vc
+    TC.cell(0, r, k, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(1, r, gs, text_color = na(gc) ? cTxt : gc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(2, r, v, text_color = tc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(3, r, w, text_color = na(wbg) ? tc : hdrTx(wbg), text_size = tSz, text_halign = text.align_right, bgcolor = na(wbg) ? cBody : wbg, text_font_family = font.family_monospace, tooltip = tip)
+
+nextBiz(int k) =>
+    int d = dayofweek(k, "UTC")
+    k + (d == dayofweek.friday ? 3 : d == dayofweek.saturday ? 2 : 1) * 86400000
+
+onTxOf(float onl, bool up) =>
+    na(onl) ? "ON range n/a" : onl >= 0.85 ? (up ? "at the ON high" : "at the ON low") : onl >= 0.5 ? (up ? "upper half of ON" : "lower half of ON") : (up ? "lower half of ON" : "upper half of ON")
+sgn0(float v) => (v >= 0 ? "+" : "−") + str.tostring(math.abs(math.round(v)))
+
+if barstate.islast and showCard and nA > 0
+    if na(TC)
+        TC := table.new(posOf(cardPos), 4, 12, border_width = 0, frame_width = 1, frame_color = color.gray)
+    TC.clear(0, 0, 3, 11)
+    int   mNow = hour(time, TZ) * 60 + minute(time, TZ)
+    bool  live = gapToday
+    // the session the card is about: today's (live), or the next one
+    int   sK   = live ? tdKey : (mNow >= 975 and mNow < 1080 ? nextBiz(tdKey) : tdKey)
+    string tg  = tagOf(sK)
+    bool  maj  = isMajor(sK)
+    color hc   = colOf(sK)
+    float avgN = avgPrev(avgNI, live ? nA - 1 : nA)
+    float a20  = avgPrev(20, live ? nA - 1 : nA)
+    int   nAv  = math.min(avgNI, live ? nA - 1 : nA)
+    string nowT = hhmm(time) + (mob ? "" : " ET")
+    string regTip = maj ? "Major release at 08:30 ET before the open. CPI and NFP gaps run 1.4–1.5× the size of normal-day gaps; for their size they behave the same, so the odds use the size." : tg != "" ? "08:30 ET release before the open. These move price at 08:30 (1.8–3.6× a normal day's 08:30–08:34 range) but their RTH gaps were not reliably bigger; the odds use the size." : "Normal day: none of the selected releases before the open."
+    TC.cell(0, 0, "BENIHIME", text_color = hdrTx(hc), bgcolor = hc, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    // header text kept within the gauge column's width so the bars stay tight
+    TC.cell(1, 0, mob ? dayTx(sK) + " " + nowT : "RTH GAP", text_color = hdrTx(hc), bgcolor = hc, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(2, 0, mob ? "" : dayTx(sK) + " · " + nowT, text_color = hdrTx(hc), bgcolor = hc, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(3, 0, tg != "" ? tg : "NORMAL", text_color = hc, bgcolor = lumOf(hc) > 165 ? #131722 : #ffffff, text_size = tSz, text_halign = text.align_center, text_font_family = font.family_monospace, tooltip = regTip)
+    string avgTip = "Average |RTH gap| of the " + str.tostring(avgNI) + " sessions before today (every day counts, Mondays included). The size and the odds use the 20-session average they were measured with." + (nAv < avgNI ? " Only " + str.tostring(nAv) + " are loaded on this chart: scroll left, or use an RTH chart or a 3 / 5 / 15-minute chart." : "")
+    string avgTx  = (nAv < avgNI ? str.tostring(nAv) + " of " : "") + str.tostring(avgNI) + " sessions · " + (na(avgN) ? "—" : pts(avgN) + " pts")
+    string sizeTip = "Size against the average of the previous 20 sessions (the bar runs to 2.5×): small < 0.5×, below avg 0.5–1×, above avg 1–1.5×, large 1.5–2.5×, very large 2.5×+ (33 / 26 / 17 / 15 / 8% of gaps)."
+    int r = 1
+    if live
+        float O  = gO.get(nA - 1)
+        float Cc = gC.get(nA - 1)
+        float g  = math.abs(O - Cc)
+        if g == 0
+            cRow(r, "GAP", "", na, "none · the open = the prior close", "", "The 09:30 open printed at the prior 16:14 close.", na, na)
+            r += 1
+        else
+            bool  up   = O > Cc
+            float top  = math.max(O, Cc)
+            float bot  = math.min(O, Cc)
+            float ce   = (O + Cc) / 2
+            float rr   = na(a20) or a20 <= 0 ? na : g / a20
+            int   b    = na(rr) ? 1 : bkOf(rr)
+            float lr   = na(rr) ? 0.0 : math.log(rr)
+            float onl  = na(tOnl) ? onlOf(O, Cc, onH, onL) : tOnl
+            float mins = (math.min(timenow, time_close) - t930(tdKey)) / 60000.0
+            float dist = up ? (close - Cc) / g : (Cc - close) / g
+            float retr = na(exT) ? 0.0 : up ? (O - exT) / g : (exT - O) / g
+            bool  fld  = not na(flT)
+            bool  ceh  = not na(ceT)
+            float pF   = fld ? na : pFill(mins, lr, dist, retr, onl)
+            float pC   = ceh ? na : pCE(mins, lr, dist, onl)
+            float pF0  = pFill(0, lr, 1, 0, onl)
+            float onE  = pF0 - pFill(0, lr, 1, 0, ONL_AVG)
+            float fMin = fld ? (flT - t930(tdKey)) / 60000.0 : na
+            int   ovT  = up ? s1T : u1T      // 1 SD beyond the prior close
+            int   cnT  = up ? u1T : s1T      // 1 SD beyond the open
+            float pOv  = fld ? pAfter(lr, fMin, onl) : SO1.get(b)
+            float pCn  = SC1.get(b)
+            float prog = fld ? 1.0 : clamp(retr, 0, 1)
+            color bc   = barCI == "Progress" ? (fld ? colBU : colBD) : (up ? colBU : colBD)
+            string arr = up ? "▲ " : "▼ "
+            string gapTip = "Prior 16:14 close " + px(Cc) + " → 09:30 open " + px(O) + ". " + sizeTip
+            string onTip  = na(onl) ? "The overnight range (18:00–09:29 ET) is not available on this chart, so the odds use an average open location." : "Where the 09:30 open sat in the overnight range " + px(onL) + " – " + px(onH) + " (18:00–09:29 ET): " + str.tostring(math.round(100 * onl)) + "% of the way toward its " + (up ? "high" : "low") + ", the gap's side (the bar). NQ + ES + RTY 2018–26, for the same size: an open at the overnight extreme in the gap's direction fills less often, and one back inside the range more often (held in 2018–24 and 2025–26 and on each symbol). For this gap the fill odds from the open are " + pc0(pF0) + ", " + sgn0(onE) + " points against an average open location."
+            string flTip  = "The bar fills as price trades back from the 09:30 open (" + px(O) + ") toward the prior close (" + px(Cc) + "); the mark in the middle is the CE. So far " + str.tostring(math.round(100 * prog)) + "% of the gap." + (fld ? " Filled at " + hhmm(flT) + "." : " Odds of a fill by 16:14 now: " + pc0(pF) + ". They follow the gap's size (" + (na(rr) ? "—" : str.tostring(rr, "0.0") + "×") + "), the time, how far price is from the prior close now (" + str.tostring(dist, "0.00") + " gap sizes), how far it has come back so far, and where the open sat in the overnight range. NQ + ES + RTY 2018–26, fitted on 2018–24 and checked on 2025–26. If not filled by 16:14, a gap this size filled by the 5th next open " + str.tostring(A5F.get(b), "0") + "% of the time.")
+            string ceTip  = "CE (consequent encroachment) = the gap's midpoint, " + px(ce) + "." + (ceh ? " Reached at " + hhmm(ceT) + "." : " Odds of reaching it by 16:14 now: " + pc0(pC) + ", from the gap's size, the time, how far price is from the CE now and where the open sat in the overnight range.")
+            string sdTip  = "+1 SD = one gap size above the top (" + px(top + g) + "), −1 SD = one below the bottom (" + px(bot - g) + "). Beyond the open, by 16:14 from the open, for a gap this size: " + str.tostring(pCn, "0") + "%. Beyond the prior close: " + (fld ? "once filled, " + pc0(pOv) + " by 16:14 (an early fill goes further more often; from the size, the minutes to the fill and the open's place in the overnight range)" : str.tostring(SO1.get(b), "0") + "% from the open") + "."
+            string upTx = na(u1T) ? pc0(up ? pCn : pOv) : "✓ " + hhmm(u1T)
+            string dnTx = na(s1T) ? pc0(up ? pOv : pCn) : "✓ " + hhmm(s1T)
+            if mob
+                cRow(r, "GAP", gauge(rr / 2.5, 5), hc, "", arr + pts(g) + " · " + (na(rr) ? "—" : str.tostring(rr, "0.0") + "×"), gapTip, na, na)
+                r += 1
+                cRow(r, "FILL", fillBar(prog), bc, "", fld ? "✓ " + hhmm(flT) : pc0(pF), flTip, na, fld ? colBU : na)
+                r += 1
+                cRow(r, "CE", "", na, "", ceh ? "✓ " + hhmm(ceT) : pc0(pC), ceTip, na, ceh ? colBU : na)
+                r += 1
+                cRow(r, "±1 SD", "", na, "", "▲ " + upTx + " ▼ " + dnTx, sdTip, na, na)
+                r += 1
+            else
+                cRow(r, "GAP", gauge(rr / 2.5, 10), hc, arr + pts(g) + " pts · " + str.tostring(100 * g / Cc, "0.00") + "%", na(rr) ? "" : str.tostring(rr, "0.0") + "× · " + bkNm(b), gapTip, na, na)
+                r += 1
+                cRow(r, "OPEN", gauge(onl, 10), cSub, onTxOf(onl, up), na(onl) ? "" : "fill " + sgn0(onE), onTip, na, na)
+                r += 1
+                cRow(r, "FILL", fillBar(prog), bc, (fld ? "filled" : str.tostring(math.round(100 * prog)) + "% back") + " · " + px(Cc), fld ? "✓ " + hhmm(flT) : pc0(pF) + " by 16:14", flTip, na, fld ? colBU : na)
+                r += 1
+                cRow(r, "CE", "", na, px(ce), ceh ? "✓ " + hhmm(ceT) : pc0(pC) + " by 16:14", ceTip, na, ceh ? colBU : na)
+                r += 1
+                cRow(r, "±1 SD", "", na, "▲ " + upTx + " · ▼ " + dnTx, fld and na(ovT) ? "after fill" : "by 16:14", sdTip, na, na)
+                r += 1
+                cRow(r, "5 SESS", "", na, "fill " + str.tostring(W5F.get(b), "0") + "% · CE " + str.tostring(W5C.get(b), "0") + "%", "staircase", "While this gap is one of the last 5 (to the 5th next open), from the open, for a gap this size. All gaps: fill 84%, CE 91%; within 20 sessions 92% and 96%.", na, na)
+                r += 1
+    if not live
+        float g0  = na(rthCl) ? na : close - rthCl
+        float rr  = na(g0) or na(a20) or a20 <= 0 ? na : math.abs(g0) / a20
+        float lr0 = na(rr) or rr <= 0 ? 0.0 : math.log(rr)
+        // pre-market: where price sits in the overnight range so far (none between the close and 18:15)
+        bool  onOK = not (mNow >= 975 and mNow < 1095)
+        float onlN = na(g0) or not onOK ? na : onlOf(close, rthCl, math.max(nz(onH, close), close), math.min(nz(onL, close), close))
+        float pIf  = pFill(0, lr0, 1, 0, onlN)
+        string ifTip = "If the session opened at this price: the gap, its size against the 20-session average (the bar runs to 2.5×), " + (na(onlN) ? "" : "where it would sit in the overnight range so far (" + str.tostring(math.round(100 * nz(onlN))) + "% of the way toward the gap's side), ") + "and the odds of a fill by 16:14 from the open."
+        if mob
+            cRow(r, "CLOSE", "", na, "", "16:14 " + (na(rthCl) ? "—" : px(rthCl)), "The last RTH close: the gap is measured from it to the next 09:30 open.", na, na)
+            r += 1
+            cRow(r, "IF NOW", gauge(rr / 2.5, 5), hc, "", na(g0) ? "—" : (g0 >= 0 ? "▲ " : "▼ ") + pts(math.abs(g0)) + " · fill " + pc0(pIf), ifTip, na, na)
+            r += 1
+            cRow(r, "NEXT", "", na, "", tg != "" ? tg + " 08:30" : "normal", regTip, tg != "" ? hc : na, na)
+            r += 1
+        else
+            cRow(r, "CLOSE", "", na, "16:14 " + (na(rthCl) ? "—" : px(rthCl)), "", "The last RTH close: the gap is measured from it to the next 09:30 open.", na, na)
+            r += 1
+            cRow(r, "IF NOW", gauge(rr / 2.5, 10), hc, na(g0) ? "—" : (g0 >= 0 ? "▲ " : "▼ ") + pts(math.abs(g0)) + " pts" + (na(onlN) ? "" : " · ON " + str.tostring(math.round(100 * onlN)) + "%"), na(rr) ? "" : str.tostring(rr, "0.0") + "× · fill " + pc0(pIf), ifTip, na, na)
+            r += 1
+            cRow(r, "AVG", "", na, avgTx, na(avgN) or na(rthCl) ? "" : str.tostring(100 * avgN / rthCl, "0.00") + "%", avgTip, na, na)
+            r += 1
+            cRow(r, "NEXT", "", na, tg != "" ? tg + " 08:30" + (maj ? " · major" : "") : "normal session", "", "The coming session's releases (CPI, NFP and PPI loaded to " + str.tostring(LAST_DATE) + "; GDP, PCE and retail sales to " + str.tostring(LAST_DATE2) + "). " + regTip, tg != "" ? hc : na, na)
+            r += 1
+            // the latest gap's result
+            int   i  = nA - 1
+            float g1 = math.abs(gO.get(i) - gC.get(i))
+            if g1 > 0
+                [kc, kf] = statusOf(i)
+                float r1 = avgPrev(20, i)
+                int   b1 = na(r1) or r1 <= 0 ? 1 : bkOf(g1 / r1)
+                cRow(r, "LAST", kf > 0 ? gauge(1.0, 10) : kc > 0 ? gauge(0.5, 10) : gauge(0.0, 10), kf > 0 ? colBU : colBD, dayTx(gK.get(i)) + (kf > 0 ? " · filled" : kc > 0 ? " · CE only" : " · open"), kf > 0 ? "" : "5 sess " + str.tostring(A5F.get(b1), "0") + "%", "The latest gap. Not filled by its 16:14 close: filled by the 5th next open " + str.tostring(A5F.get(b1), "0") + "% of the time for its size.", na, na)
+                r += 1
+    if live and not mob
+        cRow(r, "AVG", "", na, avgTx, na(avgN) ? "" : str.tostring(100 * avgN / gC.get(nA - 1), "0.00") + "%", avgTip, na, na)
+        r += 1
+    if not mob
+        // nearest unfilled gap above and below price
+        float ab = na
+        float be = na
+        int   kA = na
+        int   kB = na
+        int nK = math.min(keepN, nA)
+        for q = 0 to nK - 1
+            int i = nA - 1 - q
+            float g = math.abs(gO.get(i) - gC.get(i))
+            if g > 0
+                [kc, kf] = statusOf(i)
+                if kf == 0
+                    float ce = (gO.get(i) + gC.get(i)) / 2
+                    if ce > close and (na(ab) or ce < ab)
+                        ab := ce
+                        kA := gK.get(i)
+                    if ce < close and (na(be) or ce > be)
+                        be := ce
+                        kB := gK.get(i)
+        cRow(r, "ABOVE", "", na, na(ab) ? "no open gap" : "CE " + px(ab), na(kA) ? "" : dayTx(kA), "The nearest gap above price that has not filled yet, among the last " + str.tostring(keepN) + ": its CE and date.", na, na)
+        r += 1
+        cRow(r, "BELOW", "", na, na(be) ? "no open gap" : "CE " + px(be), na(kB) ? "" : dayTx(kB), "The nearest gap below price that has not filled yet, among the last " + str.tostring(keepN) + ": its CE and date.", na, na)
+        r += 1
+    if timeframe.in_seconds() > 900
+        cRow(r, "CHECK", "", na, "use 15 minutes or less", "", "The gaps are read from 15-minute bars; above 15 minutes the chart cannot show the 16:14 close and the 09:30 open as bars.", color.red, na)
+    TC.set_frame_color(fade(hc, 30))
