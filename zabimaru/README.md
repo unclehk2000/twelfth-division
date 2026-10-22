@@ -1,0 +1,170 @@
+# Zabimaru
+
+**NY opening range (09:30–10:00) as a live dealing range, with an octant grid, a NQ / ES / RTY triplet card and the session opens**
+
+TradingView indicator, Pine Script v6. Open source under the Mozilla Public License 2.0. *Not yet published on TradingView.*
+
+Files: `Zabimaru.pine` (the script), `TradingView_description.txt` (publication text), `research/` (the tests behind the odds; no market data included).
+
+![Zabimaru, desktop](images/Zabimaru_Desktop_1m.png)
+
+![Zabimaru, mobile](images/Zabimaru_Mobile.png)
+
+*Mock-ups from 1-minute data; TradingView rendering will differ.*
+
+**Zabimaru** draws the New York opening range (09:30–10:00 ET) as the morning's dealing range, live as it forms.
+- While it forms, an **octant grid** (quarters emphasised) follows price as the range delivers.
+- Once set, the OR's high, low, grid and extensions run right in price.
+- The **session opens** (18:00, midnight and a custom time) are built in: the Hihiō section.
+- A card reads the OR against ATR10 and whether volatility is rising or falling.
+- It gives the odds of each side and of a 1× extension, and sets NQ, ES and RTY side by side (the triplet).
+- The odds come from about **6,400 opening ranges** on NQ, ES and RTY (2018–26).
+
+*A map of the morning's range and how ranges like it usually behave. It does not call direction.*
+
+## What it draws on price
+
+- **The opening range** (09:30–10:00) as a shaded box that grows while it forms.
+- **A size marker** left of the box: points, % of the open, and × ATR10.
+- **The octant grid**, from 09:30:
+  - the OR high and low, EQ (50%), quarters (25 / 75%) and eighths;
+  - **it follows price while the range forms:** every level is re-drawn at its share of the high–low so far, so the whole grid moves as price delivers;
+  - the quarters are emphasised by default, and every tier has its own colour, width and style;
+  - at 10:00 it runs on with the OR lines, or stops at 10:00 if set to *While forming*. The high and low always run on.
+- The OR lines run to 11:00, 12:00, 16:00 or 16:59.
+- **Extensions** in OR sizes beyond the high and the low: ±0.5× (dotted), ±1× (dashed) and ±2× (solid).
+- **The first break** after 10:00, labelled at its candle (e.g. *▲ 10:05 · ES ✓ · RTY ✓*). Each sister gets ✓ if it broke the same side within 5 minutes, or ✗ if it did not.
+- The last N sessions stay on the chart (default 3).
+
+## Session opens (Hihiō)
+
+- The **18:00 open** (the trading day's open), the **midnight open** (00:00 ET, ICT's true day open), and an optional **custom open** (08:30 by default).
+- Each starts at its time and runs:
+  - to 16:59 of the session it belongs to (the 18:00 open belongs to the next day's session);
+  - across N sessions;
+  - or with price.
+- Each fades once RTH trades through it, and its tooltip gives the time.
+- They are read from 15-minute bars of the extended session, so the prices are the same on ETH and RTH charts.
+- **Tested:** RTH traded back to the midnight open on 68% of days, against 66% for a level the same distance on the other side of the 09:30 open. For the 18:00 open it was 64% against 61%. Neither difference held in both periods on its own. *Reference lines, not magnets.*
+
+## Card
+
+Four columns: the row, a bar, the value, the result. A row that has happened turns into a green **✓** cell with the time.
+- **OR:** points and %, and × ATR10 with its percentile against the symbol's own ORs (the bar). While it forms, it shows the range so far.
+- **ATR10:** the mean daily true range of the last 10 sessions, in points and %. The bar shows ATR5 against ATR10. *▲ rising* when the last 5 sessions run above ATR10, *▼ falling* when below.
+- **FIRST:** from 10:00, the odds that the high or the low breaks first. Once one breaks, the side and the time.
+- **HIGH** and **LOW:** the odds that each trades by 16:14, from 10:00. Once one side breaks, the other row shows the odds of *both* sides being taken.
+- **1× EXT:** one OR size beyond the broken side, and the odds of reaching it by 16:14 from the break.
+- **TRIPLET:** NQ, ES and RTY side by side: OR %, × ATR10, its percentile (bar), and each one's breaks. The chart's own symbol is marked ›.
+- **SISTERS:** whether the other two broke the same side within 5 minutes of the chart's break.
+- **OPENS:** the latest 18:00 and midnight opens, and ✓ once RTH has traded through each.
+- **ORG:** the opening range gap (the prior RTH close to the 09:30 open), and whether its CE or fill traded. Benihime maps every RTH gap in full.
+- The header pill: *PRE, BUILDING, SET, ▲ BREAK, ▼ BREAK, BOTH*.
+
+**Mobile** shows one narrow card: OR, FIRST, HI/LO, the triplet in one line, and VOL. Every row keeps its full explanation in the tooltip.
+
+## Alerts
+
+Create one alert with *Any alert() function call*. Each fires once, on the bar it happens, with the numbers in the message:
+- the OR set at 10:00 (range, × ATR10, percentile, first-break odds);
+- the first break (time, the 1× level and its odds, the odds of the other side);
+- 1× extension reached;
+- the other side taken.
+
+## What the tests showed (NQ, ES and RTY 1-minute, 2018–26)
+
+Each result below held pooled (p < 0.05, errors clustered by date), in 2018–24 and in 2025–26, and on each of NQ, ES and RTY.
+
+**The OR against ATR10 does most of the work.**
+- A typical OR is 0.32× ATR10 on NQ, 0.27× on ES and 0.37× on RTY, steady in every year since 2018.
+- As % of the open (medians): NQ 0.60%, ES 0.37%, RTY 0.74%.
+- By OR size against ATR10 (quartiles: under 0.25×, 0.25–0.32×, 0.32–0.43×, over 0.43×):
+  - 1× reached beyond the first broken side: 57%, 47%, 41%, 29%;
+  - both sides taken: 54%, 44%, 35%, 26%.
+
+**Volatility rising or falling** (ATR5 against ATR10):
+- When rising, the OR is larger against ATR10, the RTH range is larger, and 1× extensions and two-sided days come more often.
+- *ATR10 against its level 5 days earlier showed no such effect, so it is not used.*
+
+**The first break**
+- Where the 10:00 close sits in the OR decides which side usually breaks first. From the top quarter the high went first 90% of the time; from the bottom quarter, 12%.
+- *It is not a direction call:* the close ended beyond the first broken side 51% of the time.
+- A later break goes less far, and the other side is taken less often.
+
+**The triplet (sister edge)**
+- When the sisters broke the same side within 5 minutes, the chart's 1× extension came about 3 points more often per sister. The close ended beyond the broken side about 2 points more often.
+- *Small, but it held.* A lone break did not fail more often.
+- An OR that is large against its sisters' (by percentile) extended slightly less.
+
+**What did not help**
+- the sisters' place in their own ORs at 10:00 (for which side breaks first);
+- the 10:00 location as a call for the rest of the day (it did not hold in 2025–26 on its own).
+
+The live odds are logistic models. Fitted on 2018–24 and scored on 2025–26, they beat the base rates by 5–40% (Brier). The biggest gain is for which side breaks first.
+
+## Settings
+
+**View** sits at the top, the same as in my other indicators:
+- card theme;
+- text size;
+- chart text colour;
+- card on/off and position;
+- layout: Desktop or Mobile;
+- sessions on the chart.
+
+**Opening range:** colour, shading and its colour, how far the lines run, size marker, break labels.
+
+**Octant grid:** show it forming and after 10:00, only while forming, or off; labels (edges, quarters and EQ; all; off). Each tier has its own colour, width (1–4) and style:
+- high / low;
+- EQ;
+- quarters;
+- eighths.
+
+**Extensions:** 0.5×, 1× and 2×, each on or off with its own colour, width and style.
+
+**Session opens (Hihiō):**
+- 18:00, 00:00 and custom (02:00 to 13:30), each with its own colour, width and style;
+- how far each line runs (trading day, sessions, with price);
+- how many to keep;
+- labels (time, time and price, off);
+- dim once traded through.
+
+**Triplet:** on or off. Auto picks NQ1!, ES1! and RTY1!, or MNQ1!, MES1! and M2K1! on a micro chart. Custom takes any three symbols.
+
+**Alerts:** each one on or off.
+
+## How to use
+
+- Built for CME index futures: **NQ / MNQ, ES / MES, RTY / M2K**.
+- Use a chart of 30 minutes or less; 1 minute is recommended. Each break time is read to the chart's bar.
+- Use a continuous, back-adjusted chart (*B-ADJ*).
+- ETH or RTH charts both work. The OR, breaks and ATR10 are the same on either.
+
+## Data and method
+
+- NQ, ES and RTY front-month 1-minute data, Jan 2018 – Oct 2026 (ES to Aug 2026). About 6,400 opening ranges.
+- OR = the high and low of 09:30–09:59. A break = a trade above the high or below the low after 10:00, by 16:14.
+- ATR10 = the mean true range of the 10 prior trading days (18:00 → 17:00), so it is known before the open. ATR5 the same over 5 days.
+- On the chart:
+  - ATR10 and ATR5 come from daily bars, prior days only;
+  - the sisters are read at the chart's timeframe, as they stood at each bar, with no lookahead;
+  - nothing uses future data.
+
+## Limitations
+
+*These are historical frequencies, not guarantees.*
+- The odds were measured on NQ, ES and RTY. Other symbols get the pooled tables without a test of their own.
+- Nothing here is financial advice.
+
+## Why the name
+
+**Zabimaru**, the snake-tailed baboon, is Renji Abarai's zanpakutō. Its blade splits into segments that reach out and snap back. The opening range does the same: it sets the morning's segment, then price reaches out from it in OR-sized steps. Its Bankai, *Hihiō Zabimaru*, the giant bone snake, names the session-opens section that frames the day around the range.
+
+## Credits
+
+- ICT concepts (*Michael J. Huddleston*): the opening range, the opening range gap, the dealing range and its quarters, the midnight (true day) open, SMT between the index futures.
+- Studied for ideas, no code taken:
+  - *A(T)M* (model by Kandles, coding by franchise; the live state box and the range size marker);
+  - *HTF SUITE* (the sister-symbol pairing);
+  - *Unicorn Model* (fxraptor-alpha).
+- Written from scratch; open source under MPL 2.0.

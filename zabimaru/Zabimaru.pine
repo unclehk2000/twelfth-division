@@ -1,0 +1,674 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+//@version=6
+// Zabimaru · the New York opening range (09:30–10:00 ET) as the morning's dealing range, built live. Its high, low, EQ
+// and quarters run right in price with extensions in OR multiples. A card reads the OR against ATR10 (and whether
+// volatility is rising or falling), the odds of each side and of a 1× extension, the triplet (NQ / ES / RTY) side by
+// side, and the RTH gap (ORG) as one row. While the OR forms, an octant grid (quarters emphasised) follows price. The
+// session opens (Hihiō: 18:00, midnight, custom) are built in. Odds: NQ + ES + RTY 1-minute 2018–26 (about 6,400 opening ranges), every
+// term held pooled (p < 0.05, errors clustered by date), in 2018–24 and 2025–26, and on each symbol.
+indicator("Zabimaru — NY Opening Range + Session Opens", "Zabimaru", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI   = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, tooltip = "The card. Auto follows the chart background.", display = display.none)
+lblSzI   = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+txtColI  = input.color(#000001, "Chart text colour", group = gV, tooltip = "The labels on the chart. Left at the default it follows the chart background.", display = display.none)
+showCard = input.bool(true, "Card", group = gV, inline = "cd", display = display.none)
+cardPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", display = display.none)
+layI     = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: every row. Mobile: one narrow card for a phone: the OR, the sides, the triplet in one line and volatility. Every row keeps its explanation in the tooltip. For a phone, use a separate chart layout set to Mobile, since layouts sync across devices.", display = display.none)
+histN    = input.int(3, "Sessions on the chart", minval = 1, maxval = 20, group = gV, tooltip = "How many New York opening ranges stay drawn, today's included.", display = display.none)
+
+gO = "Opening range · 09:30–10:00 ET"
+colZ    = input.color(#d84315, "Colour", group = gO, inline = "c", tooltip = "The card's header and the range's border.", display = display.none)
+shadeI  = input.bool(true, "Shade", group = gO, inline = "c", display = display.none)
+colSh   = input.color(color.new(#d84315, 88), "", group = gO, inline = "c", display = display.none)
+extToI  = input.string("16:00", "Lines run to", options = ["11:00", "12:00", "16:00", "16:59"], group = gO, tooltip = "From 10:00 the OR high, low, the grid and the extensions run to this time each day.", display = display.none)
+measI   = input.bool(true, "Size marker", group = gO, tooltip = "A thin vertical line left of the range with its size: points, % and × ATR10.", display = display.none)
+brkI    = input.bool(true, "Break labels", group = gO, tooltip = "At the first break of the high or low after 10:00: the side and time, then which sisters broke the same side within 5 minutes.", display = display.none)
+
+gG = "Octant grid · eighths, quarters emphasised"
+gridMd = input.string("Forming + after 10:00", "Show", options = ["Forming + after 10:00", "While forming", "Off"], group = gG, tooltip = "The OR split into eighths. While it forms (09:30–10:00) the grid follows price: every level is re-drawn at its share of the high–low so far, so the whole grid moves as the range delivers. Forming + after 10:00: once set at 10:00 the grid runs on with the OR lines. While forming: it stops at 10:00 (the high and low always run on).", display = display.none)
+gLblI  = input.string("Edges, quarters, EQ", "Labels", options = ["Edges, quarters, EQ", "All", "Off"], group = gG, display = display.none)
+edC = input.color(#d84315, "High / low", group = gG, inline = "e", display = display.none)
+edW = input.int(2, "", options = [1, 2, 3, 4], group = gG, inline = "e", display = display.none)
+edS = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "e", display = display.none)
+eqOn = input.bool(true, "EQ 50%", group = gG, inline = "q0", display = display.none)
+eqC  = input.color(#d84315, "", group = gG, inline = "q0", display = display.none)
+eqW  = input.int(2, "", options = [1, 2, 3, 4], group = gG, inline = "q0", display = display.none)
+eqS  = input.string("Dashed", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "q0", display = display.none)
+qOn  = input.bool(true, "Quarters 25 / 75%", group = gG, inline = "q1", display = display.none)
+qC   = input.color(#ff7043, "", group = gG, inline = "q1", display = display.none)
+qW   = input.int(2, "", options = [1, 2, 3, 4], group = gG, inline = "q1", display = display.none)
+qS   = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "q1", display = display.none)
+oOn  = input.bool(true, "Eighths", group = gG, inline = "q2", display = display.none)
+oC   = input.color(color.new(#d84315, 55), "", group = gG, inline = "q2", display = display.none)
+oW   = input.int(1, "", options = [1, 2, 3, 4], group = gG, inline = "q2", display = display.none)
+oS   = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "q2", tooltip = "12.5, 37.5, 62.5 and 87.5%.", display = display.none)
+
+gX = "Extensions · OR sizes beyond the high and low"
+x05I = input.bool(true, "0.5×", group = gX, inline = "x05", display = display.none)
+x05C = input.color(color.new(#d84315, 40), "", group = gX, inline = "x05", display = display.none)
+x05W = input.int(1, "", options = [1, 2, 3, 4], group = gX, inline = "x05", display = display.none)
+x05S = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gX, inline = "x05", display = display.none)
+x1I  = input.bool(true, "1×", group = gX, inline = "x1", display = display.none)
+x1C  = input.color(#d84315, "", group = gX, inline = "x1", display = display.none)
+x1W  = input.int(1, "", options = [1, 2, 3, 4], group = gX, inline = "x1", display = display.none)
+x1S  = input.string("Dashed", "", options = ["Solid", "Dashed", "Dotted"], group = gX, inline = "x1", tooltip = "k× = k opening-range sizes above the high and below the low. NQ + ES + RTY 2018–26: after the first break, 1× on that side was reached by 16:14 on 43% of days (NQ), 50% (ES), 38% (RTY); far more often when the OR is small against ATR10.", display = display.none)
+x2I  = input.bool(true, "2×", group = gX, inline = "x2", display = display.none)
+x2C  = input.color(#d84315, "", group = gX, inline = "x2", display = display.none)
+x2W  = input.int(1, "", options = [1, 2, 3, 4], group = gX, inline = "x2", display = display.none)
+x2S  = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gX, inline = "x2", display = display.none)
+
+gH = "Session opens · Hihiō"
+hOn18 = input.bool(true, "18:00", group = gH, inline = "a", display = display.none)
+hC18  = input.color(#c9a227, "", group = gH, inline = "a", display = display.none)
+hW18  = input.int(1, "", options = [1, 2, 3, 4], group = gH, inline = "a", display = display.none)
+hS18  = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gH, inline = "a", tooltip = "The trading day's open (the 18:00 ET reopen). NQ + ES + RTY 1-minute 2018–26: RTH (09:30–16:14) traded back to it on 64% of days; a level the same distance from the 09:30 open on the other side was reached 61% of the time. A reference line, not a magnet.", display = display.none)
+hOn00 = input.bool(true, "00:00", group = gH, inline = "b", display = display.none)
+hC00  = input.color(#787b86, "", group = gH, inline = "b", display = display.none)
+hW00  = input.int(1, "", options = [1, 2, 3, 4], group = gH, inline = "b", display = display.none)
+hS00  = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gH, inline = "b", tooltip = "The midnight open (00:00 ET), ICT's true day open. NQ + ES + RTY 1-minute 2018–26: RTH traded back to it on 68% of days; a level the same distance from the 09:30 open on the other side was reached 66% of the time. A reference line, not a magnet.", display = display.none)
+hOnC  = input.bool(false, "Custom", group = gH, inline = "c", display = display.none)
+hCusT = input.string("08:30", "", options = ["02:00", "03:00", "07:00", "08:00", "08:30", "09:30", "10:00", "13:30"], group = gH, inline = "c", display = display.none)
+hCC   = input.color(#2962ff, "", group = gH, inline = "c", display = display.none)
+hSC   = input.string("Dashed", "", options = ["Solid", "Dashed", "Dotted"], group = gH, inline = "c", display = display.none)
+hRun  = input.string("Trading day", "Run each line", options = ["Trading day", "Sessions", "With price"], group = gH, tooltip = "Trading day: to 16:59 ET of the trading day it belongs to (the 18:00 open belongs to the next day's session).\nSessions: across the number of trading days below.\nWith price: to the last bar, plus the offset.", display = display.none)
+hSess = input.int(2, "Sessions", minval = 1, maxval = 10, group = gH, inline = "s", display = display.none)
+hOff  = input.int(10, "Offset (bars)", minval = 0, maxval = 200, group = gH, inline = "s", display = display.none)
+hKeep = input.int(3, "Keep last (each open)", minval = 1, maxval = 20, group = gH, display = display.none)
+hLbl  = input.string("Time", "Labels", options = ["Time", "Time + price", "Off"], group = gH, display = display.none)
+hDim  = input.bool(true, "Dim once RTH trades through it", group = gH, tooltip = "From 09:30 ET of its trading day, the first time price trades through the line it fades and the tooltip gives the time.", display = display.none)
+
+gT = "Triplet · NQ / ES / RTY"
+triOn  = input.bool(true, "Show the triplet", group = gT, display = display.none)
+triMd  = input.string("Auto", "Symbols", options = ["Auto", "Custom"], group = gT, tooltip = "Auto: NQ1!, ES1! and RTY1!, or MNQ1!, MES1! and M2K1! on a micro chart. Custom: your three below.", display = display.none)
+symAI  = input.symbol("CME_MINI:NQ1!", "1", group = gT, inline = "s", display = display.none)
+symBI  = input.symbol("CME_MINI:ES1!", "2", group = gT, inline = "s", display = display.none)
+symCI  = input.symbol("CME_MINI:RTY1!", "3", group = gT, inline = "s", display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alSet = input.bool(true, "OR set at 10:00", group = gA, tooltip = "Each fires once, on the bar it happens, with the numbers in the message.", display = display.none)
+alBrk = input.bool(true, "First break", group = gA, display = display.none)
+alX1  = input.bool(true, "1× extension reached", group = gA, display = display.none)
+alOth = input.bool(true, "Other side taken", group = gA, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Research constants (NQ + ES + RTY 1-minute 2018–26)
+// OR/ATR10 = (OR high − OR low) ÷ the mean true range of the 10 prior trading days. Its 5%, 10% … 95% points:
+var array<float> PNQ = array.from(0.178, 0.201, 0.218, 0.237, 0.252, 0.268, 0.280, 0.293, 0.308, 0.324, 0.341, 0.362, 0.384, 0.405, 0.429, 0.456, 0.497, 0.554, 0.648)
+var array<float> PES = array.from(0.139, 0.163, 0.177, 0.192, 0.205, 0.218, 0.234, 0.246, 0.260, 0.274, 0.287, 0.304, 0.321, 0.344, 0.370, 0.399, 0.431, 0.492, 0.590)
+var array<float> PRT = array.from(0.202, 0.233, 0.257, 0.273, 0.289, 0.306, 0.320, 0.334, 0.349, 0.365, 0.381, 0.399, 0.420, 0.440, 0.467, 0.499, 0.538, 0.590, 0.674)
+var array<float> PAL = array.from(0.165, 0.190, 0.209, 0.228, 0.246, 0.262, 0.277, 0.290, 0.306, 0.322, 0.339, 0.359, 0.380, 0.403, 0.426, 0.455, 0.498, 0.553, 0.644)
+// Logistic models (fitted on all 2018–26; checked fitting on 2018–24 and scoring 2025–26). lor = ln(OR/ATR10),
+// volr = ln(ATR5/ATR10), loc = the 10:00 close's place in the OR (0 = low, 1 = high), ltb = ln(minutes after 10:00 + 1).
+clamp(float v, float lo, float hi) => math.max(lo, math.min(hi, v))
+sigP(float z) => 100.0 / (1.0 + math.exp(-z))
+pUpFirst(float loc) => sigP(-2.780 + 5.457 * clamp(loc, 0, 1))                                       // first break is the high
+pSide(float d, float lor, float volr) => sigP(1.846 - 3.446 * clamp(d, 0, 1) - 0.839 * lor + 0.663 * volr)   // a side taken by 16:14, from 10:00 (d = distance to it in OR sizes)
+pExt1(float lor, float volr, float ltb) => sigP(-1.392 - 1.180 * lor + 1.007 * volr - 0.112 * ltb)          // 1× beyond the broken side by 16:14
+pOther(float lor, float volr, float ltb) => sigP(-1.625 - 1.249 * lor + 0.792 * volr - 0.109 * ltb)         // the other side taken too by 16:14
+pctOf(array<float> T, float v) =>
+    float out = na
+    if not na(v)
+        if v <= T.get(0)
+            out := 5.0 * v / T.get(0)
+        else if v >= T.get(18)
+            out := math.min(99.0, 95.0 + 5.0 * (v - T.get(18)) / T.get(18))
+        else
+            int k = 0
+            while k < 17 and T.get(k + 1) <= v
+                k += 1
+            out := 5.0 * (k + 1) + 5.0 * (v - T.get(k)) / (T.get(k + 1) - T.get(k))
+    out
+tableFor(string s) => str.contains(s, "NQ") ? PNQ : str.contains(s, "ES") ? PES : str.contains(s, "RTY") or str.contains(s, "M2K") ? PRT : PAL
+
+// ═══════════════════════════════════════════════════════════════ Colours and helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+txtCol = color.r(txtColI) == 0 and color.g(txtColI) == 0 and color.b(txtColI) == 1 ? (bgLum < 128 ? #d1d4dc : #131722) : txtColI
+cTxt   = isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = isDark ? #8a93a6 : #5d6476
+cOK    = #26a69a
+cUp    = #26a69a
+cDn    = #ef5350
+lumOf(color c) => 0.299 * color.r(c) + 0.587 * color.g(c) + 0.114 * color.b(c)
+hdrTx(color c) => lumOf(c) > 165 ? #131722 : #ffffff
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+fade(color c, float add) => color.new(c, math.min(100.0, color.t(c) + add))
+px(float v) => str.tostring(v, format.mintick)
+pts(float v) => str.tostring(v, "#,##0.##")
+pc0(float p) => na(p) ? "—" : str.tostring(math.round(p)) + "%"
+hhmm(int t) => str.format_time(t, "HH:mm", TZ)
+gauge(float f, int n) =>
+    int k = na(f) ? 0 : int(math.round(clamp(f, 0, 1) * n))
+    str.repeat("█", k) + str.repeat("░", n - k)
+dayAt(int t, int hh, int mm) => timestamp(TZ, year(t, TZ), month(t, TZ), dayofmonth(t, TZ), hh, mm)
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+
+if not timeframe.isintraday or timeframe.in_seconds() > 1800
+    runtime.error("Use an intraday chart of 30 minutes or less (1 minute recommended).")
+
+// ═══════════════════════════════════════════════════════════════ ATR10 and its trend (daily bars, prior days only)
+dATR() => [ta.sma(ta.tr(true), 10)[1], ta.sma(ta.tr(true), 5)[1]]
+[atr10, atr5] = request.security(syminfo.tickerid, "D", dATR(), lookahead = barmerge.lookahead_on)
+volr = na(atr10) or na(atr5) or atr10 <= 0 ? 0.0 : math.log(atr5 / atr10)
+
+// ═══════════════════════════════════════════════════════════════ The triplet: each symbol's OR today, at this chart's timeframe
+// Only bars up to the current one are used (no lookahead), so the sisters are read as they stood at each bar.
+triCtx() =>
+    var float h = na
+    var float l = na
+    var float o = na
+    var float c9 = na
+    var int th = na
+    var int tl = na
+    var bool done = false
+    int  m   = hour(time, TZ) * 60 + minute(time, TZ)
+    bool inO = m >= 570 and m < 600
+    bool beg = inO and not (inO[1] and time_tradingday == time_tradingday[1])
+    if beg
+        o := open
+        h := high
+        l := low
+        th := na
+        tl := na
+        done := false
+    else if inO
+        h := math.max(h, high)
+        l := math.min(l, low)
+    if inO
+        c9 := close
+    if not inO and inO[1]
+        done := true
+    if done and m >= 600 and m < 975
+        if na(th) and high > h
+            th := time
+        if na(tl) and low < l
+            tl := time
+    [o, h, l, c9, th, tl, done, time_tradingday]
+bool micro = syminfo.root == "MNQ" or syminfo.root == "MES" or syminfo.root == "M2K" or syminfo.root == "MYM"
+string sA = triMd == "Custom" ? symAI : micro ? "CME_MINI:MNQ1!" : "CME_MINI:NQ1!"
+string sB = triMd == "Custom" ? symBI : micro ? "CME_MINI:MES1!" : "CME_MINI:ES1!"
+string sC = triMd == "Custom" ? symCI : micro ? "CME_MINI:M2K1!" : "CME_MINI:RTY1!"
+nmOf(string s) =>
+    array<string> p = str.split(s, ":")
+    string t = p.size() > 1 ? p.get(1) : s
+    str.replace(t, "1!", "")
+[aO, aH, aL, aC9, aTH, aTL, aSet, aDay] = request.security(sA, "", triCtx())
+[bO, bH, bL, bC9, bTH, bTL, bSet, bDay] = request.security(sB, "", triCtx())
+[cO, cH, cL, cC9, cTH, cTL, cSet, cDay] = request.security(sC, "", triCtx())
+aA10 = request.security(sA, "D", ta.sma(ta.tr(true), 10)[1], lookahead = barmerge.lookahead_on)
+bA10 = request.security(sB, "D", ta.sma(ta.tr(true), 10)[1], lookahead = barmerge.lookahead_on)
+cA10 = request.security(sC, "D", ta.sma(ta.tr(true), 10)[1], lookahead = barmerge.lookahead_on)
+
+// ═══════════════════════════════════════════════════════════════ Today's opening range on this chart
+mNow  = hour(time, TZ) * 60 + minute(time, TZ)
+inOR  = not na(time(timeframe.period, "0930-1000", TZ))
+orBeg = inOR and not (inOR[1] and time_tradingday == time_tradingday[1])
+orEnd = not inOR and inOR[1]
+var float orH = na
+var float orL = na
+var float orO = na
+var float c959 = na
+var int   t930 = na
+var bool  orSet = false
+var int   tH = na       // first trade above the OR high after 10:00
+var int   tL = na
+var int   tX = na       // 1× beyond the first broken side
+var int   tO = na       // the other side taken
+var int   side = 0      // first break: 1 high, -1 low, 2 both on one bar
+var float lorT = na
+var float volT = na
+var float locT = na
+// the RTH gap (ORG): last RTH close (the bar ending 16:15) → today's 09:30 open; touches from 09:30
+var float rthC = na
+var float orgC = na
+var int   gCE = na
+var int   gFL = na
+if orBeg
+    orgC := rthC
+    orH := high
+    orL := low
+    orO := open
+    t930 := time
+    orSet := false
+    tH := na
+    tL := na
+    tX := na
+    tO := na
+    side := 0
+    gCE := na
+    gFL := na
+else if inOR and not na(orH)
+    orH := math.max(orH, high)
+    orL := math.min(orL, low)
+if inOR
+    c959 := close
+float rng = orH - orL
+if orEnd and not na(orH) and rng > 0
+    orSet := true
+    lorT := na(atr10) or atr10 <= 0 ? na : math.log(rng / atr10)
+    volT := volr
+    locT := (c959 - orL) / rng
+// ORG touches (today, from 09:30)
+if not na(orO) and not na(orgC) and mNow >= 570 and mNow < 975 and (inOR or orSet)
+    bool gUp = orO > orgC
+    if na(gCE) and (gUp ? low <= (orO + orgC) / 2 : high >= (orO + orgC) / 2)
+        gCE := time
+    if na(gFL) and (gUp ? low <= orgC : high >= orgC)
+        gFL := time
+if mNow >= 570 and mNow < 975
+    rthC := close
+// breaks after 10:00, to 16:14
+if orSet and mNow >= 600 and mNow < 975 and rng > 0
+    bool nh = na(tH) and high > orH
+    bool nl = na(tL) and low < orL
+    if nh
+        tH := time
+    if nl
+        tL := time
+    if side == 0 and (nh or nl)
+        side := nh and nl ? 2 : nh ? 1 : -1
+    if side == 1 or side == -1
+        if na(tX) and (side == 1 ? high >= orH + rng : low <= orL - rng)
+            tX := time
+        if na(tO) and (side == 1 ? not na(tL) : not na(tH))
+            tO := time
+
+// minutes after 10:00 of the first break (for the odds)
+int   tBrk = side == 1 or side == 2 ? tH : side == -1 ? tL : na
+float ltb  = na(tBrk) or na(t930) ? 0.0 : math.log(math.max(0.0, (tBrk - t930) / 60000.0 - 30) + 1)
+
+// sisters' status today: [OR % so far, OR/ATR10, break high time, break low time]
+sisRow(float o, float h, float l, int th, int tl, int dday, float a10) =>
+    bool ok = dday == time_tradingday and not na(o)
+    float r = ok ? h - l : na
+    [ok ? 100 * r / o : na, ok and not na(a10) and a10 > 0 ? r / a10 : na, ok ? th : na, ok ? tl : na]
+[aPct, aRat, aBH, aBL] = sisRow(aO, aH, aL, aTH, aTL, aDay, aA10)
+[bPct, bRat, bBH, bBL] = sisRow(bO, bH, bL, bTH, bTL, bDay, bA10)
+[cPct, cRat, cBH, cBL] = sisRow(cO, cH, cL, cTH, cTL, cDay, cA10)
+string nA = nmOf(sA)
+string nB = nmOf(sB)
+string nC = nmOf(sC)
+// is the chart one of the three? (then its sisters are the other two)
+int own = str.contains(syminfo.root, "NQ") ? 0 : str.contains(syminfo.root, "ES") ? 1 : str.contains(syminfo.root, "RTY") or syminfo.root == "M2K" ? 2 : -1
+own := triMd == "Custom" ? (str.contains(sA, syminfo.root) ? 0 : str.contains(sB, syminfo.root) ? 1 : str.contains(sC, syminfo.root) ? 2 : -1) : own
+// a sister confirms when it broke the same side by 5 minutes after the chart's break
+confOf(int th, int tl) =>
+    int out = na
+    if not na(tBrk)
+        if side == 1
+            out := not na(th) and th <= tBrk + 300000 ? 1 : 0
+        else if side == -1
+            out := not na(tl) and tl <= tBrk + 300000 ? 1 : 0
+    out
+brkTx(int th, int tl) => not na(th) and not na(tl) ? (th <= tl ? "▲" + hhmm(th) + " ▼" + hhmm(tl) : "▼" + hhmm(tl) + " ▲" + hhmm(th)) : not na(th) ? "▲ " + hhmm(th) : not na(tl) ? "▼ " + hhmm(tl) : "—"
+
+// ═══════════════════════════════════════════════════════════════ Drawing (one set per session; older ones removed)
+// The OR high / low and the octant grid are drawn from 09:30. While the range forms, every level is re-drawn at its
+// share of the high–low so far, so the grid follows price. At 10:00 they run on to the chosen time (the grid stops at
+// 10:00 when set to "While forming"), and the extensions start.
+type ORD
+    box           bx
+    array<line>   gl            // the grid: high / low and octants
+    array<float>  gf            // each grid line's share of the range (0 = low, 1 = high)
+    array<label>  gb            // grid labels (na when off)
+    array<line>   ln            // extensions
+    array<label>  lb
+    line          ms
+    label         mt
+    label         bk
+    bool          extended = false
+var array<ORD> days = array.new<ORD>()
+styleOf(string s) => s == "Dotted" ? line.style_dotted : s == "Dashed" ? line.style_dashed : line.style_solid
+endTime(int t) =>
+    int hh = extToI == "11:00" ? 11 : extToI == "12:00" ? 12 : 16
+    int mm = extToI == "16:59" ? 59 : 0
+    dayAt(t, hh, mm)
+killDay(ORD d) =>
+    d.bx.delete()
+    for l in d.gl
+        l.delete()
+    for l in d.gb
+        l.delete()
+    for l in d.ln
+        l.delete()
+    for l in d.lb
+        l.delete()
+    d.ms.delete()
+    d.mt.delete()
+    d.bk.delete()
+gridTx(float f) => f == 1.0 ? "OR high" : f == 0.0 ? "OR low" : f == 0.5 ? "EQ" : str.tostring(100 * f, "#.#") + "%"
+gridLblOn(float f) => gLblI == "All" or (gLblI != "Off" and (f == 0.0 or f == 1.0 or f == 0.5 or f == 0.25 or f == 0.75))
+isEdge(float f) => f == 0.0 or f == 1.0
+addGrid(ORD d, float f, color c, int w, string st, float h, float l) =>
+    float y = l + f * (h - l)
+    d.gl.push(line.new(time, y, time, y, xloc = xloc.bar_time, color = c, style = styleOf(st), width = w))
+    d.gf.push(f)
+    d.gb.push(gridLblOn(f) ? label.new(time, y, gridTx(f), xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = color.new(c, math.min(color.t(c), 25.0)), size = tSz) : na)
+addLv(ORD d, int x1, int x2, float y, color c, string st, int w, string tx) =>
+    d.ln.push(line.new(x1, y, x2, y, xloc = xloc.bar_time, color = c, style = styleOf(st), width = w))
+    if tx != ""
+        d.lb.push(label.new(x2, y, tx, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = color.new(c, math.min(color.t(c), 25.0)), size = tSz))
+
+if orBeg
+    ORD d = ORD.new(bx = box.new(time, high, time, low, xloc = xloc.bar_time, border_color = colZ, bgcolor = shadeI ? colSh : #00000000), gl = array.new<line>(), gf = array.new<float>(), gb = array.new<label>(), ln = array.new<line>(), lb = array.new<label>())
+    addGrid(d, 1.0, edC, edW, edS, high, low)
+    addGrid(d, 0.0, edC, edW, edS, high, low)
+    if gridMd != "Off"
+        if eqOn
+            addGrid(d, 0.5, eqC, eqW, eqS, high, low)
+        if qOn
+            addGrid(d, 0.25, qC, qW, qS, high, low)
+            addGrid(d, 0.75, qC, qW, qS, high, low)
+        if oOn
+            for k in array.from(0.125, 0.375, 0.625, 0.875)
+                addGrid(d, k, oC, oW, oS, high, low)
+    if measI
+        d.ms := line.new(time, high, time, low, xloc = xloc.bar_time, color = fade(colZ, 20), width = 1)
+        d.mt := label.new(time, high, "", xloc = xloc.bar_time, style = label.style_label_right, color = #00000000, textcolor = txtCol, size = tSz)
+    days.push(d)
+    while days.size() > histN
+        killDay(days.shift())
+if days.size() > 0 and not na(orH)
+    ORD d = days.last()
+    if inOR
+        // the grid follows the range as it forms
+        int xe = time + timeframe.in_seconds() * 1000
+        d.bx.set_right(xe)
+        d.bx.set_top(orH)
+        d.bx.set_bottom(orL)
+        for [i, l] in d.gl
+            float y = orL + d.gf.get(i) * (orH - orL)
+            l.set_xy2(xe, y)
+            l.set_y1(y)
+            label b = d.gb.get(i)
+            if not na(b)
+                b.set_xy(xe, y)
+        if measI
+            d.ms.set_y1(orH)
+            d.ms.set_y2(orL)
+            d.mt.set_y((orH + orL) / 2)
+            d.mt.set_text(pts(orH - orL) + " · " + str.tostring(100 * (orH - orL) / orO, "0.00") + "%" + (na(atr10) ? "" : " · " + str.tostring((orH - orL) / atr10, "0.00") + "× ATR"))
+    if orSet and not d.extended and rng > 0
+        d.extended := true
+        int x1 = dayAt(t930, 10, 0)
+        int x2 = endTime(t930)
+        // the grid: run on, or stop at 10:00 (the high and low always run on)
+        for [i, l] in d.gl
+            float f  = d.gf.get(i)
+            bool  on = isEdge(f) or gridMd == "Forming + after 10:00"
+            l.set_x2(on ? x2 : x1)
+            label b = d.gb.get(i)
+            if not na(b)
+                if on
+                    b.set_x(x2)
+                else
+                    b.delete()
+        if x05I
+            addLv(d, x1, x2, orH + 0.5 * rng, x05C, x05S, x05W, "+0.5×")
+            addLv(d, x1, x2, orL - 0.5 * rng, x05C, x05S, x05W, "−0.5×")
+        if x1I
+            addLv(d, x1, x2, orH + rng, x1C, x1S, x1W, "+1×")
+            addLv(d, x1, x2, orL - rng, x1C, x1S, x1W, "−1×")
+        if x2I
+            addLv(d, x1, x2, orH + 2 * rng, x2C, x2S, x2W, "+2×")
+            addLv(d, x1, x2, orL - 2 * rng, x2C, x2S, x2W, "−2×")
+    // the first break, and its sisters within 5 minutes
+    if brkI and side != 0 and not na(tBrk)
+        string sis = ""
+        if triOn and side != 2
+            for k = 0 to 2
+                if k != own
+                    int c = k == 0 ? confOf(aBH, aBL) : k == 1 ? confOf(bBH, bBL) : confOf(cBH, cBL)
+                    bool due = time >= tBrk + 300000
+                    sis += " · " + (k == 0 ? nA : k == 1 ? nB : nC) + (c == 1 ? " ✓" : due ? " ✗" : " …")
+        string tx = (side == 1 ? "▲ " : side == -1 ? "▼ " : "▲▼ ") + hhmm(tBrk) + sis
+        float  yb = side == -1 ? orL : orH
+        if na(d.bk)
+            d.bk := label.new(tBrk, yb, tx, xloc = xloc.bar_time, style = side == -1 ? label.style_label_up : label.style_label_down, color = #00000000, textcolor = side == -1 ? cDn : cUp, size = tSz)
+        else
+            d.bk.set_text(tx)
+
+// ═══════════════════════════════════════════════════════════════ Session opens (Hihiō): 18:00, midnight and a custom open
+// From 15-minute bars of the extended session (one request), so the prices are the same on ETH and RTH charts. Each value
+// is the open of the 15-minute bar that starts at that time: known when the bar starts, so no future data.
+hCusH = int(str.tonumber(str.substring(hCusT, 0, 2)))
+hCusM = int(str.tonumber(str.substring(hCusT, 3, 5)))
+openCtx() =>
+    var float o18 = na
+    var int   t18 = na
+    var float o00 = na
+    var int   t00 = na
+    var float oCu = na
+    var int   tCu = na
+    int hh = hour(time, TZ)
+    int mm = minute(time, TZ)
+    if hh == 18 and mm == 0
+        o18 := open
+        t18 := time
+    if hh == 0 and mm == 0
+        o00 := open
+        t00 := time
+    if hh == hCusH and mm == hCusM
+        oCu := open
+        tCu := time
+    [o18, t18, o00, t00, oCu, tCu]
+[o18, t18, o00, t00, oCu, tCu] = request.security(ticker.modify(syminfo.tickerid, session.extended), "15", openCtx(), lookahead = barmerge.lookahead_on)
+type OL
+    line   ln
+    label  lb
+    float  y
+    int    t0          // the open's time
+    int    rth         // 09:30 of its trading day
+    int    x2
+    int    hit = na
+    color  c
+    string nm
+var array<OL> L18 = array.new<OL>()
+var array<OL> L00 = array.new<OL>()
+var array<OL> LCu = array.new<OL>()
+// 16:59 ET of the trading day an open belongs to; the 18:00 open belongs to the next session (weekends skipped)
+endOf(int t, bool nxt) =>
+    int d = t + (nxt ? 86400000 : 0)
+    int w = dayofweek(d, TZ)
+    d := w == dayofweek.saturday ? d + 2 * 86400000 : w == dayofweek.sunday ? d + 86400000 : d
+    timestamp(TZ, year(d, TZ), month(d, TZ), dayofmonth(d, TZ), 16, 59)
+addBiz(int t, int n) =>
+    int d = t
+    int k = 0
+    while k < n
+        d += 86400000
+        int w = dayofweek(d, TZ)
+        if w != dayofweek.saturday and w != dayofweek.sunday
+            k += 1
+    d
+newOpen(array<OL> A, float y, int t0, bool nxt, color c, string st, int w, string nm) =>
+    int e  = endOf(t0, nxt)
+    int x2 = hRun == "Trading day" ? e : hRun == "Sessions" ? addBiz(e, hSess - 1) : time + hOff * timeframe.in_seconds() * 1000
+    OL o = OL.new(line.new(t0, y, x2, y, xloc = xloc.bar_time, color = c, style = styleOf(st), width = w), na, y, t0, timestamp(TZ, year(e, TZ), month(e, TZ), dayofmonth(e, TZ), 9, 30), x2, na, c, nm)
+    if hLbl != "Off"
+        o.lb := label.new(x2, y, nm + (hLbl == "Time + price" ? " · " + px(y) : ""), xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = c, size = tSz)
+    A.push(o)
+    while A.size() > hKeep
+        OL z = A.shift()
+        z.ln.delete()
+        z.lb.delete()
+updOpens(array<OL> A, string head) =>
+    for o in A
+        if hRun == "With price"
+            o.x2 := time + hOff * timeframe.in_seconds() * 1000
+            o.ln.set_x2(o.x2)
+            if not na(o.lb)
+                o.lb.set_x(o.x2)
+        // the first trade through it from 09:30 of its trading day, while the line runs
+        if na(o.hit) and time >= o.rth and time <= o.x2 and low <= o.y and high >= o.y
+            o.hit := time
+            if hDim
+                o.ln.set_color(fade(o.c, 55))
+                if not na(o.lb)
+                    o.lb.set_textcolor(fade(o.c, 55))
+        if barstate.islast and not na(o.lb)
+            o.lb.set_tooltip(head + " " + str.format_time(o.t0, "EEE MM/dd HH:mm", TZ) + " · " + px(o.y) + "\n" + (na(o.hit) ? "not traded through in RTH yet" : "traded through " + str.format_time(o.hit, "EEE HH:mm", TZ)))
+if hOn18 and not na(t18) and (na(t18[1]) or t18 != t18[1])
+    newOpen(L18, o18, t18, true, hC18, hS18, hW18, "18:00")
+if hOn00 and not na(t00) and (na(t00[1]) or t00 != t00[1])
+    newOpen(L00, o00, t00, false, hC00, hS00, hW00, "00:00")
+if hOnC and not na(tCu) and (na(tCu[1]) or tCu != tCu[1])
+    newOpen(LCu, oCu, tCu, hCusH * 60 + hCusM >= 1080, hCC, hSC, 1, hCusT)
+updOpens(L18, "18:00 open")
+updOpens(L00, "Midnight open")
+updOpens(LCu, hCusT + " open")
+
+// ═══════════════════════════════════════════════════════════════ Alerts (once, on the bar it happens)
+string pre = "Zabimaru · " + syminfo.ticker + " · "
+if orEnd and orSet and alSet
+    float pc = pctOf(tableFor(syminfo.root), na(atr10) ? na : rng / atr10)
+    alert(pre + "OR set " + px(orL) + " – " + px(orH) + " (" + pts(rng) + " pts" + (na(atr10) ? "" : ", " + str.tostring(rng / atr10, "0.00") + "× ATR10, P" + str.tostring(math.round(pc))) + ") · first break ▲ " + pc0(pUpFirst(locT)) + " / ▼ " + pc0(100 - pUpFirst(locT)), alert.freq_once_per_bar)
+if alBrk and orSet and side != 0 and tBrk == time
+    alert(pre + (side == 1 ? "▲ OR high " + px(orH) : side == -1 ? "▼ OR low " + px(orL) : "both sides") + " broken " + hhmm(time) + (side == 2 ? "" : " · 1× " + px(side == 1 ? orH + rng : orL - rng) + " by 16:14 " + pc0(pExt1(nz(lorT), volT, ltb)) + " · other side " + pc0(pOther(nz(lorT), volT, ltb))), alert.freq_once_per_bar)
+if alX1 and not na(tX) and tX == time
+    alert(pre + "1× extension " + px(side == 1 ? orH + rng : orL - rng) + " reached " + hhmm(time), alert.freq_once_per_bar)
+if alOth and not na(tO) and tO == time
+    alert(pre + "other side of the OR taken " + hhmm(time) + " (" + (side == 1 ? "low " + px(orL) : "high " + px(orH)) + ")", alert.freq_once_per_bar)
+
+// ═══════════════════════════════════════════════════════════════ Card
+var table TC = na
+mob = layI == "Mobile"
+cRow(int r, string k, string gs, color gc, string v, string w, string tip, color vc, color wbg) =>
+    color tc = na(vc) ? cTxt : vc
+    TC.cell(0, r, k, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(1, r, gs, text_color = na(gc) ? cTxt : gc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(2, r, v, text_color = tc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(3, r, w, text_color = na(wbg) ? tc : hdrTx(wbg), text_size = tSz, text_halign = text.align_right, bgcolor = na(wbg) ? cBody : wbg, text_font_family = font.family_monospace, tooltip = tip)
+sub(int r, string a, string b, string c, string d) =>
+    TC.cell(0, r, a, text_color = colZ, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace)
+    TC.cell(1, r, b, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace)
+    TC.cell(2, r, c, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace)
+    TC.cell(3, r, d, text_color = cSub, text_size = tSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = font.family_monospace)
+
+if barstate.islast and showCard
+    if na(TC)
+        TC := table.new(posOf(cardPos), 4, 20, border_width = 0, frame_width = 1, frame_color = colZ)
+    TC.clear(0, 0, 3, 19)
+    // today = the OR of this calendar day, from 09:30 until the 18:00 reopen (then the card looks ahead)
+    bool  today  = not na(t930) and mNow >= 570 and mNow < 1080 and dayofmonth(t930, TZ) == dayofmonth(time, TZ) and month(t930, TZ) == month(time, TZ)
+    bool  build  = today and inOR
+    bool  isSet  = today and orSet
+    string st    = not today ? "PRE" : build ? "BUILDING" : side == 0 ? "SET" : side == 1 ? "▲ BREAK" : side == -1 ? "▼ BREAK" : "BOTH"
+    st := isSet and side != 0 and not na(tO) ? "BOTH" : st
+    float ratio  = na(atr10) or na(orH) ? na : rng / atr10
+    float pctl   = pctOf(tableFor(syminfo.root), ratio)
+    string nowT  = str.format_time(time, "MM/dd", TZ) + (mob ? " " : " · ") + hhmm(time) + (mob ? "" : " ET")
+    TC.cell(0, 0, "ZABIMARU", text_color = hdrTx(colZ), bgcolor = colZ, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(1, 0, mob ? nowT : "OPENING RNG", text_color = hdrTx(colZ), bgcolor = colZ, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(2, 0, mob ? "" : nowT, text_color = hdrTx(colZ), bgcolor = colZ, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    TC.cell(3, 0, st, text_color = colZ, bgcolor = lumOf(colZ) > 165 ? #131722 : #ffffff, text_size = tSz, text_halign = text.align_center, text_font_family = font.family_monospace, tooltip = "PRE: before 09:30. BUILDING: the OR is forming (09:30–10:00). SET: formed, no break yet. ▲ / ▼ BREAK: the first side broken after 10:00. BOTH: both sides taken.")
+    string orTip = "The opening range (09:30–10:00 ET)" + (build ? " so far" : "") + ": " + (na(orH) ? "—" : px(orL) + " – " + px(orH) + ", " + pts(rng) + " pts, " + str.tostring(100 * rng / orO, "0.00") + "% of the open") + ". Against ATR10 (the mean daily true range of the last 10 sessions): " + (na(ratio) ? "—" : str.tostring(ratio, "0.00") + "×, percentile " + str.tostring(math.round(pctl)) + " of " + syminfo.root + "'s ORs 2018–26 (the bar)") + ". Typical: NQ 0.32×, ES 0.27×, RTY 0.37× (medians). A small OR against ATR10 breaks out further and more often takes both sides."
+    float a10p = na(atr10) ? na : 100 * atr10 / close
+    string volTx = volr > 0 ? "▲ rising" : volr < 0 ? "▼ falling" : "—"
+    string volTip = "ATR10 = the mean daily true range of the last 10 sessions: " + (na(atr10) ? "—" : pts(atr10) + " pts (" + str.tostring(a10p, "0.00") + "%)") + ". Volatility is rising when the last 5 sessions' ATR is above ATR10 (now " + (na(atr5) or na(atr10) ? "—" : str.tostring(atr5 / atr10, "0.00") + "×") + "). NQ + ES + RTY 2018–26: when it is rising, the OR runs larger against ATR10, the day's RTH range is larger, and 1× extensions and two-sided days are more frequent (each held in both periods and on each symbol). Whether ATR10 is above or below its level 5 days ago showed no such effect."
+    int r = 1
+    if mob
+        cRow(r, "OR", gauge(pctl / 100, 5), colZ, "", na(orH) or not today ? "—" : str.tostring(100 * rng / orO, "0.00") + "% · " + (na(ratio) ? "" : str.tostring(ratio, "0.00") + "× P" + str.tostring(math.round(pctl))), orTip, na, na)
+        r += 1
+    else
+        cRow(r, "OR", gauge(pctl / 100, 10), colZ, not today or na(orH) ? "09:30–10:00" : pts(rng) + " pts · " + str.tostring(100 * rng / orO, "0.00") + "%", not today or na(ratio) ? "" : str.tostring(ratio, "0.00") + "× ATR · P" + str.tostring(math.round(pctl)), orTip, na, na)
+        r += 1
+        cRow(r, "ATR10", gauge(na(atr5) or na(atr10) ? na : atr5 / atr10 / 2, 10), volr > 0 ? cUp : cDn, na(atr10) ? "—" : pts(atr10) + " pts · " + str.tostring(a10p, "0.00") + "%", volTx, volTip, na, na)
+        r += 1
+    // the sides
+    if isSet
+        float pU = pUpFirst(locT)
+        float pH = pSide(1 - locT, nz(lorT), volT)
+        float pL = pSide(locT, nz(lorT), volT)
+        float pX = side == 1 or side == -1 ? pExt1(nz(lorT), volT, ltb) : na
+        float pO = side == 1 or side == -1 ? pOther(nz(lorT), volT, ltb) : na
+        string sideTip = "Where the 10:00 close sat in the OR (" + str.tostring(math.round(100 * locT)) + "% of the way up) decides which side usually breaks first: from the top quarter the high went first 90% of the time, from the bottom quarter 12%. It is not a direction call for the day: the close ended beyond the first broken side about half the time."
+        string hTip = "OR high " + px(orH) + ". From 10:00, the odds it trades by 16:14 come from how far the 10:00 close was from it, the OR's size against ATR10 and the volatility trend." + (side == -1 ? " Once the low broke first, this row shows the odds the other side is taken too." : "")
+        string lTip = "OR low " + px(orL) + ". From 10:00, the odds it trades by 16:14 come from how far the 10:00 close was from it, the OR's size against ATR10 and the volatility trend." + (side == 1 ? " Once the high broke first, this row shows the odds the other side is taken too." : "")
+        string hRes = not na(tH) ? "✓ " + hhmm(tH) : side == -1 ? "other " + pc0(pO) : pc0(pH) + (mob ? "" : " by 16:14")
+        string lRes = not na(tL) ? "✓ " + hhmm(tL) : side == 1 ? "other " + pc0(pO) : pc0(pL) + (mob ? "" : " by 16:14")
+        if mob
+            cRow(r, "FIRST", gauge(pU / 100, 5), cUp, "", side == 0 ? "▲ " + pc0(pU) + " ▼ " + pc0(100 - pU) : (side == 1 ? "▲ " : side == -1 ? "▼ " : "▲▼ ") + hhmm(tBrk) + (side == 1 or side == -1 ? (not na(tX) ? " 1×✓" : " 1× " + pc0(pX)) : ""), sideTip, na, na)
+            r += 1
+            cRow(r, "HI/LO", "", na, "", "▲ " + hRes + " ▼ " + lRes, hTip + "\n" + lTip, na, na)
+            r += 1
+        else
+            cRow(r, "FIRST", gauge(pU / 100, 10), cUp, side == 0 ? "▲ " + pc0(pU) + " · ▼ " + pc0(100 - pU) : (side == 1 ? "▲ high " : side == -1 ? "▼ low " : "both ") + hhmm(tBrk), side == 0 ? "from 10:00" : "", sideTip, na, side == 0 ? na : side == 1 ? cUp : side == -1 ? cDn : cSub)
+            r += 1
+            cRow(r, "HIGH", "", na, px(orH), hRes, hTip, na, not na(tH) ? cOK : na)
+            r += 1
+            cRow(r, "LOW", "", na, px(orL), lRes, lTip, na, not na(tL) ? cOK : na)
+            r += 1
+            if side == 1 or side == -1
+                float yx = side == 1 ? orH + rng : orL - rng
+                cRow(r, "1× EXT", "", na, px(yx), not na(tX) ? "✓ " + hhmm(tX) : pc0(pX) + " by 16:14", "One OR size beyond the broken side. Odds from the break (" + hhmm(tBrk) + "), by 16:14: from the OR's size against ATR10, the volatility trend and how late the break came (later breaks go less far). Sisters breaking the same side within 5 minutes added about 3 points each (small).", na, not na(tX) ? cOK : na)
+                r += 1
+    else if not mob
+        cRow(r, "SIDES", "", na, build ? "after 10:00" : "from 09:30", "", "The first break, each side's odds and the 1× extension appear once the OR is set at 10:00.", cSub, na)
+        r += 1
+    // the triplet
+    if triOn
+        string triTip = "The three index futures' opening ranges side by side: OR as % of each one's 09:30 open, against its own ATR10, its percentile against its own 2018–26 ORs (the bar), and its breaks after 10:00. NQ + ES + RTY 2018–26: when the sisters broke the same side within 5 minutes, the chart's 1× extension came about 3 points more often per sister and the close ended beyond the broken side about 2 points more often. A lone break did not fail more often. An OR that is large against its sisters' (by percentile) extended slightly less."
+        if mob
+            string tl = (own == 0 ? "" : nA + " " + brkTx(aBH, aBL) + " ") + (own == 1 ? "" : nB + " " + brkTx(bBH, bBL) + " ") + (own == 2 ? "" : nC + " " + brkTx(cBH, cBL))
+            cRow(r, "TRI", "", na, "", tl, triTip, na, na)
+            r += 1
+        else
+            sub(r, "TRIPLET", "pctl", "OR % · × ATR10", "breaks")
+            r += 1
+            for k = 0 to 2
+                string nm = k == 0 ? nA : k == 1 ? nB : nC
+                float  pp = k == 0 ? aPct : k == 1 ? bPct : cPct
+                float  rr = k == 0 ? aRat : k == 1 ? bRat : cRat
+                int    bh = k == 0 ? aBH : k == 1 ? bBH : cBH
+                int    bl = k == 0 ? aBL : k == 1 ? bBL : cBL
+                float  pk = pctOf(tableFor(nm), rr)
+                cRow(r, (k == own ? "› " : "  ") + nm, gauge(pk / 100, 10), k == own ? colZ : cSub, na(pp) ? "—" : str.tostring(pp, "0.00") + "% · " + (na(rr) ? "—" : str.tostring(rr, "0.00") + "×"), brkTx(bh, bl), triTip, k == own ? na : cSub, na)
+                r += 1
+            if (side == 1 or side == -1) and own >= 0
+                string cs = ""
+                int nc = 0
+                bool due = time >= tBrk + 300000
+                for k = 0 to 2
+                    if k != own
+                        int c = k == 0 ? confOf(aBH, aBL) : k == 1 ? confOf(bBH, bBL) : confOf(cBH, cBL)
+                        nc += nz(c)
+                        cs += (cs == "" ? "" : " · ") + (k == 0 ? nA : k == 1 ? nB : nC) + (c == 1 ? " ✓" : due ? " ✗" : " …")
+                cRow(r, "SISTERS", "", na, cs, due ? str.tostring(nc) + " of 2 in 5 min" : "watching", "Did the sisters break the same side within 5 minutes of the chart's break (" + hhmm(tBrk) + ")? Each one that did added about 3 points to the 1× extension odds (NQ + ES + RTY 2018–26; small, held in both periods).", na, na)
+                r += 1
+    // the session opens (Hihiō): the latest 18:00 and midnight opens and whether RTH has traded through them
+    if not mob and ((hOn18 and L18.size() > 0) or (hOn00 and L00.size() > 0))
+        string ot = ""
+        string orr = ""
+        if hOn18 and L18.size() > 0
+            OL a = L18.last()
+            ot += "18:00 " + px(a.y)
+            orr += na(a.hit) ? "—" : "✓"
+        if hOn00 and L00.size() > 0
+            OL b = L00.last()
+            ot += (ot == "" ? "" : " · ") + "00:00 " + px(b.y)
+            orr += (orr == "" ? "" : " · ") + (na(b.hit) ? "—" : "✓")
+        cRow(r, "OPENS", "", na, ot, orr, "The latest 18:00 and midnight opens, and ✓ once RTH has traded through each. NQ + ES + RTY 2018–26: RTH reached the midnight open on 68% of days and the 18:00 open on 64%, against 66% and 61% for a level the same distance on the other side of the 09:30 open. Reference lines, not magnets.", na, na)
+        r += 1
+    // the RTH gap (ORG): one row; Benihime maps it in full
+    if not mob and today and not na(orgC) and not na(orO)
+        float g = orO - orgC
+        string gR = math.abs(g) < syminfo.mintick ? "none" : not na(gFL) ? "✓ filled " + hhmm(gFL) : not na(gCE) ? "CE ✓ " + hhmm(gCE) : "open"
+        cRow(r, "ORG", "", na, (g >= 0 ? "▲ " : "▼ ") + pts(math.abs(g)) + (na(atr10) ? "" : " · " + str.tostring(math.abs(g) / atr10, "0.00") + "× ATR"), gR, "The opening range gap: the prior RTH close " + px(orgC) + " → the 09:30 open " + px(orO) + ", CE " + px((orO + orgC) / 2) + ". Benihime maps every RTH gap with its odds.", na, not na(gFL) ? cOK : na)
+        r += 1
+    if mob
+        cRow(r, "VOL", "", na, "", "ATR10 " + (na(atr10) ? "—" : pts(atr10)) + " " + volTx, volTip, volr > 0 ? cUp : cDn, na)
