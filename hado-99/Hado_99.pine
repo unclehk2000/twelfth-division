@@ -1,0 +1,828 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+//@version=6
+indicator("Hadō 99 · Macro Link + Fractal", "Hadō 99", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+
+// Two cards. MACRO: which macro force the index is moving with today, and how hard: the dollar (DXY) and oil (CL), in three regimes
+// tested on NQ, ES and RTY daily data 2018–26 (each held pooled at p < 0.05 with errors clustered by date, in 2018–24 and
+// 2025–26, and on every symbol):
+//   WEAK $    DXY below its 200-day average: the index follows oil (1% CL ≈ +0.16–0.22%); the dollar matters little.
+//   STRONG $  DXY above its 200-day average: the dollar leads (1% DXY ≈ −0.75 to −0.95%); oil barely matters.
+//   OIL SHOCK CL's front month 15%+ a year above the second (backwardation) and CL up 10%+ in 20 days: both turn
+//             against the index (1% DXY ≈ −1.05 to −1.50%, 1% CL ≈ −0.10 to −0.13%), and the two explain ~30% of the
+//             day's move instead of 6–13%.
+// None of it predicts the index: DXY's and CL's moves did not lead the next minutes, the rest of the day, the next
+// session or the next week, and the index carry did not lead the next week's return, range or premium. It is context:
+// what to watch, and how much of today's move is the dollar and oil.
+// FRACTAL: the C2 → C3 model on the chart (see its section below), with odds tested the same way.
+
+tz = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════
+var g_V = "View"
+themeI   = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = g_V, tooltip = "The card. Auto follows the chart background; the card's text always follows this theme.", display = display.none)
+layoutI  = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = g_V, tooltip = "Mobile folds each card to four rows in the narrower default font; the rest stays in the tooltips.", display = display.none)
+showMac  = input.bool(true, "Macro card", inline = "cm", group = g_V, display = display.none)
+macPos   = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], inline = "cm", group = g_V, tooltip = "Give the two cards different places.", display = display.none)
+showFm   = input.bool(true, "Fractal card", inline = "cf", group = g_V, display = display.none)
+fmPos    = input.string("Bottom right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], inline = "cf", group = g_V, display = display.none)
+cardSzI  = input.string("Small", "Card text", options = ["Tiny", "Small", "Normal"], group = g_V, display = display.none)
+
+var g_M = "Markets"
+dxySym  = input.symbol("TVC:DXY", "Dollar index", group = g_M, tooltip = "The tests used the ICE US dollar index (DXY) daily close.", display = display.none)
+cl1Sym  = input.symbol("NYMEX:CL1!", "Oil, front month", group = g_M, display = display.none)
+cl2Sym  = input.symbol("NYMEX:CL2!", "Oil, second month", group = g_M, tooltip = "For the backwardation (front over second month) in the oil-shock rule.", display = display.none)
+nextI   = input.string("", "Index next contract (blank = auto)", group = g_M, tooltip = "For the carry row. Blank uses the chart's root with 2! (e.g. CME_MINI:NQ2!).", display = display.none)
+
+var g_R = "Regime rules (as tested)"
+backThr = input.float(15.0, "Oil shock: backwardation over (%/yr)", minval = 0, group = g_R, tooltip = "Front month above the second month, annualised: (CL1 / CL2 − 1) × 12. Tested at 15.", display = display.none)
+clThr   = input.float(10.0, "Oil shock: oil up over 20 days (%)", minval = 0, group = g_R, tooltip = "Tested at 10.", display = display.none)
+maLen   = input.int(200, "Dollar trend: DXY average (days)", minval = 20, group = g_R, tooltip = "Tested at 200.", display = display.none)
+liveOn  = input.bool(true, "Live beta row", inline = "lb", group = g_R, tooltip = "The two-factor beta on the last N matched days, next to the tested values. Turn it off to skip loading the daily histories.", display = display.none)
+betaLen = input.int(60, "days", minval = 20, maxval = 120, inline = "lb", group = g_R, display = display.none)
+alertOn = input.bool(true, "Alert when the regime changes", group = g_R, tooltip = "Create one alert on \"Any alert() function call\".", display = display.none)
+
+var g_F = "Fractal model (C2 → C3)"
+fmOn     = input.bool(true, "Fractal model", group = g_F, tooltip = "C2 sweeps the previous higher-timeframe candle's low (high) and closes back inside; C3 and C4 follow. Odds on the card are from NQ, ES and RTY 1-minute data 2018–26.", display = display.none)
+fmPairI  = input.string("Auto", "Pair", options = ["Auto", "1m – 15m", "1H – 1D"], group = g_F, tooltip = "Auto: 15-minute candles on charts of 5 minutes or less, CME trading days (18:00–17:00 ET) on longer intraday charts. The odds were tested on a 1-minute chart with 15-minute candles and on a 1-hour chart with daily candles; other chart timeframes say \"untested\".", display = display.none)
+fmKeep   = input.int(2, "Setups kept", minval = 1, maxval = 10, group = g_F, display = display.none)
+fmCisdI  = input.bool(true, "CISD and early CISD", group = g_F, display = display.none)
+fmEqI    = input.bool(true, "C2 equilibrium and T-spot", group = g_F, display = display.none)
+fmProjI  = input.bool(true, "Projections (+1, +2, +2.5, +4, +4.5)", group = g_F, display = display.none)
+fmProtI  = input.bool(true, "Protected swings", group = g_F, display = display.none)
+fmBull   = input.color(#2962ff, "Bullish", inline = "fc", group = g_F, display = display.none)
+fmBear   = input.color(#f23645, "Bearish", inline = "fc", group = g_F, display = display.none)
+fmAlertI = input.bool(true, "Alerts: C2, CISD, protected swing", group = g_F, display = display.none)
+
+var g_P = "HTF candles (PO3)"
+fmPrev  = input.bool(true, "Show", inline = "pv", group = g_P, tooltip = "The last higher-timeframe candles of the pair (15-minute or daily), right of price, oldest on the left; the one still forming is on the right.", display = display.none)
+fmPrevN = input.int(5, "candles", minval = 2, maxval = 10, inline = "pv", group = g_P, display = display.none)
+fmOff   = input.int(12, "Offset (bars right of price)", minval = 1, maxval = 300, group = g_P, tooltip = "12 clears the target labels. SB Map's session candles sit 15–65 bars right of price: use 70 or more to place these beyond them.", active = fmPrev, display = display.none)
+pvWI    = input.int(0, "Width", minval = 0, maxval = 30, inline = "pw", group = g_P, active = fmPrev, display = display.none)
+pvGI    = input.int(0, "gap", minval = 0, maxval = 30, inline = "pw", group = g_P, tooltip = "Each candle's width and the gap between candles, in chart bars. 0 = auto: 6 and 3 on 1–2 minute charts, 4 and 2 up to 5 minutes, 2 and 2 above.", active = fmPrev, display = display.none)
+pvStyI  = input.string("Model (blue / red)", "Colours", options = ["Model (blue / red)", "ICT (green / black)", "Custom"], group = g_P, tooltip = "Model: the setup colours above, see-through bodies. ICT: green up bodies, black down bodies, black borders and wicks, as on ICT's charts (white instead of black on a dark chart). Custom: the six colours below, up then down.", active = fmPrev, display = display.none)
+bool pvCu = pvStyI == "Custom"
+pvBdU   = input.color(#a5d6a7, "Body", inline = "pb", group = g_P, active = fmPrev and pvCu, display = display.none)
+pvBdD   = input.color(#2e2e2e, "", inline = "pb", group = g_P, active = fmPrev and pvCu, display = display.none)
+pvBrU   = input.color(#2e2e2e, "Border", inline = "pr", group = g_P, active = fmPrev and pvCu, display = display.none)
+pvBrD   = input.color(#2e2e2e, "", inline = "pr", group = g_P, active = fmPrev and pvCu, display = display.none)
+pvWkU   = input.color(#2e2e2e, "Wick", inline = "pk", group = g_P, active = fmPrev and pvCu, display = display.none)
+pvWkD   = input.color(#2e2e2e, "", inline = "pk", group = g_P, active = fmPrev and pvCu, display = display.none)
+pvWkW   = input.int(1, "Wick width", minval = 1, maxval = 4, group = g_P, active = fmPrev, display = display.none)
+pvTagI  = input.bool(true, "C1–C4 tags", inline = "pt", group = g_P, tooltip = "Tags: the latest setup's candles, under them for a bullish setup and over them for a bearish one. Times: each candle's open (15-minute) or day (daily) under it. Countdown: the pair and the time left in the forming candle, over the candles.", active = fmPrev, display = display.none)
+pvStmI  = input.bool(true, "Times", inline = "pt", group = g_P, active = fmPrev, display = display.none)
+pvInfI  = input.bool(true, "Countdown", inline = "pt", group = g_P, active = fmPrev, display = display.none)
+pvLivI  = input.bool(true, "Forming candle dashed", group = g_P, tooltip = "The candle still forming gets a dashed border.", active = fmPrev, display = display.none)
+pvOpnI  = input.bool(false, "Forming candle's open", inline = "po", group = g_P, tooltip = "A line at the forming candle's open, from its first bar out to the candles.", active = fmPrev, display = display.none)
+pvOpnC  = input.color(color.new(#787b86, 20), "", inline = "po", group = g_P, active = fmPrev and pvOpnI, display = display.none)
+pvHLI   = input.bool(false, "Last closed candle's high / low", inline = "ph", group = g_P, tooltip = "Lines from where the last closed candle made its high and its low, out to the forming candle: the levels it must sweep and close back inside to be a C2.", active = fmPrev, display = display.none)
+pvHLC   = input.color(color.new(#787b86, 30), "", inline = "ph", group = g_P, active = fmPrev and pvHLI, display = display.none)
+pvSepI  = input.bool(false, "Separators on the chart", inline = "ps", group = g_P, tooltip = "A vertical line on the chart where each candle shown opened.", active = fmPrev, display = display.none)
+pvSepC  = input.color(color.new(#787b86, 55), "", inline = "ps", group = g_P, active = fmPrev and pvSepI, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════════════════════
+lumOf(color c) => 0.299 * color.r(c) + 0.587 * color.g(c) + 0.114 * color.b(c)
+bgLum  = lumOf(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+cTxt   = isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = isDark ? #8a93a6 : #5d6476
+cNeu   = isDark ? #2a2e39 : #c9ced8
+hdrTx(color c) => lumOf(c) > 165 ? #131722 : #ffffff
+colShock  = #f23645
+colStrong = #ff9800
+colWeak   = #26a69a
+
+// ═══════════════════════════════════════════════════════════════════
+// DATA — finished daily bars only (the current bar's values are not used), so nothing sees the future
+// ═══════════════════════════════════════════════════════════════════
+// The last n finished daily closes and their trading days, for the live beta. TradingView stores a copy of a requested
+// array for every bar, so the arrays are handed over on the last bar only (na before it) and the request reads just
+// the last n + 40 daily bars (calc_bars_count). Without both, the copies run out of memory ("Memory limits exceeded").
+dayHist(int n) =>
+    var array<float> c = array.new<float>()
+    var array<int>   k = array.new<int>()
+    if bar_index > 0 and not na(close[1])
+        c.push(close[1])
+        k.push(time_tradingday[1])
+        if c.size() > n
+            c.shift()
+            k.shift()
+    array<float> cOut = barstate.islast ? c : na
+    array<int>   kOut = barstate.islast ? k : na
+    [cOut, kOut]
+
+idxTk = ticker.modify(syminfo.tickerid, backadjustment = backadjustment.on)
+clTk  = ticker.modify(cl1Sym, backadjustment = backadjustment.on)
+// daily histories for the live beta (handed over on the last bar only)
+nHist = liveOn ? betaLen + 5 : 2
+[iC, iK] = request.security(idxTk, "D", dayHist(nHist), lookahead = barmerge.lookahead_on, calc_bars_count = nHist + 40)
+[dC, dK] = request.security(dxySym, "D", dayHist(nHist), lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true, calc_bars_count = nHist + 40)
+[oC, oK] = request.security(clTk, "D", dayHist(nHist), lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true, calc_bars_count = nHist + 40)
+// yesterday's closes
+// yesterday's move in daily standard deviations (20 days, yesterday included)
+sdMove() =>
+    float r = math.log(close / close[1])
+    math.abs(r[1]) / ta.stdev(r, 20)[1]
+[iPrev, adr20, yRat] = request.security(idxTk, "D", [close[1], ta.sma(high - low, 20)[1], (high[1] - low[1]) / ta.sma(high - low, 20)[2]], lookahead = barmerge.lookahead_on)
+[oPrev, cl20, clZ] = request.security(clTk, "D", [close[1], math.log(close[1] / close[21]) * 100, sdMove()], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[dMa, dPrev, dxZ] = request.security(dxySym, "D", [ta.sma(close, maLen)[1], close[1], sdMove()], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+// DXY across the last finished 15-minute candle, and the size of a typical 15-minute move (last ~1,300 candles)
+[d15a, d15b, d15sd] = request.security(dxySym, "15", [close[1], close[2], ta.stdev(close / close[1] - 1, 1300)[1]], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+c1Prev = request.security(cl1Sym, "D", close[1], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+c2Prev = request.security(cl2Sym, "D", close[1], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+// live prices
+iNow = request.security(idxTk, timeframe.period, close)
+dNow = request.security(dxySym, timeframe.period, close, ignore_invalid_symbol = true)
+oNow = request.security(clTk, timeframe.period, close, ignore_invalid_symbol = true)
+// index carry: front and next contract
+string root = syminfo.root
+bool   isIdx = root == "NQ" or root == "ES" or root == "RTY" or root == "YM" or root == "MNQ" or root == "MES" or root == "M2K" or root == "MYM"
+string f1Tk = syminfo.prefix + ":" + root + "1!"
+string f2Tk = nextI != "" ? nextI : syminfo.prefix + ":" + root + "2!"
+f1Now = request.security(f1Tk, timeframe.period, close, ignore_invalid_symbol = true)
+f2Now = request.security(f2Tk, timeframe.period, close, ignore_invalid_symbol = true)
+
+var float dayH = na
+var float dayL = na
+if timeframe.change("D") or na(dayH)
+    dayH := high
+    dayL := low
+else
+    dayH := math.max(dayH, high)
+    dayL := math.min(dayL, low)
+
+// ═══════════════════════════════════════════════════════════════════
+// REGIME (from yesterday's closes)
+// ═══════════════════════════════════════════════════════════════════
+float ts12  = -(c2Prev / c1Prev - 1) * 12 * 100                // backwardation, %/yr (> 0 = front above second)
+bool  shock = not na(ts12) and not na(cl20) and ts12 > backThr and cl20 > clThr
+bool  above = not na(dMa) and dPrev > dMa
+int   reg   = shock ? 2 : above ? 1 : 0                          // 0 weak dollar, 1 strong dollar, 2 oil shock
+string regNm = reg == 2 ? "OIL SHOCK" : reg == 1 ? "STRONG $" : "WEAK $"
+color  regC  = reg == 2 ? colShock : reg == 1 ? colStrong : colWeak
+
+// Tested two-factor betas (index % on DXY % and CL %, same day) and R², by regime [weak, strong, shock].
+// NQ, ES, RTY 2018–26 daily; other symbols get the pooled values. Micros use their full-size contract.
+string sk = root == "MNQ" ? "NQ" : root == "MES" ? "ES" : root == "M2K" ? "RTY" : root
+bT(int r) => sk == "NQ" ? array.from(-0.17, -0.80, -1.50).get(r) : sk == "ES" ? array.from(-0.18, -0.75, -1.05).get(r) : sk == "RTY" ? array.from(-0.33, -0.95, -1.46).get(r) : array.from(-0.23, -0.83, -1.34).get(r)
+cT(int r) => sk == "NQ" ? array.from(0.160, 0.039, -0.131).get(r) : sk == "ES" ? array.from(0.171, 0.043, -0.095).get(r) : sk == "RTY" ? array.from(0.220, 0.046, -0.108).get(r) : array.from(0.184, 0.043, -0.110).get(r)
+r2T(int r) => sk == "NQ" ? array.from(7, 6, 29).get(r) : sk == "ES" ? array.from(13, 9, 32).get(r) : sk == "RTY" ? array.from(13, 9, 29).get(r) : array.from(10, 8, 29).get(r)
+
+var int lastReg = na
+if barstate.isconfirmed or barstate.islast
+    if alertOn and not na(lastReg) and reg != lastReg
+        alert("Hadō 99 · " + syminfo.ticker + ": regime now " + regNm + (reg == 2 ? " (oil up = index down; the dollar hits harder)" : reg == 1 ? " (watch the dollar)" : " (watch oil)"), alert.freq_once_per_bar)
+    lastReg := reg
+
+// ═══════════════════════════════════════════════════════════════════
+// FRACTAL MODEL · C2 → C3 (own implementation, written from the model's description)
+// ═══════════════════════════════════════════════════════════════════
+// A higher-timeframe candle C2 sweeps C1's low and closes back above it (bullish; bearish mirrored). C3 and C4 follow.
+// CISD: the highest open of the run of down-closing chart bars that delivered C2's low (up to 10 bars back), confirmed
+// by the first close above it. Projections: CISD + k × (CISD − C2 low), k = 1, 2, 2.5, 4, 4.5. Protected swing: after
+// the CISD, the first down-closing bar arms a level at its open (re-anchored to the down run into each new low); a close
+// above it marks the lowest 3-bar swing low in between.
+// Tested on NQ, ES and RTY 1-minute data 2018–26 (1m–15m: 248k C2s; 1H–1D: 3,089). What held:
+//  · Where C2 closes in its own range decides C3. Closing in the top quarter, C3 took C2's high on 78% (15m) / 83% (1D);
+//    in the bottom quarter, 21% / 20%. Against other candles that closed in the same place, a C2 was no more likely to
+//    see C3 take its high (−1.6 / −3.2 points): the pattern adds nothing to expansion beyond its close.
+//  · C2's swept low holds through C3 a little more often than other lows (+1.7 / +3.4 points at the same close
+//    location), and a bit more when the CISD confirmed inside C2 (+2.8 / +7.4).
+//  · Once C3 trades back to C2's midpoint (EQ), the odds C3 still takes C2's high fall to 47–64% (by close location).
+//  · Protected swings (1m–15m) held to the end of C4 9.5 points more often than other 1-minute swing lows with the same
+//    bars left and distance; 49% held overall, 93% when marked with 5 bars or fewer left, 39% with more than 20.
+// The dollar / oil regime made no difference to any of it.
+
+fgAuto = bgLum < 128 ? #d1d4dc : #131722
+int    tfSec  = timeframe.in_seconds()
+string fmTf   = fmPairI == "1m – 15m" ? "15" : fmPairI == "1H – 1D" ? "D" : tfSec <= 300 ? "15" : "D"
+bool   fmAct  = fmOn and timeframe.isintraday and timeframe.in_seconds(fmTf) > tfSec
+int    fmP    = fmTf == "15" ? 0 : 1
+bool   fmTest = (fmP == 0 and tfSec == 60) or (fmP == 1 and tfSec == 3600)
+string fmNm   = fmTf == "15" ? "15m" : "1D"
+fmTake(int q) => fmP == 0 ? array.from(21, 36, 55, 78).get(q) : array.from(20, 39, 58, 83).get(q)
+fmTakeEq(int q) => fmP == 0 ? array.from(21, 35, 47, 64).get(q) : array.from(19, 38, 52, 70).get(q)
+fmHold(int q) => fmP == 0 ? array.from(28, 48, 67, 82).get(q) : array.from(19, 46, 65, 81).get(q)
+fmProj(int i) => fmP == 0 ? array.from(72, 46, 36, 20, 16).get(i) : array.from(80, 57, 49, 32, 28).get(i)
+fmProtHold(int left) => left <= 5 ? 93 : left <= 10 ? 77 : left <= 15 ? 64 : left <= 20 ? 52 : 39
+var array<float> PJ = array.from(1.0, 2.0, 2.5, 4.0, 4.5)
+hhmm(int t) => str.format_time(t, "HH:mm", tz)
+pxF(float v) => na(v) ? "—" : str.tostring(v, format.mintick)
+
+type HC
+    float o
+    float h
+    float l
+    float c
+    int   t0
+    int   b0
+    int   bH
+    int   bL
+
+type FS
+    bool   bull
+    int    t2               // C2 open time
+    int    t3               // C3 open time
+    int    bExt             // bar of C2's swept extreme
+    float  ext              // C2's swept extreme (low for bull)
+    float  opp              // C2's other extreme (the high C3 should take, for bull)
+    float  eq               // C2 midpoint
+    float  clv              // where C2 closed in its range, 0–1 toward the trade side
+    int    q
+    int    phase = 3        // 3 in C3, 4 in C4, 0 done
+    bool   dead  = false    // C2's extreme broken
+    int    deadT = na
+    bool   took  = false    // C3 took C2's other extreme
+    int    tookT = na
+    bool   eqHit = false
+    float  lvl              // CISD level
+    int    lvlB
+    bool   cisd  = false
+    bool   cisdC2 = false
+    int    cisdB = na
+    int    cisdT = na
+    label  lbC2
+    line   lnSw
+    line   lnEq
+    box    bxT
+    line   lnCisd
+    label  lbCisd
+    array<line>  pjL
+    array<label> pjB
+    array<bool>  pjHit
+    bool   pPend = false
+    int    pA    = na
+    float  pLvl  = na
+    float  pEx   = na
+    int    pExB  = na
+    bool   pDone = false
+    float  pPx   = na
+    int    pB    = na
+    bool   pTaken = false
+    int    pLeft = na           // chart bars left in C4 when the swing was marked
+    float  dChg  = na           // DXY across the C2 candle, %
+    float  dz    = na           // the same in 15-minute standard deviations, signed: > 0 = the setup's way
+    label  pDot
+
+var array<HC> hcs = array.new<HC>()
+var array<FS> fss = array.new<FS>()
+// CISD trackers for the candle that is forming (a C2 in the making), one per side
+var float cbL = na
+var int   cbB = na
+var bool  cbOk = false
+var int   cbT = na
+var float csL = na
+var int   csB = na
+var bool  csOk = false
+var int   csT = na
+var line  eBull = na
+var line  eBear = na
+max_bars_back(open, 300)
+max_bars_back(close, 300)
+max_bars_back(high, 300)
+max_bars_back(low, 300)
+bool fmNew = timeframe.change(fmTf)
+int  htfMs = timeframe.in_seconds(fmTf) * 1000
+
+// the opposite-closing run that delivered this bar's extreme, up to 10 bars back: [level, first bar of the run]
+cisdLvl(bool bull) =>
+    int   st = (bull ? close > open : close < open) ? 1 : 0
+    float lv = na
+    int   lb = na
+    for i = st to 10
+        bool opp = bull ? close[i] < open[i] : close[i] > open[i]
+        if opp
+            lv := na(lv) ? open[i] : (bull ? math.max(lv, open[i]) : math.min(lv, open[i]))
+            lb := bar_index - i
+        else if close[i] != open[i]
+            break
+    [na(lv) ? open : lv, na(lb) ? bar_index : lb]
+
+fmDel(FS s) =>
+    s.lbC2.delete()
+    s.lnSw.delete()
+    s.lnEq.delete()
+    s.bxT.delete()
+    s.lnCisd.delete()
+    s.lbCisd.delete()
+    s.pDot.delete()
+    if not na(s.pjL)
+        for l in s.pjL
+            l.delete()
+        for b in s.pjB
+            b.delete()
+
+fmConfirm(FS s, bool early) =>
+    s.cisd   := true
+    s.cisdC2 := early
+    s.cisdB  := bar_index
+    s.cisdT  := time
+    color c = s.bull ? fmBull : fmBear
+    if fmCisdI
+        s.lnCisd := line.new(s.lvlB, s.lvl, bar_index, s.lvl, color = c, width = 2)
+        s.lbCisd := label.new(bar_index, s.lvl, early ? "CISD · in C2" : "CISD", style = label.style_label_left, color = #00000000, textcolor = c, size = size.small)
+    if fmProjI
+        float r = s.bull ? s.lvl - s.ext : s.ext - s.lvl
+        if r > 0
+            s.pjL   := array.new<line>()
+            s.pjB   := array.new<label>()
+            s.pjHit := array.new<bool>()
+            for [i, k] in PJ
+                float y = s.bull ? s.lvl + k * r : s.lvl - k * r
+                s.pjL.push(line.new(bar_index, y, bar_index + 1, y, color = color.new(c, 40), style = line.style_dotted))
+                s.pjB.push(label.new(bar_index + 1, y, "+" + str.tostring(k) + (fmTest ? " · " + str.tostring(fmProj(i)) + "%" : ""), style = label.style_label_left, color = #00000000, textcolor = color.new(c, 20), size = size.tiny))
+                s.pjHit.push(false)
+    if fmAlertI
+        alert("Hadō 99 · " + syminfo.ticker + ": " + (s.bull ? "bullish" : "bearish") + " CISD confirmed " + (early ? "inside C2" : "in C" + str.tostring(s.phase)) + " at " + pxF(s.lvl), alert.freq_once_per_bar)
+
+if fmAct
+    // 1) a new higher-timeframe candle: C3 → C4 → done, then a new C2 from the candle that just closed
+    if fmNew
+        for s in fss
+            if s.phase == 3
+                s.phase := 4
+                if not na(s.bxT)
+                    s.bxT.set_right(bar_index - 1)
+            else if s.phase == 4
+                s.phase := 0
+        if hcs.size() >= 2
+            HC c2 = hcs.get(0)
+            HC c1 = hcs.get(1)
+            for side = 0 to 1
+                bool bull = side == 0
+                bool isC2 = bull ? c2.l < c1.l and c2.c > c1.l : c2.h > c1.h and c2.c < c1.h
+                if isC2
+                    float rng = c2.h - c2.l
+                    float clv = rng > 0 ? (bull ? (c2.c - c2.l) / rng : (c2.h - c2.c) / rng) : 0.5
+                    int   q   = clv < 0.25 ? 0 : clv < 0.5 ? 1 : clv < 0.75 ? 2 : 3
+                    color c   = bull ? fmBull : fmBear
+                    FS s = FS.new(bull, c2.t0, time, bull ? c2.bL : c2.bH, bull ? c2.l : c2.h, bull ? c2.h : c2.l, (c2.h + c2.l) / 2, clv, q)
+                    s.lvl  := bull ? cbL : csL
+                    if fmP == 0 and not na(d15a) and not na(d15b) and d15sd > 0
+                        s.dChg := (d15a / d15b - 1) * 100
+                        s.dz   := (bull ? -1 : 1) * (d15a / d15b - 1) / d15sd
+                    s.lvlB := bull ? cbB : csB
+                    s.lbC2 := label.new(s.bExt, s.ext, "C2", style = bull ? label.style_label_up : label.style_label_down, color = #00000000, textcolor = c, size = size.small)
+                    s.lnSw := line.new(bull ? c1.bL : c1.bH, bull ? c1.l : c1.h, s.bExt, bull ? c1.l : c1.h, color = color.new(c, 30))
+                    if fmEqI
+                        s.lnEq := line.new(bar_index, s.eq, bar_index + 1, s.eq, color = color.new(fgAuto, 40), style = line.style_dotted)
+                        s.bxT  := box.new(bar_index, math.max(open, s.eq), bar_index + 1, math.min(open, s.eq), border_color = #00000000, bgcolor = color.new(c, 88))
+                    bool okIn = bull ? cbOk : csOk
+                    if okIn and not na(s.lvl)
+                        s.lvlB := bull ? cbB : csB
+                        // confirmed inside C2: draw it at its confirmation bar
+                        int cb = bull ? cbT : csT
+                        fmConfirm(s, true)
+                        s.cisdB := cb
+                    fss.push(s)
+                    if fmAlertI
+                        alert("Hadō 99 · " + syminfo.ticker + ": " + (bull ? "bullish" : "bearish") + " C2 on the " + fmNm + " (closed " + str.tostring(math.round(clv * 100)) + "% " + (bull ? "up" : "down") + " its range; C3 takes C2's " + (bull ? "high" : "low") + " " + str.tostring(fmTake(q)) + "% of the time)", alert.freq_once_per_bar)
+            while fss.size() > fmKeep
+                fmDel(fss.shift())
+        hcs.unshift(HC.new(open, high, low, close, time, bar_index, bar_index, bar_index))
+        while hcs.size() > 10
+            hcs.pop()
+        cbL  := na
+        cbB  := na
+        cbOk := false
+        cbT  := na
+        csL  := na
+        csB  := na
+        csOk := false
+        csT  := na
+        eBull.delete()
+        eBear.delete()
+    else if hcs.size() > 0
+        HC cur = hcs.first()
+        if high > cur.h
+            cur.h  := high
+            cur.bH := bar_index
+        if low < cur.l
+            cur.l  := low
+            cur.bL := bar_index
+        cur.c := close
+    // 2) CISD trackers for the forming candle: a new low under the previous candle's low re-arms the bullish level
+    if hcs.size() >= 2
+        HC cur = hcs.get(0)
+        HC prv = hcs.get(1)
+        if low == cur.l and cur.l < prv.l and bar_index == cur.bL
+            [lv, lb] = cisdLvl(true)
+            cbL  := lv
+            cbB  := lb
+            cbOk := false
+            cbT  := na
+            eBull.delete()
+        if not na(cbL) and not cbOk and bar_index > cur.bL and close > cbL
+            cbOk := true
+            cbT  := bar_index
+            if fmCisdI
+                eBull := line.new(cbB, cbL, bar_index, cbL, color = fmBull, style = line.style_dashed)
+        if high == cur.h and cur.h > prv.h and bar_index == cur.bH
+            [lv, lb] = cisdLvl(false)
+            csL  := lv
+            csB  := lb
+            csOk := false
+            csT  := na
+            eBear.delete()
+        if not na(csL) and not csOk and bar_index > cur.bH and close < csL
+            csOk := true
+            csT  := bar_index
+            if fmCisdI
+                eBear := line.new(csB, csL, bar_index, csL, color = fmBear, style = line.style_dashed)
+    // 3) live setups: C2's extreme, C3 taking C2's other side, the EQ retrace, CISD, projections, protected swing
+    for s in fss
+        if s.phase > 0
+            bool bull = s.bull
+            color c = bull ? fmBull : fmBear
+            if not s.dead and (bull ? low < s.ext : high > s.ext)
+                s.dead  := true
+                s.deadT := time
+                s.lbC2.set_text("XC2")
+                s.lbC2.set_textcolor(color.gray)
+                // a broken C2 keeps only its label, the sweep and the CISD line, greyed
+                if not na(s.pjL)
+                    for l in s.pjL
+                        l.delete()
+                    for b in s.pjB
+                        b.delete()
+                    s.pjL := na
+                s.lnEq.delete()
+                s.bxT.delete()
+                s.lbCisd.delete()
+                s.lnSw.set_color(color.new(color.gray, 30))
+                if not na(s.lnCisd)
+                    s.lnCisd.set_color(color.new(color.gray, 40))
+            if s.phase == 3 and not s.took and (bull ? high > s.opp : low < s.opp)
+                s.took  := true
+                s.tookT := time
+            if s.phase == 3 and (bull ? low <= s.eq : high >= s.eq)
+                s.eqHit := true
+            if not s.cisd and not s.dead and not na(s.lvl) and (bull ? close > s.lvl : close < s.lvl)
+                fmConfirm(s, false)
+            if not s.dead and not na(s.pjL)
+                for [i, l] in s.pjL
+                    l.set_x2(bar_index)
+                    s.pjB.get(i).set_x(bar_index)
+                    if not s.pjHit.get(i) and (bull ? high >= l.get_y1() : low <= l.get_y1())
+                        s.pjHit.set(i, true)
+                        s.pjB.get(i).set_text("+" + str.tostring(PJ.get(i)) + " ✓")
+            if not s.dead
+                if not na(s.lnEq)
+                    s.lnEq.set_x2(bar_index)
+                if s.phase == 3 and not na(s.bxT)
+                    s.bxT.set_right(bar_index)
+                if not na(s.lnCisd)
+                    s.lnCisd.set_x2(bar_index)
+                    s.lbCisd.set_x(bar_index)
+            // protected swing (closed bars only)
+            if fmProtI and s.cisd and not s.dead and not s.pDone and bar_index > s.cisdB and barstate.isconfirmed
+                if not s.pPend
+                    if bull ? close < open : close > open
+                        s.pPend := true
+                        s.pA    := bar_index
+                        s.pLvl  := open
+                        s.pEx   := bull ? low : high
+                        s.pExB  := bar_index
+                else
+                    if bull ? low < s.pEx : high > s.pEx
+                        s.pEx  := bull ? low : high
+                        s.pExB := bar_index
+                        float best = na
+                        for i = 0 to math.min(bar_index - s.pA, 290)
+                            bool oppI = bull ? close[i] < open[i] : close[i] > open[i]
+                            if oppI or close[i] == open[i]
+                                best := na(best) ? open[i] : (bull ? math.max(best, open[i]) : math.min(best, open[i]))
+                            else
+                                break
+                        if not na(best)
+                            s.pLvl := best
+                    if bar_index > s.pExB and (bull ? close > s.pLvl : close < s.pLvl)
+                        float sp = na
+                        int   sb = na
+                        for k = 1 to math.min(bar_index - s.pA, 290)
+                            bool sw = bull ? low[k] <= low[k + 1] and low[k] <= low[k - 1] : high[k] >= high[k + 1] and high[k] >= high[k - 1]
+                            float v = bull ? low[k] : high[k]
+                            if sw and (na(sp) or (bull ? v < sp : v > sp))
+                                sp := v
+                                sb := bar_index - k
+                        if not na(sp)
+                            s.pDone := true
+                            s.pPx   := sp
+                            s.pB    := sb
+                            s.pLeft := int(math.max(0, s.t3 + 2 * htfMs - time_close) / (tfSec * 1000))
+                            s.pDot  := label.new(sb, sp, "●", style = bull ? label.style_label_up : label.style_label_down, color = #00000000, textcolor = c, size = size.small)
+                            if fmAlertI
+                                alert("Hadō 99 · " + syminfo.ticker + ": protected " + (bull ? "swing low " : "swing high ") + pxF(sp), alert.freq_once_per_bar)
+                        else
+                            s.pPend := false
+            // a protected swing counts through the end of C4
+            if s.pDone and not s.pTaken and (bull ? low < s.pPx : high > s.pPx)
+                s.pTaken := true
+                s.pDot.set_textcolor(color.gray)
+
+// the last higher-timeframe candles, right of price (PO3 style), tagged C1–C4 for the latest setup; colours, sizes and
+// extras from the "HTF candles (PO3)" settings
+var array<box>   pvB = array.new<box>()
+var array<line>  pvL = array.new<line>()
+var array<label> pvT = array.new<label>()
+if barstate.islast and fmAct and fmPrev and hcs.size() > 0
+    while pvB.size() > 0
+        pvB.pop().delete()
+    while pvL.size() > 0
+        pvL.pop().delete()
+    while pvT.size() > 0
+        pvT.pop().delete()
+    int n = math.min(fmPrevN, hcs.size())
+    FS last = fss.size() > 0 ? fss.last() : na
+    int i2 = -1
+    if not na(last)
+        for [m, h] in hcs
+            if h.t0 == last.t2
+                i2 := m
+    bool  tgDn  = na(last) or last.bull                  // a bullish setup's tags go under the candles
+    color tagC  = na(last) ? fgAuto : last.bull ? fmBull : fmBear
+    color subC  = bgLum < 128 ? #8a93a6 : #5d6476
+    bool  ict   = pvStyI == "ICT (green / black)"
+    int   pvW0  = pvWI > 0 ? pvWI : tfSec <= 120 ? 6 : tfSec <= 300 ? 4 : 2
+    int   pvG0  = pvGI > 0 ? pvGI : tfSec <= 120 ? 3 : 2
+    int   x0    = bar_index + fmOff
+    int   xEndP = x0 + (n - 1) * (pvW0 + pvG0) + pvW0
+    float top   = na
+    float bot   = na
+    for j = 0 to n - 1
+        top := na(top) ? hcs.get(j).h : math.max(top, hcs.get(j).h)
+        bot := na(bot) ? hcs.get(j).l : math.min(bot, hcs.get(j).l)
+    for j = 0 to n - 1
+        int   m  = n - 1 - j                     // position in hcs, newest = 0
+        HC    h  = hcs.get(m)
+        bool  up = h.c >= h.o
+        int   x1 = x0 + j * (pvW0 + pvG0)
+        int   x2 = x1 + pvW0
+        int   xm = x1 + int(pvW0 / 2)
+        color mc = up ? fmBull : fmBear
+        color bd = pvCu ? (up ? pvBdU : pvBdD) : ict ? (up ? #a5d6a7 : fgAuto) : color.new(mc, 70)
+        color br = pvCu ? (up ? pvBrU : pvBrD) : ict ? fgAuto : color.new(mc, 30)
+        color wk = pvCu ? (up ? pvWkU : pvWkD) : ict ? fgAuto : color.new(mc, 30)
+        float bt = math.max(h.o, h.c)
+        float bb = math.min(h.o, h.c)
+        // the wicks stop at the body, so a see-through body shows no line inside it
+        if h.h > bt
+            pvL.push(line.new(xm, h.h, xm, bt, color = wk, width = pvWkW))
+        if h.l < bb
+            pvL.push(line.new(xm, bb, xm, h.l, color = wk, width = pvWkW))
+        pvB.push(box.new(x1, bt, x2, bb, border_color = br, bgcolor = bd, border_style = m == 0 and pvLivI ? line.style_dashed : line.style_solid))
+        if pvSepI
+            pvL.push(line.new(h.b0, h.l, h.b0, h.h, extend = extend.both, color = pvSepC, style = line.style_dotted))
+        string tag = i2 < 0 or not pvTagI ? "" : m == i2 + 1 ? "C1" : m == i2 ? "C2" : m == i2 - 1 ? "C3" : m == i2 - 2 ? "C4" : ""
+        string stp = pvStmI ? str.format_time(fmTf == "D" ? h.t0 + 6 * 3600000 : h.t0, fmTf == "D" ? "EEE dd" : "HH:mm", tz) : ""
+        // under the candle: its time, and a bullish setup's tag; over it: a bearish setup's tag
+        string dn = tgDn and tag != "" ? (stp != "" ? stp + "\n" : "") + tag : stp
+        if dn != ""
+            pvT.push(label.new(xm, h.l, dn, style = label.style_label_up, color = #00000000, textcolor = tgDn and tag != "" ? tagC : subC, size = size.tiny))
+        if not tgDn and tag != ""
+            pvT.push(label.new(xm, h.h, tag, style = label.style_label_down, color = #00000000, textcolor = tagC, size = size.tiny))
+    HC cur = hcs.get(0)
+    // the forming candle's open and the last closed candle's high / low; an open within 4% of the candles' range of the high
+    // or low shares that label, so the two never print over each other
+    bool  hlOn = pvHLI and hcs.size() > 1
+    HC    pc   = hlOn ? hcs.get(1) : na
+    float tol  = 0.04 * (top - bot)
+    bool  opH  = pvOpnI and hlOn and math.abs(cur.o - pc.h) <= tol
+    bool  opL  = pvOpnI and hlOn and not opH and math.abs(cur.o - pc.l) <= tol
+    if pvOpnI
+        pvL.push(line.new(cur.b0, cur.o, xEndP, cur.o, color = pvOpnC, style = line.style_dashed))
+        if not opH and not opL
+            pvT.push(label.new(xEndP, cur.o, "open " + pxF(cur.o), style = label.style_label_left, color = #00000000, textcolor = pvOpnC, size = size.tiny))
+    if hlOn
+        pvL.push(line.new(pc.bH, pc.h, xEndP, pc.h, color = pvHLC, style = line.style_dotted))
+        pvL.push(line.new(pc.bL, pc.l, xEndP, pc.l, color = pvHLC, style = line.style_dotted))
+        pvT.push(label.new(xEndP, pc.h, "H " + pxF(pc.h) + (opH ? " · open " + pxF(cur.o) : ""), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
+        pvT.push(label.new(xEndP, pc.l, "L " + pxF(pc.l) + (opL ? " · open " + pxF(cur.o) : ""), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
+    if pvInfI
+        int msLeft = time_close(fmTf) - (barstate.isrealtime ? timenow : time_close)
+        int secs = math.max(0, int(msLeft / 1000))
+        string lft = fmTf == "D" ? str.format("{0}h {1}m", int(secs / 3600), int((secs % 3600) / 60)) : str.format("{0}:{1}", int(secs / 60), str.tostring(secs % 60, "00"))
+        // lifted clear of a bearish setup's tags over the candles
+        float yI = top + (not tgDn and i2 >= 0 and pvTagI ? 0.08 * (top - bot) : 0.0)
+        pvT.push(label.new(int((x0 + xEndP) / 2), yI, fmNm + " · " + lft, style = label.style_label_down, color = #00000000, textcolor = fgAuto, size = size.tiny))
+
+// ═══════════════════════════════════════════════════════════════════
+// CARD
+// ═══════════════════════════════════════════════════════════════════
+cSz = cardSzI == "Tiny" ? size.tiny : cardSzI == "Normal" ? size.normal : size.small
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+sgn(float v, string f) => na(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + str.tostring(math.abs(v), f)
+pctS(float v) => sgn(v, "0.00") + "%"
+ptsS(float v) => sgn(v, "0")
+pxS(float v) => na(v) ? "—" : str.tostring(v, "0.00")
+addRow(array<string> K, array<string> V, array<string> W, array<string> P, array<color> C, string k, string v, string w, string p, color c) =>
+    K.push(k)
+    V.push(v)
+    W.push(w)
+    P.push(p)
+    C.push(c)
+
+toPtsOf(float pc, float base) => pc * base / 100
+// range / ADR20 by yesterday's own range (< 1, 1–1.5, ≥ 1.5 × ADR20) and whether DXY or CL moved 2+ sd yesterday
+rngMult(float yr, bool big) => yr < 1 ? (big ? 1.07 : 0.92) : yr < 1.5 ? (big ? 1.16 : 1.06) : (big ? 1.51 : 1.33)
+
+drawCard(table t, string h0, string h1, string pill, color hc, color pTx, color pBg, string pTip, array<string> K, array<string> V, array<string> W, array<string> P, array<color> C, array<string> keepM, string fnt, bool mob) =>
+    t.clear(0, 0, 2, 9)
+    t.cell(0, 0, h0, text_color = hdrTx(hc), bgcolor = hc, text_size = cSz, text_halign = text.align_left, text_font_family = fnt)
+    t.cell(1, 0, h1, text_color = hdrTx(hc), bgcolor = hc, text_size = cSz, text_halign = text.align_left, text_font_family = fnt)
+    t.cell(2, 0, pill, text_color = pTx, bgcolor = pBg, text_size = cSz, text_halign = text.align_center, text_font_family = fnt, tooltip = pTip)
+    int r = 1
+    for [i, k] in K
+        if (not mob or keepM.includes(k)) and r < 10
+            color vc = C.get(i)
+            t.cell(0, r, k, text_color = cSub, text_size = cSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = fnt, tooltip = P.get(i))
+            t.cell(1, r, V.get(i), text_color = na(vc) ? cTxt : vc, text_size = cSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = fnt, tooltip = P.get(i))
+            t.cell(2, r, W.get(i), text_color = na(vc) ? cTxt : vc, text_size = cSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = fnt, tooltip = P.get(i))
+            r += 1
+    t.set_frame_color(color.new(hc, 30))
+
+// live two-factor beta of the index on DXY and CL over the last N matched days (daily % changes)
+liveBeta(array<float> iC, array<int> iK, array<float> dC, array<int> dK, array<float> oC, array<int> oK, int n) =>
+    map<int, float> mD = map.new<int, float>()
+    map<int, float> mO = map.new<int, float>()
+    if dC.size() > 1
+        for j = 1 to dC.size() - 1
+            mD.put(dK.get(j), (dC.get(j) / dC.get(j - 1) - 1) * 100)
+    if oC.size() > 1
+        for j = 1 to oC.size() - 1
+            mO.put(oK.get(j), (oC.get(j) / oC.get(j - 1) - 1) * 100)
+    float sy  = 0.0
+    float sx  = 0.0
+    float sz  = 0.0
+    float sxx = 0.0
+    float szz = 0.0
+    float sxz = 0.0
+    float sxy = 0.0
+    float szy = 0.0
+    float syy = 0.0
+    int m = 0
+    int j = iC.size() - 1
+    while j >= 1 and m < n
+        int k = iK.get(j)
+        if mD.contains(k) and mO.contains(k)
+            float y = (iC.get(j) / iC.get(j - 1) - 1) * 100
+            float x = mD.get(k)
+            float z = mO.get(k)
+            sy  += y
+            sx  += x
+            sz  += z
+            sxx += x * x
+            szz += z * z
+            sxz += x * z
+            sxy += x * y
+            szy += z * y
+            syy += y * y
+            m += 1
+        j -= 1
+    float bD = na
+    float bO = na
+    float rD = na
+    float rO = na
+    if m >= 20
+        float vx  = sxx / m - math.pow(sx / m, 2)
+        float vz  = szz / m - math.pow(sz / m, 2)
+        float vy  = syy / m - math.pow(sy / m, 2)
+        float cxz = sxz / m - sx * sz / (m * m)
+        float cxy = sxy / m - sx * sy / (m * m)
+        float czy = szy / m - sz * sy / (m * m)
+        float det = vx * vz - cxz * cxz
+        if det > 0
+            bD := (vz * cxy - cxz * czy) / det
+            bO := (vx * czy - cxz * cxy) / det
+        rD := cxy / math.sqrt(vx * vy)
+        rO := czy / math.sqrt(vz * vy)
+    [bD, bO, rD, rO, m]
+
+var table TM = na
+var table TF = na
+if barstate.islast
+    bool   mob  = layoutI == "Mobile"
+    string fnt  = mob ? font.family_default : font.family_monospace
+    string tNow = str.format_time(time, mob ? "MM/dd HH:mm" : "MM/dd · HH:mm", tz) + (mob ? "" : " ET")
+    color  nc   = na
+    // ── MACRO CARD
+    if showMac
+        if na(TM)
+            TM := table.new(posOf(macPos), 3, 10, border_width = 0, frame_width = 1, frame_color = color.gray)
+        string sym = sk == "NQ" or sk == "ES" or sk == "RTY" ? sk : syminfo.ticker
+        float iChg = (iNow / iPrev - 1) * 100
+        float dChg = (dNow / dPrev - 1) * 100
+        float oChg = (oNow / oPrev - 1) * 100
+        float bD   = bT(reg)
+        float bO   = cT(reg)
+        float impD = bD * dChg
+        float impO = bO * oChg
+        float imp = impD + impO
+        float lbD = na
+        float lbO = na
+        float lrD = na
+        float lrO = na
+        int   lm  = 0
+        if liveOn and not na(iC) and not na(dC) and not na(oC)
+            [b1, b2, r1, r2, mm] = liveBeta(iC, iK, dC, dK, oC, oK, betaLen)
+            lbD := b1
+            lbO := b2
+            lrD := r1
+            lrO := r2
+            lm  := mm
+        array<string> K = array.new<string>()
+        array<string> V = array.new<string>()
+        array<string> W = array.new<string>()
+        array<string> P = array.new<string>()
+        array<color>  C = array.new<color>()
+        string wv = reg == 2 ? "DXY and CL, both against" : reg == 1 ? "DXY · 1% ≈ " + pctS(bD) : "CL · 1% ≈ " + pctS(bO)
+        string ww = reg == 2 ? "1% each ≈ " + pctS(bD) + " / " + pctS(bO) : reg == 1 ? ptsS(toPtsOf(bD, iPrev)) + " pts" : ptsS(toPtsOf(bO, iPrev)) + " pts"
+        addRow(K, V, W, P, C, "WATCH", wv, mob and reg == 2 ? "" : ww, "Tested on " + (sym == syminfo.ticker ? "NQ + ES + RTY pooled" : sym) + " daily 2018–26: in this regime a 1% DXY move went with " + pctS(bD) + " on the index and a 1% CL move with " + pctS(bO) + " (both together, same day). The dollar and oil explained about " + str.tostring(r2T(reg)) + "% of the day-to-day variance of the index (R²). Context, not a signal: neither led the index on any horizon tested.", regC)
+        float mxZ  = math.max(nz(dxZ), nz(clZ))
+        bool  bigM = mxZ >= 2
+        float mult = na(yRat) ? na : rngMult(yRat, bigM)
+        float expR = adr20 * mult
+        float dayR = dayH - dayL
+        string who = nz(dxZ) >= nz(clZ) ? "DXY" : "CL"
+        string rv = na(expR) ? "—" : "≈ " + str.tostring(expR, "0") + " pts" + (mob ? "" : " (" + str.tostring(mult, "0.00") + "× ADR)") + (bigM ? " · after " + who + " " + str.tostring(mxZ, "0.0") + " sd" : "")
+        string rw = na(expR) ? "" : str.tostring(dayR / expR * 100, "0") + "% used"
+        addRow(K, V, W, P, C, "RANGE", rv, rw, "Today's range to expect, for sizing targets and stops: ADR20 (" + str.tostring(adr20, "0") + " pts) × the average range / ADR20 that followed a day like yesterday. Yesterday: the index ran " + str.tostring(yRat, "0.00") + "× its ADR20, DXY moved " + str.tostring(dxZ, "0.0") + " and CL " + str.tostring(clZ, "0.0") + " daily standard deviations. NQ + ES + RTY 2018–26 (6,500 days): by yesterday's own range (< 1, 1–1.5, ≥ 1.5× ADR20) the day ran 0.92 / 1.06 / 1.33× ADR20, and 1.07 / 1.16 / 1.51× after DXY or CL moved 2+ sd (1 day in 10): a big dollar or oil day adds 0.10–0.19× ADR20 beyond the index's own range (p < 0.01; held in 2018–24 and 2025–26 and on each symbol). The regime itself made no difference to the range, and DXY's overnight move added nothing to the New York session beyond the overnight range. So far today: " + str.tostring(dayR, "0") + " pts.", bigM ? regC : nc)
+        addRow(K, V, W, P, C, "DXY", pxS(dNow) + (dChg >= 0 ? " ▲ " : " ▼ ") + pctS(dChg) + (mob ? "" : " · " + str.tostring(maLen) + "d " + pxS(dMa)), (mob ? "" : "→ ") + pctS(impD) + (mob ? "" : " (" + ptsS(toPtsOf(impD, iPrev)) + ")"), "DXY against its prior daily close, and the index move that goes with it in this regime (" + pctS(bD) + " per 1%). Above its " + str.tostring(maLen) + "-day average yesterday: " + (above ? "yes (strong dollar)" : "no (weak dollar)") + ".", nc)
+        addRow(K, V, W, P, C, "OIL", pxS(oNow) + (oChg >= 0 ? " ▲ " : " ▼ ") + pctS(oChg) + (mob ? "" : " · bkwd " + sgn(ts12, "0.0") + "%/yr"), (mob ? "" : "→ ") + pctS(impO) + (mob ? "" : " (" + ptsS(toPtsOf(impO, iPrev)) + ")"), "CL (front month, back-adjusted) against its prior settle, and the index move that goes with it in this regime (" + pctS(bO) + " per 1%). Backwardation = front over second month, annualised; it was " + sgn(ts12, "0.0") + "%/yr yesterday.", nc)
+        bool  same = not na(imp) and not na(iChg) and iChg != 0 and math.sign(imp) == math.sign(iChg)
+        float share = same ? math.min(imp / iChg, 1.0) * 100 : na
+        addRow(K, V, W, P, C, "TODAY", sym + " " + pctS(iChg) + (mob ? "" : " (" + ptsS(toPtsOf(iChg, iPrev)) + ")") + " · $+oil " + pctS(imp), same ? str.tostring(share, "0") + "%" : "not macro", "The index against its prior daily close, and the part the dollar and oil account for with this regime's tested betas. A move the dollar and oil don't explain is the index's own. Tested 2023–26 at 10:00–14:00: a gap between the two did not close by 16:00, so this is attribution, not a fade signal.", same and share >= 50 ? regC : nc)
+        if liveOn
+            addRow(K, V, W, P, C, "LIVE β", lm >= 20 ? str.tostring(lm) + "d · DXY " + sgn(lbD, "0.00") + " · CL " + sgn(lbO, "0.00") : "loading", "tested " + sgn(bD, "0.00") + " / " + sgn(bO, "0.00"), "The same two-factor betas measured on the last " + str.tostring(betaLen) + " matched days (correlation DXY " + sgn(lrD, "0.00") + ", CL " + sgn(lrO, "0.00") + "), against the tested values for this regime. Far apart means the live link has drifted from the tested one.", nc)
+        string shv = "CL 20d " + sgn(cl20, "0.0") + "% · bkwd " + sgn(ts12, "0.0") + "%"
+        addRow(K, V, W, P, C, "SHOCK", shv, shock ? "ON" : "needs +" + str.tostring(clThr, "0") + " / " + str.tostring(backThr, "0"), "Oil shock rule, from yesterday's closes: CL up more than " + str.tostring(clThr, "0") + "% over 20 days and the front month more than " + str.tostring(backThr, "0") + "%/yr above the second. In shocks 2018–26 the index moved against oil (correlation −0.4) and 1.5–2× as hard against the dollar as in a strong-dollar regime.", shock ? colShock : nc)
+        float cr = (f2Now / f1Now - 1) * (365.0 / 91.0) * 100
+        float sp = f2Now - f1Now
+        addRow(K, V, W, P, C, "CARRY", isIdx and not na(cr) ? sgn(cr, "0.00") + "%/yr · next " + ptsS(sp) + " pts" : "index futures only", isIdx and not na(sp) ? ptsS(-sp / 91) + " pts/day" : "", "Index carry: the next contract over the front, annualised (≈ short rates minus the dividend yield). The front month gives up about this many points a day to the cash index until expiry. NQ carry ran 1.6% (2018), −0.2% (2020–21), 4.7% (2023–24), 3.8% (2026). Tested 2018–26: neither its level nor its weekly change led the next week's return, range, close in the premium of the prior week or a take of its high or low.", nc)
+        string regTip = "WEAK $: DXY below its " + str.tostring(maLen) + "-day average, the index follows oil. STRONG $: above it, the dollar leads. OIL SHOCK: CL's front month " + str.tostring(backThr, "0") + "%+ a year above the second and CL up " + str.tostring(clThr, "0") + "%+ in 20 days; both turn against the index. From yesterday's closes. Share of days 2018–26: weak 42%, strong 52%, shock 6% (28% in 2026)."
+        drawCard(TM, mob ? "MACRO" : "HADŌ 99 · MACRO", tNow, regNm, regC, regC, lumOf(regC) > 165 ? #131722 : #ffffff, regTip, K, V, W, P, C, array.from("WATCH", "RANGE", "DXY", "OIL"), fnt, mob)
+    else if not na(TM)
+        TM.delete()
+        TM := na
+    // ── FRACTAL CARD
+    if showFm and fmAct
+        if na(TF)
+            TF := table.new(posOf(fmPos), 3, 10, border_width = 0, frame_width = 1, frame_color = color.gray)
+        array<string> K = array.new<string>()
+        array<string> V = array.new<string>()
+        array<string> W = array.new<string>()
+        array<string> P = array.new<string>()
+        array<color>  C = array.new<color>()
+        string tst = fmTest ? "NQ + ES + RTY 2018–26, " + (fmP == 0 ? "1-minute chart, 15-minute candles (248k C2s)" : "1-hour chart, daily candles (3,089 C2s)") + ": " : "Untested pair on this chart timeframe; the odds shown are from the " + (fmP == 0 ? "1m–15m" : "1H–1D") + " test. "
+        if fss.size() == 0
+            addRow(K, V, W, P, C, "C2", "waiting for a " + fmNm + " sweep and close back", "", "No C2 among the kept candles yet.", nc)
+        else
+            FS s = fss.last()
+            bool  bl = s.bull
+            color sc = bl ? fmBull : fmBear
+            string hs = bl ? "high" : "low"
+            int    pc = math.round(s.clv * 100)
+            addRow(K, V, W, P, C, "C2", (bl ? "▲ " : "▼ ") + (mob ? "" : (bl ? "bull · " : "bear · ")) + hhmm(s.t2) + " · closed " + str.tostring(pc) + "% " + (bl ? "up" : "down"), s.phase == 3 ? "in C3" : s.phase == 4 ? "in C4" : "done", tst + "where C2 closes in its own range decides C3. Closing in the top quarter toward the trade, C3 took C2's " + hs + " on " + str.tostring(fmTake(3)) + "%; in the bottom quarter on " + str.tostring(fmTake(0)) + "%. Against other candles that closed in the same place, a C2 was no more likely to see it (the pattern adds nothing beyond its close).", sc)
+            string c3v = s.took ? "✓ took " + (mob ? "" : "C2's ") + hs + " " + hhmm(s.tookT) : s.phase == 3 ? (s.eqHit ? (mob ? "at EQ · " : "back at EQ · ") : "") + (mob ? hs + " " : "takes C2's " + hs + " ") + str.tostring(s.eqHit ? fmTakeEq(s.q) : fmTake(s.q)) + "%" : "✗ didn't take C2's " + hs
+            addRow(K, V, W, P, C, "C3", c3v, mob ? "" : pxF(s.opp), tst + "C3 took C2's " + hs + " by where C2 closed (quarters of its range): " + str.tostring(fmTake(0)) + " / " + str.tostring(fmTake(1)) + " / " + str.tostring(fmTake(2)) + " / " + str.tostring(fmTake(3)) + "%. After C3 trades back to C2's midpoint (EQ): " + str.tostring(fmTakeEq(0)) + " / " + str.tostring(fmTakeEq(1)) + " / " + str.tostring(fmTakeEq(2)) + " / " + str.tostring(fmTakeEq(3)) + "%. Steady in 2018–24 and 2025–26 and on each symbol.", s.took ? sc : nc)
+            string lv = s.dead ? "✗ taken " + hhmm(s.deadT) : s.phase == 3 ? "holds through C3 " + str.tostring(fmHold(s.q)) + "%" : "held"
+            addRow(K, V, W, P, C, bl ? "C2 LOW" : "C2 HIGH", lv, pxF(s.ext), tst + "C2's swept " + (bl ? "low" : "high") + " held through C3 by where C2 closed: " + str.tostring(fmHold(0)) + " / " + str.tostring(fmHold(1)) + " / " + str.tostring(fmHold(2)) + " / " + str.tostring(fmHold(3)) + "%. That is " + (fmP == 0 ? "1.7" : "3.4") + " points more often than other candles' lows at the same close location, and " + (fmP == 0 ? "2.8" : "7.4") + " more when the CISD confirmed inside C2.", s.dead ? color.gray : nc)
+            string cv = s.cisd ? "✓ " + (s.cisdC2 ? "in C2 (early)" : hhmm(s.cisdT)) : na(s.lvl) ? "—" : s.dead ? "✗ C2 broken first" : "waiting"
+            addRow(K, V, W, P, C, "CISD", cv, pxF(s.lvl), "CISD: the highest open of the run of " + (bl ? "down" : "up") + "-closing bars that delivered C2's " + (bl ? "low" : "high") + " (up to 10 bars back), confirmed by the first close beyond it. " + tst + "it confirmed inside C2 on " + (fmP == 0 ? "66" : "74") + "% of C2s and by the end of C4 on " + (fmP == 0 ? "88" : "91") + "%. Once close location is accounted for, an early CISD does not raise the odds C3 takes C2's " + hs + ".", s.cisd ? sc : nc)
+            if fmP == 0
+                string dv = na(s.dz) ? "—" : (s.dz > 0.5 ? "with C2" : s.dz < -0.5 ? "against C2" : "flat") + " · " + (s.dChg >= 0 ? "▲ " : "▼ ") + str.tostring(math.abs(s.dChg), "0.00") + "%" + (mob ? "" : " (" + str.tostring(math.abs(s.dz), "0.0") + " sd)")
+                string dw = na(s.dz) ? "" : s.dz > 0.5 ? (s.phase == 3 ? "hold +1.7 · take +1.3" : "hold +1.7") : "no edge"
+                addRow(K, V, W, P, C, "DXY", dv, mob ? "" : dw, "DXY across the C2 candle (C1's close to C2's close), against its typical 15-minute move over the last ~2 weeks. All tested DXY betas are negative, so DXY down suits a bullish C2 and DXY up a bearish one. NQ + ES + RTY 2023–26 (93k C2s, DX futures 5-minute): when DXY moved the setup's way by more than 0.5 sd (1 C2 in 4), C2's " + (bl ? "low" : "high") + " held through C3 1.7 points more often and C3 took C2's " + hs + " 1.3 points more often, at the same close location (p < 0.01; held in 2023–24 and 2025–26 and on each symbol; the take effect was weaker in 2025–26). DXY moving against the setup changed nothing. A small edge: it adds to the odds above, it does not replace them. On daily candles neither DXY nor CL made a difference.", not na(s.dz) and s.dz > 0.5 ? sc : nc)
+            if fmProjI and s.cisd and not na(s.pjHit)
+                string tv = ""
+                for [i, k] in PJ
+                    if i < 4
+                        tv += (tv == "" ? "" : " · ") + "+" + str.tostring(k) + (s.pjHit.get(i) ? " ✓" : fmTest ? " " + str.tostring(fmProj(i)) + "%" : "")
+                addRow(K, V, W, P, C, "TARGETS", tv, "", tst + "after the CISD confirmed, price reached CISD + k × (CISD − C2's extreme) before C4 ended: +1 " + str.tostring(fmProj(0)) + "%, +2 " + str.tostring(fmProj(1)) + "%, +2.5 " + str.tostring(fmProj(2)) + "%, +4 " + str.tostring(fmProj(3)) + "%, +4.5 " + str.tostring(fmProj(4)) + "%. Steady in both periods and on each symbol.", nc)
+            if fmProtI and s.cisd
+                string pv = s.pDone ? (s.pTaken ? "✗ taken" : "holding " + pxF(s.pPx)) : s.dead ? "—" : "forming"
+                string pw = not s.pDone or s.pTaken ? "" : s.phase == 0 ? "held" : fmP == 0 and fmTest ? "to C4 end " + str.tostring(fmProtHold(s.pLeft)) + "%" : "untested"
+                addRow(K, V, W, P, C, "PROTECT", pv, pw, "Protected swing: after the CISD, the first " + (bl ? "down" : "up") + "-closing bar arms a level at its open (moved to the open of the run into each new " + (bl ? "low" : "high") + "); a close back beyond it marks the most extreme 3-bar swing in between. NQ + ES + RTY 2018–26, 1-minute chart, 15-minute candles: protected swings held to the end of C4 9.5 points more often than other 1-minute swings with the same bars left and distance (49% overall). By bars left in C4 when marked, ≤5 / 6–10 / 11–15 / 16–20 / 21+: 93 / 77 / 64 / 52 / 39%. Not tested on 1H–1D.", s.pDone and not s.pTaken ? sc : nc)
+        FS    lst  = fss.size() > 0 ? fss.last() : na
+        bool  live = not na(lst) and lst.phase > 0 and not lst.dead
+        color hc   = live ? (lst.bull ? fmBull : fmBear) : cNeu
+        string pill = fmNm + (fmTest ? "" : mob ? "*" : " · untested")
+        string pTip = "C2 → C3 on " + fmNm + " candles. " + (fmTest ? "Odds tested on this pair (NQ + ES + RTY 2018–26)." : "This chart timeframe was not tested; the odds shown are from the " + (fmP == 0 ? "1-minute" : "1-hour") + " chart.") + " The header takes the colour of a live setup. The macro regime made no difference to these odds."
+        drawCard(TF, mob ? "FRACTAL" : "HADŌ 99 · FRACTAL", tNow, pill, hc, live ? hc : cTxt, live ? (lumOf(hc) > 165 ? #131722 : #ffffff) : cBody, pTip, K, V, W, P, C, array.from("C2", "C3", "CISD", "PROTECT"), fnt, mob)
+    else if not na(TF)
+        TF.delete()
+        TF := na
