@@ -84,6 +84,12 @@ Files: `Sharingan.pine` (the script), `TradingView_description.txt` (publication
 
 Daily fair value gaps are not drawn here: they live in Mangekyō.
 
+## Why the name
+
+**Sharingan** (写輪眼, the *Copy Wheel Eye*) is the Uchiha clan's eye: it reads an opponent's movement so closely that it can copy a technique and see the next strike before it lands. Fully awakened, it shows three tomoe.
+
+Here the three tomoe are the three look backs, 60, 40 and 20 trading days: what price has already done. The cast forward is the copy, the same 20 / 40 / 60 days projected ahead of the anchor, where the next shift is expected. The eye reads; it does not decide. Neither does this indicator. Its next stage, [Mangekyō](../mangekyo/), turns the same gaze onto the daily candles inside the quarter.
+
 ## Credits
 
 Quarterly shift, IPDA data range, look-back and cast-forward, buy-side and sell-side liquidity and market-structure shift concepts are taught by ICT (Michael J. Huddleston). Quarterly Theory (the Q1–Q4 cycles and true opens) is taught by Daye. Not affiliated with or endorsed by either.

@@ -1,68 +1,132 @@
 TITLE (paste into the Title field)
-Sharingan: ICT Quarterly Shift, IPDA Liquidity, Daily Structure & True Opens
+Sharingan: ICT Quarterly Shift, IPDA Look Back / Cast Forward, Liquidity, Daily Structure & True Opens
 
 DESCRIPTION (paste everything below the line into the Description field)
 ────────────────────────────────────────────────────────────────────────
 
-[b]Sharingan[/b] puts ICT's quarterly shift and IPDA data ranges on the chart:
-• the 60 / 40 / 20 trading days left of an anchor (the look back), as buy-side and sell-side liquidity;
-• +20 / +40 / +60 right of it (the cast forward);
-• daily market structure: the last shifts and the flip level;
-• Quarterly Theory: Q1–Q4 dividers and the true year and month opens;
-• the tested odds that each look-back high and low trades.
+[b]Sharingan[/b] reads the last three months to frame the next three, as ICT teaches quarterly shifts and IPDA data ranges (2017 Mentorship, Month 05):
+• [b]The look back:[/b] the 60, 40 and 20 trading days left of an anchor, their highs as buy-side liquidity (BSL) and their lows as sell-side (SSL), run right while they stand and drawn bold to the candle that swept them once taken.
+• [b]The cast forward:[/b] +20, +40 and +60 trading days right of the anchor, the window where ICT expects the next shift.
+• [b]Daily market structure:[/b] the last two shifts (MSS) and the swing a daily close must clear to flip it back.
+• [b]Quarterly Theory:[/b] the quarters (Q1–Q4) and the true year and month opens.
+• [b]A card[/b] with the order flow, the structure, every level's tested odds of trading within 20 days and by +60, the window and the quarter.
+• The numbers come from NQ, ES, YM and RTY daily data, 2010–26.
 [i]A map of where the liquidity rests and when ICT expects the next shift. It does not call direction.[/i]
 
 
 [b]█ THE ANCHOR[/b]
 
 • [b]Last closed month[/b] (ICT's default): the first trading day of the most recent closed month. On 6 Jan 2017 that is 1 Dec 2016.
-• [b]Last structure shift[/b] (calibrated): the daily high or low that the last market-structure shift came from. A shift is a daily close beyond the last opposite swing.
-• [b]Both[/b]: the card follows the month anchor, and the shift anchor and its marks are drawn too.
+• [b]Last structure shift[/b] (calibrated): the daily high or low the last market-structure shift came from. A shift is a daily close beyond the last opposite swing; the anchor is the extreme between that swing and the shift ([i]ANCHOR 06 Oct · the high before the 14 Oct MSS[/i]).
+• [b]Both:[/b] the card follows the month anchor, and the shift anchor and its marks are drawn too, fainter.
 
 
-[b]█ WHAT IT DRAWS[/b]
+[b]█ WHAT IT DRAWS ON PRICE[/b]
 
-• [b]The look back:[/b] each window's high is buy-side liquidity (BSL), its low sell-side (SSL).
-  – Standing: a solid line run right to +60, with its name and price.
-  – Swept: a bold line to the candle that took it, ✕ there, named with the date at its origin ([i]BSL 60d · swept 02 Oct[/i]), above a high or below a low, where no candle reached it.
-  – Identical levels are merged, e.g. [i]60/40d[/i]. Brackets above price mark the three windows.
-• [b]Market structure (daily):[/b] the last two shifts (MSS ▲ / ▼), dashed from the swing a close broke to the candle that broke it, and the flip level, the swing a close must clear to shift it back.
-• [b]Quarterly Theory:[/b] the true year open (the first Monday of April) and the true month open (the second Monday), run right as references.
+• [b]The look back:[/b] each window's high (BSL) and low (SSL).
+  – [b]Standing:[/b] a solid line run right to +60, named with its price ([i]SSL 60/40d 27,492.00[/i]).
+  – [b]Swept:[/b] a bold line that stops at the candle that took it, ✕ there, named with the date at its origin ([i]BSL 60d · swept 02 Oct[/i]). The name sits above a high or below a low, on the side no candle reached, so it never covers price.
+  – Identical levels merge into one ([i]60/40d[/i]). Brackets above price mark the three windows.
+• [b]Market structure (daily):[/b]
+  – the last two shifts, [b]MSS ▲ / ▼[/b]: dashed from the swing a daily close broke to the candle that broke it, named at the swing;
+  – the [b]flip level[/b]: the last swing high while bearish, the last swing low while bullish, dotted and run right.
+• [b]Quarterly Theory:[/b] the [b]true year open[/b] (the open of the first Monday of April, the start of the year's Q2) and the [b]true month open[/b] (the open of the second Monday), dashed and run right as references.
 • [b]The cast forward:[/b] +20 / +40 / +60 marks, the +20 → +60 window shaded, and brackets above price. Future dates skip weekends and CME equity holidays.
-• [b]Quarterly dividers (Q1–Q4):[/b] Jan / Apr / Jul / Oct, or ICT's Dec / Mar / Jun / Sep, plus the next one ahead.
+• [b]Quarterly dividers:[/b] Jan / Apr / Jul / Oct, or ICT's Dec / Mar / Jun / Sep, each named ([i]Q4 2026[/i]), plus the next one ahead.
 
 
 [b]█ CARD[/b]
 
-• [b]Header:[/b] the quarter, the anchor and the day count, e.g. [i]Q4 2026 · day 37 of 60[/i].
-• [b]ORDER FLOW:[/b] the net change over the 60 / 40 / 20 days left of the anchor.
-• [b]STRUCTURE:[/b] bullish or bearish, the last MSS, and the flip level.
-• [b]LIQUIDITY:[/b] BSL above the price row, SSL below. Standing: price, distance in daily ATR(14), and the tested chance it trades within 20 trading days and by +60. Swept: ✕ and the date.
-• [b]WINDOW[/b] and [b]QUARTER[/b] (the next quarter, and price above or below the true year and month opens).
+• [b]Header:[/b] the quarter, the anchor and the day count ([i]Q4 2026 · anchor 01 Sep 2026 · day 37 of 60[/i]).
+• [b]ORDER FLOW:[/b] the net change over the 60, 40 and 20 days left of the anchor. ICT: trading higher, frame off the low; lower, frame off the high.
+• [b]STRUCTURE:[/b] bullish or bearish, the last MSS and how many days ago, and the flip level ([i]flip > 31,616.50[/i]).
+• [b]LIQUIDITY:[/b] BSL above the price row, SSL below, as they sit on the chart.
+  – Standing: the price, the distance from the last close in daily ATR(14), and the tested chance it trades within 20 trading days and by +60 (the window's end).
+  – Swept: ✕ and the date, in bold.
+• [b]WINDOW:[/b] the +20 / +40 / +60 dates, ✓ once passed.
+• [b]QUARTER:[/b] the quarter and the next one, and whether price is above or below the true year and month opens.
 • [b]Mobile layout:[/b] order flow, structure, the nearest standing BSL and SSL, and the window.
 
 
-[b]█ TESTED (NQ, ES, YM, RTY DAILY 2010–26)[/b]
+[b]█ ALERTS[/b]
 
-[b]The level odds[/b] come from the distance in ATR(14) and the days left.
-• Walk-forward 2014–26, each year fit on the years before:
-  – within 20 days, predicted → actual: 3→4%, 19→20%, 39→39%, 59→58%, 79→77%, 93→95%;
+Create one alert with "Any alert() function call". It covers:
+• a look-back level taken (BSL or SSL swept);
+• +20 / +40 / +60 reached;
+• a new structure shift (off by default).
+
+
+[b]█ WHAT THE TESTS SHOWED (NQ, ES, YM and RTY daily, 2010–26)[/b]
+
+[b]What held: the level odds.[/b] The chance a look-back high or low trades comes from its distance in ATR(14) and the days left.
+• Walk-forward 2014–26, each year fit on the years before, predicted → actual:
+  – within 20 days: 3→4%, 19→20%, 39→39%, 59→58%, 79→77%, 93→95%;
   – by +60: 3→5%, 19→22%, 39→41%, 60→60%, 80→77%, 94→92%.
+• Single years ran 0.7–1.3× the average; a trending year takes fewer levels on one side.
 • For scale, within 20 days: a high 1 ATR away 72%, 2 ATR 49%, 3 ATR 29%; a low 62%, 39%, 25%.
 
-[b]The timing claims[/b], shown in the tooltips, not as signals:
-• Turning points came 5.3–6.6 times a year, the rate a random walk with the same volatility gives (5.8–6.5).
-• The +20 / +40 / +60 marks held 28–31% of a 60-day window's highs and lows within ±2 days, against 25–28% by chance.
-• A window's high and low pile up at its two ends by chance (the arcsine law). That is why the +60 mark so often "nails" the extreme.
-• Daily structure shifts came 8.5–10.3 a year, median 20–21.5 days apart (random walk 20.7–21.6); the next one broke within 20–60 days of the last 54–61% of the time (random walk 52–57%). So MSS frames the liquidity; it does not time the next shift.
-• Quarterly Theory, the month: in up months the low came in Q2 13–17% of the time (17–18% by chance); Q1's range broke after the true month open and the month closed on the other side 24–39% of the time (36–38%). The year: 16 years is too few to test. The true opens are references, not signals.
-• After a 60-day up move the 20-day low was taken first 23–30% of the time (random walk 27–32%). Buy-side goes first more often either way: the index drift.
+[b]What the timing claims came to.[/b] Shown in the tooltips, not as signals:
+• [b]Turning points[/b] came 5.3–6.6 times a year, the rate a random walk with the same volatility gives (5.8–6.5). There is no 3–4-month rhythm beyond chance.
+• [b]The +20 / +40 / +60 marks[/b] held 28–31% of a 60-day window's highs and lows within ±2 days, against 25–28% by chance.
+• [b]The window's ends:[/b] a window's high and low pile up at its two ends by chance (the arcsine law); days 0–2 and 58–60 hold about a third. That is why the +60 mark so often "nails" the extreme.
+• [b]Structure shifts[/b] came 8.5–10.3 a year, median 20–21.5 days apart (random walk 20.7–21.6). The next one broke within 20–60 days of the last one's extreme 54–61% of the time (random walk 52–57%). MSS and the flip level frame the liquidity; they do not time the next shift.
+• [b]Order flow:[/b] after a 60-day up move the 20-day low was taken first 23–30% of the time (random walk 27–32%); after a down move the 20-day high first 51–57% (44–48%). Buy-side goes first more often either way: the index drift.
+• [b]Quarter starts[/b] saw turning points on 2.4–4.3% of days against a 2.1–2.6% base. That does not survive correcting for the number of tests.
+• [b]Quarterly Theory, the month:[/b] in months that closed up, the low came in Q2 (the second week) 13–17% of the time, against 17–18% by chance. Q1's range broke after the true month open and the month closed on the other side 24–39% of the time, against 36–38%.
+• [b]Quarterly Theory, the year:[/b] 16 years is too few to test. The true opens are drawn as references, not scored.
 
 
-[b]█ NOTES[/b]
+[b]█ SETTINGS[/b]
 
-• Works on daily and intraday charts. Everything is read from completed daily bars, so it does not repaint.
-• Daily fair value gaps are not drawn here: they live in Mangekyō.
-• Quarterly shift, IPDA data range, look-back, cast-forward, liquidity and market-structure shift concepts are taught by ICT (Michael J. Huddleston). Quarterly Theory (the Q1–Q4 cycles and true opens) is taught by Daye. Not affiliated with or endorsed by either.
+[b]View[/b] sits at the top, as in my other indicators: theme, card text size, layout (Desktop / Mobile), card position.
+[b]Anchor:[/b] last closed month (ICT), last structure shift, or both; colours.
+[b]Look back:[/b] the 60 / 40 / 20-day windows on or off; BSL and SSL colours per window; swept levels bold; the look-back and cast-forward rulers.
+[b]Cast forward:[/b] the +20 / +40 / +60 marks and their colour; the shaded window.
+[b]Market structure:[/b] swing size (bars each side, 3 by default); shifts drawn (0–2); the flip level; bullish and bearish colours.
+[b]Quarterly Theory · true opens:[/b] the true year open, the true month open, their colour.
+[b]Quarterly dividers:[/b] Jan · Apr · Jul · Oct, Dec · Mar · Jun · Sep (ICT) or off; how many to show; colour.
+[b]Card:[/b] on / off; the tested odds for each level.
+[b]Alerts:[/b] level taken, +20 / +40 / +60 reached, new structure shift.
+
+
+[b]█ HOW TO USE[/b]
+
+• Works on daily and intraday charts; it needs three months or more of daily history.
+• Built for CME index futures: NQ, ES, YM and RTY (micros use the same daily levels). On a continuous chart, the back-adjusted 1! keeps the look-back levels from jumping at the rolls.
+• The card sits bottom left by default, clear of the cast-forward window right of price. Move it in View if it covers your price.
+• On a phone, use the Mobile layout.
+• Daily fair value gaps are not drawn here: they live in Mangekyō, its next stage.
+
+
+[b]█ DATA AND METHOD[/b]
+
+• NQ, ES, YM and RTY daily candles, 2010–26.
+• [b]Level odds:[/b] p = logistic(a + b · logit(2Φ(−d / (κ√h)))), where d is the distance in ATR(14) and h the trading days left; highs and lows fit separately. Scored walk-forward, each year fit only on the years before it.
+• [b]Timing claims:[/b] each one against a random walk with the same daily volatility, on the same days.
+• [b]Structure:[/b] a swing high (low) is the highest (lowest) daily bar of the bars three either side; a shift is a daily close beyond the last opposite swing, after structure ran the other way.
+• [b]Quarterly Theory:[/b] the month's quarters are its weeks from the first full week; the true month open is the open of the second Monday, the true year open that of the first Monday of April.
+• [b]On the chart:[/b] everything is read from completed daily bars (today's high and low only mark a level taken today), so nothing repaints.
+
+
+[b]█ LIMITATIONS[/b]
+
+[i]These are historical frequencies, not guarantees.[/i]
+• The odds were measured on NQ, ES, YM and RTY. Other symbols get the same model without a test of their own.
+• The timing marks (+20 / +40 / +60, quarter starts, MSS spacing) did not beat chance; they are drawn because ICT teaches them, and labelled as such.
+• Nothing here is financial advice.
+
+
+[b]█ WHY THE NAME[/b]
+
+[b]Sharingan[/b] (写輪眼, the [i]Copy Wheel Eye[/i]) is the Uchiha clan's eye: it reads an opponent's movement so closely that it can copy a technique and see the next strike before it lands. Fully awakened, it shows three tomoe.
+Here the three tomoe are the three look backs, 60, 40 and 20 trading days: what price has already done. The cast forward is the copy, the same 20 / 40 / 60 days projected ahead of the anchor, where the next shift is expected. The eye reads; it does not decide. Neither does this indicator.
+Its next stage, [b]Mangekyō[/b], turns the same gaze onto the daily candles inside the quarter.
+
+
+[b]█ CREDITS[/b]
+
+• ICT concepts ([i]Michael J. Huddleston[/i]): quarterly shifts and IPDA data ranges (the 60 / 40 / 20-day look back and the cast forward), buy-side and sell-side liquidity, market-structure shifts.
+• Quarterly Theory (the Q1–Q4 cycles and true opens): taught by [i]Daye[/i].
+• Not affiliated with or endorsed by either. Written from scratch; open source under MPL 2.0.
 
 [i]Historical frequencies, not guarantees. Not financial advice.[/i]
