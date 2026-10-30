@@ -1,0 +1,755 @@
+//@version=6
+// This Source Code Form is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+//
+// Sharingan (写輪眼 · "Copy Wheel Eye")
+// Named for the eye that reads an opponent's past movement to anticipate the next. Sharingan reads the last three months
+// to frame the next three, as ICT teaches quarterly shifts and IPDA data ranges (2017 Mentorship, Month 05).
+// Anchor: the first trading day of the last closed month (ICT's default), or the last daily structure shift (calibrated).
+// Look back: the 60, 40 and 20 trading days left of the anchor — the order flow over each, and their highs and lows, the
+//   liquidity the algorithm can reach for, drawn right until taken.
+// Cast forward: +20, +40 and +60 trading days right of the anchor, the window where ICT anticipates the next market shift.
+// The look-back highs and lows are the buy-side and sell-side liquidity (BSL / SSL): run right while they stand, and drawn to the
+// candle that swept them once taken. Daily market structure: the last shifts (MSS) and the swing that would flip it next.
+// Quarterly Theory: the year's quarters (Q1–Q4) and its true opens (the year's: the first Monday of April; the month's: the
+// second Monday). The card gives each standing level's tested chance of trading within 20 days and by the window's end
+// (NQ, ES, YM, RTY daily 2010–26, walk-forward), and what the timing claims came to when tested.
+// Quarterly shift, IPDA data range and look-back / cast-forward concepts are taught by ICT (Michael J. Huddleston).
+// Not affiliated with or endorsed by ICT. Daily fair value gaps live in Mangekyō, not here.
+
+// behind_chart = false: the card and levels draw in front of the candles (Pine v6 defaults overlay visuals to behind the chart)
+indicator("Sharingan", "Sharingan", overlay = true, behind_chart = false, max_lines_count = 200, max_labels_count = 200, max_boxes_count = 20, max_bars_back = 500)
+
+TZ  = "America/New_York"
+DAY = 86400000
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI = input.string("Auto", "Theme", options = ["Auto", "Dark", "Light"], group = gV, tooltip = "Auto follows the chart background.", display = display.none)
+crdSzI = input.string("Small", "Card text", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+layI   = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Mobile folds the card to the anchor, order flow, the nearest untaken high and low, and the window.", display = display.none)
+crdPos = input.string("Bottom left", "Card position", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, tooltip = "Bottom left by default: the cast-forward window sits right of price, so the card stays clear of it.", display = display.none)
+
+gA = "Anchor"
+anchI = input.string("Last closed month (ICT)", "Anchor", options = ["Last closed month (ICT)", "Last structure shift", "Both"], group = gA, tooltip = "Last closed month: the first trading day of the most recent fully closed calendar month, ICT's starting point (on 6 Jan 2017 → 1 Dec 2016).\nLast structure shift: the calibrated anchor — the daily high (or low) the last market-structure shift came from. A shift is a daily close beyond the last opposite swing (swings: a high / low that is the extreme of the bars either side).\nBoth: the look back and the card follow the month anchor; the shift anchor and its cast-forward marks are drawn too.\nTested on NQ, ES, YM, RTY daily 2010–26: 8.5–10.3 shifts a year, median 20–21.5 trading days apart (a random walk with the same volatility: 20.7–21.6). The next shift broke within 20–60 days of the last one's extreme 54–61% of the time (random walk 52–57%).", display = display.none)
+colA  = input.color(#e53935, "Anchor", group = gA, inline = "ca", display = display.none)
+colA2 = input.color(color.new(#e53935, 55), "Shift anchor (Both)", group = gA, inline = "ca", active = anchI == "Both", display = display.none)
+
+gL = "Look back"
+use60 = input.bool(true, "60 days", group = gL, inline = "l1", display = display.none)
+use40 = input.bool(true, "40", group = gL, inline = "l1", display = display.none)
+use20 = input.bool(true, "20", group = gL, inline = "l1", tooltip = "The 60, 40 and 20 trading days left of the anchor: order flow (was it trading higher or lower over each) and each window's high and low, drawn right until price trades through it.\nICT: trading higher → frame off the low (sell-side liquidity rests below); trading lower → frame off the high.\nTested on NQ, ES, YM, RTY daily 2010–26: after a 60-day up move the 20-day low was taken first 23–30% of the time (a random walk expects 27–32%); after a 60-day down move the 20-day high first 51–57% (random walk 44–48%). Buy-side goes first more often than chance either way — the index drift. The look back shows where the liquidity rests; it does not say which side goes first beyond that.", display = display.none)
+cH60 = input.color(#d32f2f, "BSL · highs 60 / 40 / 20", group = gL, inline = "ch", display = display.none)
+cH40 = input.color(#ef5350, "", group = gL, inline = "ch", display = display.none)
+cH20 = input.color(#f48484, "", group = gL, inline = "ch", display = display.none)
+cL60 = input.color(#00897b, "SSL · lows 60 / 40 / 20", group = gL, inline = "cl", display = display.none)
+cL40 = input.color(#26a69a, "", group = gL, inline = "cl", display = display.none)
+cL20 = input.color(#5cc4b8, "", group = gL, inline = "cl", display = display.none)
+sweepB = input.bool(true, "Swept levels bold", group = gL, tooltip = "A swept level (✕) is drawn solid, 2 px, to the candle that took it, and named with the sweep date at its origin, where no candle reached it; a standing one runs right to the window's end with its price.", display = display.none)
+showRul = input.bool(true, "Look-back and cast-forward rulers", group = gL, tooltip = "The 60 / 40 / 20 brackets drawn above price, left of the anchor (look back) and right of it (cast forward), as on ICT's slides.", display = display.none)
+
+gF = "Cast forward"
+showCF = input.bool(true, "+20 / +40 / +60 trading days", group = gF, inline = "cf", display = display.none)
+colCF  = input.color(#e53935, "", group = gF, inline = "cf", tooltip = "Trading days right of the anchor; future dates skip weekends and CME equity holidays.\nTested on NQ, ES, YM, RTY and DXY daily 2010–26: turning points came 5.3–6.6 times a year, the rate a random walk with the same volatility gives (5.8–6.5). Within ±2 days of the +20 / +40 / +60 marks sat 28–31% of the 60-day window's highs and lows after a month anchor, against 25–28% by chance. A window's high and low pile up at its two ends by chance (the arcsine law): days 0–2 and 58–60 hold about a third, which is why the +60 mark so often 'nails' the extreme.", active = showCF, display = display.none)
+shadeCF = input.bool(true, "Shade the +20 → +60 window", group = gF, active = showCF, display = display.none)
+
+gS = "Market structure"
+swK    = input.int(3, "Swing size (bars each side)", minval = 2, maxval = 10, group = gS, tooltip = "A swing high (low) is the highest (lowest) daily bar of the bars this many either side. The structure shift and the shift anchor both use it.", display = display.none)
+msN    = input.int(2, "Shifts drawn (MSS)", minval = 0, maxval = 2, group = gS, tooltip = "A market-structure shift: a daily close beyond the last opposite swing, after structure ran the other way. Drawn as a dashed line from the swing it broke to the candle that closed beyond it.\nTested on NQ, ES, YM, RTY daily 2010–26: 8.5–10.3 shifts a year, median 20–21.5 trading days apart, the spacing a random walk with the same volatility gives (20.7–21.6). Structure frames where the liquidity is; it does not time the next shift.", display = display.none)
+flipOn = input.bool(true, "Flip level", group = gS, tooltip = "The swing a daily close must clear to shift structure the other way: the last swing high while bearish, the last swing low while bullish. Dotted, run right.", display = display.none)
+cMsU   = input.color(#26a69a, "Bullish", group = gS, inline = "ms", display = display.none)
+cMsD   = input.color(#ef5350, "Bearish", group = gS, inline = "ms", display = display.none)
+
+gT = "Quarterly Theory · true opens"
+tyoOn = input.bool(true, "True year open", group = gT, inline = "t1", tooltip = "Quarterly Theory splits the year into four quarters (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec) and the month into four weeks; each cycle's true open is the open of its second quarter. Year: the first Monday of April. Month: the second Monday. Bullish: buy below the true open; bearish: sell above it.\nTested on NQ, ES, YM, RTY: in months that closed up the low came in Q2 13–17% of the time, against 17–18% by chance; Q1's range broke after the true month open and the month closed on the other side 24–39% of the time, against 36–38%. Drawn as references, not scored.", display = display.none)
+tmoOn = input.bool(true, "True month open", group = gT, inline = "t1", display = display.none)
+colTO = input.color(#787b86, "", group = gT, inline = "t1", active = tyoOn or tmoOn, display = display.none)
+
+gQ = "Quarterly dividers"
+qI    = input.string("Jan · Apr · Jul · Oct", "Dividers (Q1–Q4)", options = ["Jan · Apr · Jul · Oct", "Dec · Mar · Jun · Sep (ICT)", "Off"], group = gQ, tooltip = "Vertical lines on the first trading day of each quarter, and the next one ahead. ICT's own example calibrated them to Dec / Mar / Jun / Sep.\nTested: turning points within ±2 trading days of a quarter start ran 2.4–4.3% of days against a 2.1–2.6% base rate (circular-shift p 0.01–0.83; nothing after correcting for 15 tests).", display = display.none)
+qN    = input.int(8, "Show the last", minval = 1, maxval = 24, group = gQ, active = qI != "Off", display = display.none)
+colQ  = input.color(color.new(#7e57c2, 30), "", group = gQ, active = qI != "Off", display = display.none)
+
+gC = "Card"
+showCrd = input.bool(true, "Card", group = gC, display = display.none)
+showP   = input.bool(true, "Tested odds for each level", group = gC, tooltip = "The chance each untaken look-back high / low trades within the next 20 trading days, and by +60 (the window's end), from its distance at the last close in daily ATR(14) and the days left.\nFit on NQ, ES, YM, RTY daily 2010–26 (one model, highs and lows separately). Walk-forward 2014–26, each year fit on the years before, read 3→4%, 19→20%, 39→39%, 59→58%, 79→77%, 93→95% (20 days) and 3→5%, 19→22%, 39→41%, 60→60%, 80→77%, 94→92% (by +60). Single years ran 0.7–1.3× the average: a trending year takes fewer levels on one side.\nFor scale, within 20 days: a high 1 ATR away 72%, 2 ATR 49%, 3 ATR 29%; a low 62%, 39%, 25%.", active = showCrd, display = display.none)
+
+gN = "Alerts (create one alert with 'Any alert() function call')"
+alTk = input.bool(true, "Look-back level taken", group = gN, inline = "a1", display = display.none)
+alMk = input.bool(true, "+20 / +40 / +60 reached", group = gN, inline = "a1", display = display.none)
+alSh = input.bool(false, "New structure shift", group = gN, inline = "a2", display = display.none)
+
+int modeP = anchI == "Last structure shift" ? 1 : 0
+bool both = anchI == "Both"
+bool mob  = layI == "Mobile"
+
+// ═══════════════════════════════════════════════════════════════ Palette, helpers
+float bgLum = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+bool  dark  = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+color cBg   = dark ? #0e1117 : #ffffff
+color cHd   = dark ? #171c28 : #eef1f6
+color cBd   = dark ? #262c3a : #d5dae4
+color cTx   = dark ? #e6e9ef : #131722
+color cSub  = dark ? #9aa3b5 : #4a5163
+color cMu   = dark ? #5d6476 : #9aa1b2
+crdSz = crdSzI == "Tiny" ? size.tiny : crdSzI == "Small" ? size.small : size.normal
+posOf(string s) =>
+    switch s
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+// a daily bar's time is its session start (18:00 ET the evening before); +6 h lands on the trading date
+dmy(int t) => str.format_time(t + 6 * 3600000, "dd MMM", TZ)
+dmyY(int t) => str.format_time(t + 6 * 3600000, "dd MMM yyyy", TZ)
+pc1(float v) => (v >= 0 ? "+" : "") + str.tostring(v * 100.0, "0.0") + "%"
+pc0(float p) => str.tostring(p * 100.0, "0") + "%"
+arw(float v) => na(v) ? "·" : v >= 0 ? "▲" : "▼"
+px(float v) => str.tostring(v, format.mintick)
+nCdf(float x) =>
+    float z = math.abs(x)
+    float t = 1.0 / (1.0 + 0.2316419 * z)
+    float p = 1.0 - 0.3989422804 * math.exp(-0.5 * z * z) * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))))
+    x >= 0 ? p : 1.0 - p
+// tested reach odds: p = logistic(a + b·logit(2Φ(−d / (κ·√h)))), d = distance in ATR(14), h = trading days
+reachP(float d, float h, float k, float a, float b) =>
+    float q = math.min(math.max(2.0 * nCdf(-(d / math.sqrt(h)) / k), 0.00001), 0.99999)
+    1.0 / (1.0 + math.exp(-(a + b * math.log(q / (1.0 - q)))))
+pH20(float d) => reachP(d, 20.0, 0.4906, 0.4378, 0.8583)
+pL20(float d) => reachP(d, 20.0, 1.4948, -1.8160, 1.1503)
+pHW(float d, float h) => reachP(d, h, 0.6481, 0.2346, 1.2171)
+pLW(float d, float h) => reachP(d, h, 1.8075, -1.9465, 1.0824)
+
+// CME equity-index holidays (full-day closures, as Kyōka Suigetsu), for counting trading days ahead
+dowOf(int y, int m, int d) => dayofweek(timestamp("UTC", y, m, d, 0, 0), "UTC")
+nthDow(int y, int m, int wd, int n) =>
+    int f = dowOf(y, m, 1)
+    1 + (wd - f + 7) % 7 + 7 * (n - 1)
+lastDow(int y, int m, int wd, int dim) =>
+    int ld = dowOf(y, m, dim)
+    dim - (ld - wd + 7) % 7
+easterTs(int y) =>
+    int a  = y % 19
+    int b  = int(math.floor(y / 100.0))
+    int c  = y % 100
+    int d  = int(math.floor(b / 4.0))
+    int e  = b % 4
+    int f  = int(math.floor((b + 8) / 25.0))
+    int g  = int(math.floor((b - f + 1) / 3.0))
+    int h  = (19 * a + b - d - g + 15) % 30
+    int i  = int(math.floor(c / 4.0))
+    int k  = c % 4
+    int lw = (32 + 2 * e + 2 * i - h - k) % 7
+    int mm = int(math.floor((a + 11 * h + 22 * lw) / 451.0))
+    int mo = int(math.floor((h + lw - 7 * mm + 114) / 31.0))
+    int dd = (h + lw - 7 * mm + 114) % 31 + 1
+    timestamp("UTC", y, mo, dd, 0, 0)
+isHol(int y, int m, int d) =>
+    int  w   = dowOf(y, m, d)
+    bool hol = false
+    if w >= 2 and w <= 6
+        int  gf     = easterTs(y) - 2 * DAY
+        bool gfOpen = y == 2010 or y == 2012 or y == 2015 or y == 2023 or y == 2026
+        hol := (m == 1 and (d == 1 or (d == 2 and w == 2))) or (m == 1 and d == nthDow(y, 1, 2, 3)) or (m == 2 and d == nthDow(y, 2, 2, 3)) or (not gfOpen and m == month(gf, "UTC") and d == dayofmonth(gf, "UTC")) or (m == 5 and d == lastDow(y, 5, 2, 31)) or (y >= 2022 and m == 6 and (d == 19 or (d == 18 and w == 6) or (d == 20 and w == 2))) or (m == 7 and (d == 4 or (d == 3 and w == 6) or (d == 5 and w == 2))) or (m == 9 and d == nthDow(y, 9, 2, 1)) or (m == 11 and d == nthDow(y, 11, 5, 4)) or (m == 12 and (d == 25 or (d == 24 and w == 6) or (d == 26 and w == 2)))
+    hol
+isTD(int t) =>
+    int w = dayofweek(t, "UTC")
+    w != dayofweek.saturday and w != dayofweek.sunday and not isHol(year(t, "UTC"), month(t, "UTC"), dayofmonth(t, "UTC"))
+// n trading days after a trading date (UTC midnight)
+stepTD(int td, int n) =>
+    int t = td
+    int k = 0
+    while k < n
+        t += DAY
+        if isTD(t)
+            k += 1
+    t
+// the session start (18:00 ET the evening before) of a trading date
+sessOf(int td) => timestamp(TZ, year(td, "UTC"), month(td, "UTC"), dayofmonth(td, "UTC"), 18, 0) - DAY
+
+// ═══════════════════════════════════════════════════════════════ Daily engine (runs on the daily series)
+// Everything below uses completed days only ([1] and older), so it reads the same on any chart timeframe and never repaints.
+// mode 0: anchor = first trading day of the last closed month · mode 1: anchor = the extreme of the last structure shift.
+engine(int mode) =>
+    var int   curMS = na
+    var int   prvMS = na
+    var int   trend = 0
+    var float shP   = na
+    var int   shI   = na
+    var float slP   = na
+    var int   slI   = na
+    var int   sxI   = na
+    var int   sxD   = 0
+    var int   lastA = na
+    var float h20 = na
+    var int   h20T = na
+    var float l20 = na
+    var int   l20T = na
+    var float h40 = na
+    var int   h40T = na
+    var float l40 = na
+    var int   l40T = na
+    var float h60 = na
+    var int   h60T = na
+    var float l60 = na
+    var int   l60T = na
+    var float n20 = na
+    var float n40 = na
+    var float n60 = na
+    var int   tH20 = na
+    var int   tL20 = na
+    var int   tH40 = na
+    var int   tL40 = na
+    var int   tH60 = na
+    var int   tL60 = na
+    var int   aT = na
+    var int   lb20 = na
+    var int   lb40 = na
+    var int   lb60 = na
+    int bi = bar_index
+    bool newM = bi == 0 or month(time_tradingday, "UTC") != month(time_tradingday[1], "UTC")
+    if newM
+        prvMS := curMS
+        curMS := bi
+    // swings, confirmed on completed bars: the centre is bar bi-1-swK
+    float hh = ta.highest(high, 2 * swK + 1)[1]
+    float ll = ta.lowest(low, 2 * swK + 1)[1]
+    if bi > 2 * swK + 2
+        if high[swK + 1] == hh
+            shP := high[swK + 1]
+            shI := bi - 1 - swK
+        if low[swK + 1] == ll
+            slP := low[swK + 1]
+            slI := bi - 1 - swK
+    // a structure shift: the last completed close beyond the last opposite swing; its extreme becomes the shift anchor
+    if not na(slP) and trend >= 0 and close[1] < slP
+        if trend == 1
+            float mx = high[1]
+            int   mo = 1
+            for o = 1 to math.max(1, bi - slI)
+                if high[o] > mx
+                    mx := high[o]
+                    mo := o
+            sxI := bi - mo
+            sxD := -1
+        trend := -1
+    else if not na(shP) and trend <= 0 and close[1] > shP
+        if trend == -1
+            float mn = low[1]
+            int   mo = 1
+            for o = 1 to math.max(1, bi - shI)
+                if low[o] < mn
+                    mn := low[o]
+                    mo := o
+            sxI := bi - mo
+            sxD := 1
+        trend := 1
+    int A = mode == 0 ? prvMS : sxI
+    if not na(A) and A > 61 and A < bi
+        int oA = bi - A
+        // a comparison with na is false in Pine v6, so the first anchor needs its own test
+        if na(lastA) or A != lastA
+            lastA := A
+            aT    := time[oA]
+            lb20  := time[oA + 20]
+            lb40  := time[oA + 40]
+            lb60  := time[oA + 60]
+            float mx = na
+            float mn = na
+            int   xo = na
+            int   no = na
+            for o = oA + 1 to oA + 60
+                if na(mx) or high[o] > mx
+                    mx := high[o]
+                    xo := o
+                if na(mn) or low[o] < mn
+                    mn := low[o]
+                    no := o
+                if o == oA + 20
+                    h20 := mx
+                    h20T := time[xo]
+                    l20 := mn
+                    l20T := time[no]
+                if o == oA + 40
+                    h40 := mx
+                    h40T := time[xo]
+                    l40 := mn
+                    l40T := time[no]
+                if o == oA + 60
+                    h60 := mx
+                    h60T := time[xo]
+                    l60 := mn
+                    l60T := time[no]
+            float cA = close[oA + 1]
+            n20 := cA / close[oA + 21] - 1.0
+            n40 := cA / close[oA + 41] - 1.0
+            n60 := cA / close[oA + 61] - 1.0
+            tH20 := na
+            tL20 := na
+            tH40 := na
+            tL40 := na
+            tH60 := na
+            tL60 := na
+            // taken on or after the anchor, through the last completed day (chronological)
+            for o = oA to 1
+                if na(tH20) and high[o] >= h20
+                    tH20 := time[o]
+                if na(tL20) and low[o] <= l20
+                    tL20 := time[o]
+                if na(tH40) and high[o] >= h40
+                    tH40 := time[o]
+                if na(tL40) and low[o] <= l40
+                    tL40 := time[o]
+                if na(tH60) and high[o] >= h60
+                    tH60 := time[o]
+                if na(tL60) and low[o] <= l60
+                    tL60 := time[o]
+        else
+            if na(tH20) and high[1] >= h20
+                tH20 := time[1]
+            if na(tL20) and low[1] <= l20
+                tL20 := time[1]
+            if na(tH40) and high[1] >= h40
+                tH40 := time[1]
+            if na(tL40) and low[1] <= l40
+                tL40 := time[1]
+            if na(tH60) and high[1] >= h60
+                tH60 := time[1]
+            if na(tL60) and low[1] <= l60
+                tL60 := time[1]
+    int off = na(lastA) ? na : bi - lastA
+    // cast-forward marks: past ones from the daily history, future ones stepped over weekends and CME holidays
+    int cf20 = na
+    int cf40 = na
+    int cf60 = na
+    if not na(off)
+        cf20 := off >= 20 ? time[off - 20] : sessOf(stepTD(time_tradingday, 20 - off))
+        cf40 := off >= 40 ? time[off - 40] : sessOf(stepTD(time_tradingday, 40 - off))
+        cf60 := off >= 60 ? time[off - 60] : sessOf(stepTD(time_tradingday, 60 - off))
+    float atr14 = ta.atr(14)[1]
+    int   sxT   = na(sxI) ? na : time[bi - sxI]
+    float sxP   = na(sxI) ? na : sxD == -1 ? high[bi - sxI] : low[bi - sxI]
+    int   sxAgo = na(sxI) ? na : bi - sxI
+    [aT, off, h20, h20T, l20, l20T, h40, h40T, l40, l40T, h60, h60T, l60, l60T, n20, n40, n60, tH20, tL20, tH40, tL40, tH60, tL60, cf20, cf40, cf60, atr14, close[1], sxT, sxD, sxP, sxAgo, lb20, lb40, lb60, time_tradingday]
+
+[aT, off, h20, h20T, l20, l20T, h40, h40T, l40, l40T, h60, h60T, l60, l60T, n20, n40, n60, tH20, tL20, tH40, tL40, tH60, tL60, cf20, cf40, cf60, atr, lastC, sxT, sxD, sxP, sxAgo, lb20, lb40, lb60, dTd] = request.security(syminfo.tickerid, "D", engine(modeP), lookahead = barmerge.lookahead_on)
+[bT, bOff, bh20, bh20T, bl20, bl20T, bh40, bh40T, bl40, bl40T, bh60, bh60T, bl60, bl60T, bn20, bn40, bn60, btH20, btL20, btH40, btL40, btH60, btL60, bcf20, bcf40, bcf60, batr, blastC, bsxT, bsxD, bsxP, bsxAgo, blb20, blb40, blb60, bTd] = request.security(syminfo.tickerid, "D", engine(1 - modeP), lookahead = barmerge.lookahead_on)
+// daily market structure (the last two shifts, the swings that would flip it) and the Quarterly Theory true opens
+structure() =>
+    var int   trend = 0
+    var float shP = na
+    var int   shT = na
+    var float slP = na
+    var int   slT = na
+    var float m1L = na
+    var int   m1F = na
+    var int   m1A = na
+    var int   m1B = na
+    var int   m1D = 0
+    var float m2L = na
+    var int   m2F = na
+    var int   m2A = na
+    var int   m2D = 0
+    var float tyO = na
+    var int   tyT = na
+    var float tmO = na
+    var int   tmT = na
+    float hh = ta.highest(high, 2 * swK + 1)[1]
+    float ll = ta.lowest(low, 2 * swK + 1)[1]
+    if bar_index > 2 * swK + 2
+        if high[swK + 1] == hh
+            shP := high[swK + 1]
+            shT := time[swK + 1]
+        if low[swK + 1] == ll
+            slP := low[swK + 1]
+            slT := time[swK + 1]
+    if not na(slP) and trend >= 0 and close[1] < slP
+        if trend == 1
+            m2L := m1L
+            m2F := m1F
+            m2A := m1A
+            m2D := m1D
+            m1L := slP
+            m1F := slT
+            m1A := time[1]
+            m1B := bar_index - 1
+            m1D := -1
+        trend := -1
+    else if not na(shP) and trend <= 0 and close[1] > shP
+        if trend == -1
+            m2L := m1L
+            m2F := m1F
+            m2A := m1A
+            m2D := m1D
+            m1L := shP
+            m1F := shT
+            m1A := time[1]
+            m1B := bar_index - 1
+            m1D := 1
+        trend := 1
+    // true opens from the completed days: the first Monday of April (year), the second Monday of each month (month)
+    int td1 = time_tradingday[1]
+    if bar_index > 1 and dayofweek(td1, "UTC") == dayofweek.monday
+        int dm = dayofmonth(td1, "UTC")
+        if month(td1, "UTC") == 4 and dm <= 7
+            tyO := open[1]
+            tyT := time[1]
+        if dm >= 8 and dm <= 14
+            tmO := open[1]
+            tmT := time[1]
+    int m1Ago = na(m1B) ? na : bar_index - m1B
+    [trend, shP, shT, slP, slT, m1L, m1F, m1A, m1D, m1Ago, m2L, m2F, m2A, m2D, tyO, tyT, tmO, tmT]
+[stTr, stSH, stSHT, stSL, stSLT, m1L, m1F, m1A, m1D, m1Ago, m2L, m2F, m2A, m2D, tyO, tyT, tmO, tmT] = request.security(syminfo.tickerid, "D", structure(), lookahead = barmerge.lookahead_on)
+
+// ═══════════════════════════════════════════════════════════════ Today, on the chart (for levels taken intraday)
+bool tfOK = timeframe.isintraday or timeframe.isdaily
+var float tdH = na
+var float tdL = na
+var float tdO = na
+var int   tdT = na
+bool newTD = time_tradingday != time_tradingday[1]
+if newTD
+    tdO := open
+    tdT := time
+    tdH := high
+    tdL := low
+else
+    tdH := math.max(tdH, high)
+    tdL := math.min(tdL, low)
+// today's own true open, when today is the first Monday of April or a second Monday (the daily read has it from tomorrow)
+int   tdDm  = dayofmonth(time_tradingday, "UTC")
+bool  tdMon = dayofweek(time_tradingday, "UTC") == dayofweek.monday
+float tyOn  = tdMon and month(time_tradingday, "UTC") == 4 and tdDm <= 7 ? tdO : tyO
+int   tyTn  = tdMon and month(time_tradingday, "UTC") == 4 and tdDm <= 7 ? tdT : tyT
+float tmOn  = tdMon and tdDm >= 8 and tdDm <= 14 ? tdO : tmO
+int   tmTn  = tdMon and tdDm >= 8 and tdDm <= 14 ? tdT : tmT
+
+// quarterly dividers on the chart's own bars, plus the next one ahead
+qMon(int m) => qI == "Jan · Apr · Jul · Oct" ? (m == 1 or m == 4 or m == 7 or m == 10) : (m == 12 or m == 3 or m == 6 or m == 9)
+qName(int td) => qI == "Jan · Apr · Jul · Oct" ? "Q" + str.tostring(int((month(td, "UTC") - 1) / 3) + 1) + " " + str.format_time(td, "yyyy", "UTC") : "quarter · " + str.format_time(td, "MMM yyyy", "UTC")
+var array<line>  qLn = array.new<line>()
+var array<label> qLb = array.new<label>()
+int mNow  = month(time_tradingday, "UTC")
+int mPrev = month(time_tradingday[1], "UTC")
+if tfOK and qI != "Off" and newTD and mNow != mPrev and qMon(mNow)
+    qLn.push(line.new(time, low, time, high, xloc = xloc.bar_time, extend = extend.both, color = colQ, style = line.style_dotted, width = 1))
+    qLb.push(label.new(time, high, qName(time_tradingday), xloc = xloc.bar_time, yloc = yloc.abovebar, style = label.style_none, textcolor = colQ, size = size.tiny))
+    while qLn.size() > qN
+        line.delete(qLn.shift())
+        label.delete(qLb.shift())
+// the first trading day of the next quarter month
+nextQ(int td) =>
+    int y = year(td, "UTC")
+    int m = month(td, "UTC")
+    int k = 1
+    int r = na
+    while k <= 12 and na(r)
+        int mm = (m - 1 + k) % 12 + 1
+        int yy = y + int(math.floor((m - 1 + k) / 12.0))
+        if qMon(mm)
+            int t = timestamp("UTC", yy, mm, 1, 0, 0)
+            while not isTD(t)
+                t += DAY
+            r := t
+        k += 1
+    r
+
+// ═══════════════════════════════════════════════════════════════ Drawing (rebuilt on the last bar)
+var array<line>  dl = array.new<line>()
+var array<label> db = array.new<label>()
+var array<box>   dx = array.new<box>()
+var line  qNext  = na
+var label qNextL = na
+clearAll() =>
+    while dl.size() > 0
+        line.delete(dl.pop())
+    while db.size() > 0
+        label.delete(db.pop())
+    while dx.size() > 0
+        box.delete(dx.pop())
+vline(int t, color c, string sty, int w) =>
+    dl.push(line.new(t, close, t, close + 1, xloc = xloc.bar_time, extend = extend.both, color = c, style = sty, width = w))
+tag(int t, float y, string s, color c, string st, string tip = "", bool bold = false) =>
+    db.push(label.new(t, y, s, xloc = xloc.bar_time, style = st, color = #00000000, textcolor = c, size = size.tiny, tooltip = tip, text_formatting = bold ? text.format_bold : text.format_none))
+// a look-back level, as buy-side (highs) or sell-side (lows) liquidity: standing → solid, run right to the window's end with its
+// price; swept → drawn bold to the candle that took it, ✕ there, named at its origin, above a high or below a low, on the
+// longer side of it: no candle from the window's start to the sweep reached the level, so the name never sits on them
+level(float v, int t0, int tk, int tEnd, int tW, color c, string nm, bool isHi) =>
+    if not na(v) and not na(t0)
+        string side = isHi ? "BSL " : "SSL "
+        if not na(tk)
+            dl.push(line.new(t0, v, tk, v, xloc = xloc.bar_time, color = c, width = sweepB ? 2 : 1))
+            string tip = side + nm + " " + px(v) + " · formed " + dmy(t0) + " · swept " + dmy(tk)
+            bool rt = na(tW) or tk - t0 >= t0 - tW
+            string st = isHi ? (rt ? label.style_label_lower_left : label.style_label_lower_right) : (rt ? label.style_label_upper_left : label.style_label_upper_right)
+            tag(t0, v, side + nm + " · swept " + dmy(tk), c, st, tip, sweepB)
+            tag(tk, v, "✕", c, label.style_label_center, tip, true)
+        else
+            dl.push(line.new(t0, v, tEnd, v, xloc = xloc.bar_time, color = c, width = 1))
+            tag(tEnd, v, side + nm + " " + px(v), c, label.style_label_left, side + nm + " " + px(v) + " · formed " + dmy(t0) + " · standing")
+// a market-structure shift: dashed from the swing it broke to the candle that closed beyond it, named at the swing
+mssLine(float lv, int tf, int ta, int d, bool last) =>
+    if not na(lv) and not na(tf) and not na(ta) and d != 0
+        color c = d == 1 ? cMsU : cMsD
+        dl.push(line.new(tf, lv, ta, lv, xloc = xloc.bar_time, color = color.new(c, last ? 0 : 40), style = line.style_dashed, width = 1))
+        tag(tf, lv, d == 1 ? "MSS ▲" : "MSS ▼", color.new(c, last ? 0 : 40), d == 1 ? label.style_label_lower_left : label.style_label_upper_left, (d == 1 ? "Bullish" : "Bearish") + " shift: the " + dmy(ta) + " close cleared the " + dmy(tf) + " swing " + (d == 1 ? "high " : "low ") + px(lv) + ".")
+// a reference line from its candle to the window's end, label on the right
+refLine(float v, int t0, int tEnd, color c, string s, string tip) =>
+    if not na(v) and not na(t0)
+        dl.push(line.new(t0, v, tEnd, v, xloc = xloc.bar_time, color = c, style = line.style_dashed, width = 1))
+        tag(tEnd, v, s + " " + px(v), c, label.style_label_left, tip)
+
+// level bookkeeping: a shorter window's level that is the same price and bar as a longer one is merged into it
+same(float a, int at, float b, int bt) => not na(a) and not na(b) and a == b and at == bt
+string nH40 = same(h40, h40T, h60, h60T) ? "" : "40d"
+string nH20 = same(h20, h20T, h40, h40T) or same(h20, h20T, h60, h60T) ? "" : "20d"
+string nL40 = same(l40, l40T, l60, l60T) ? "" : "40d"
+string nL20 = same(l20, l20T, l40, l40T) or same(l20, l20T, l60, l60T) ? "" : "20d"
+string nH60 = nH40 == "" ? (nH20 == "" ? "60/40/20d" : "60/40d") : "60d"
+string nL60 = nL40 == "" ? (nL20 == "" ? "60/40/20d" : "60/40d") : "60d"
+nH40 := nH40 != "" and nH20 == "" and same(h20, h20T, h40, h40T) ? "40/20d" : nH40
+nL40 := nL40 != "" and nL20 == "" and same(l20, l20T, l40, l40T) ? "40/20d" : nL40
+// taken through today: the engine's record, else today's own high / low on the chart
+int dayNow = time_tradingday
+tkOf(int t, float v, bool isHi) => not na(t) ? t : (not na(v) and not na(off) and (isHi ? tdH >= v : tdL <= v)) ? time : na
+int kH20 = tkOf(tH20, h20, true)
+int kL20 = tkOf(tL20, l20, false)
+int kH40 = tkOf(tH40, h40, true)
+int kL40 = tkOf(tL40, l40, false)
+int kH60 = tkOf(tH60, h60, true)
+int kL60 = tkOf(tL60, l60, false)
+// structure now: 1 bullish, −1 bearish; the flip level is the last swing high while bearish, the last swing low while bullish
+float flipP = stTr == -1 ? stSH : stTr == 1 ? stSL : na
+int   flipT = stTr == -1 ? stSHT : stTr == 1 ? stSLT : na
+
+if barstate.islast and tfOK and not na(aT)
+    clearAll()
+    int   tEnd = na(cf60) ? time : math.max(cf60, time)
+    float top  = math.max(nz(h60, high), high)
+    float bot  = math.min(nz(l60, low), low)
+    float u    = nz(atr, (top - bot) / 10.0)
+    // anchor
+    vline(aT, colA, line.style_solid, 1)
+    tag(aT, top + 1.6 * u, "ANCHOR " + dmyY(aT) + (modeP == 0 ? " · last closed month" : " · the " + (sxD == -1 ? "high" : "low") + " before the " + (na(m1A) ? "last" : dmy(m1A)) + " MSS"), colA, label.style_label_lower_left)
+    // look back: 60 / 40 / 20 trading days left of the anchor, brackets above price
+    if showRul
+        if use60
+            dl.push(line.new(lb60, top + 1.2 * u, aT, top + 1.2 * u, xloc = xloc.bar_time, color = color.new(cSub, 40), width = 1))
+            tag(lb60, top + 1.2 * u, "60", cSub, label.style_label_lower_left)
+        if use40
+            dl.push(line.new(lb40, top + 0.9 * u, aT, top + 0.9 * u, xloc = xloc.bar_time, color = color.new(cSub, 40), width = 1))
+            tag(lb40, top + 0.9 * u, "40", cSub, label.style_label_lower_left)
+        if use20
+            dl.push(line.new(lb20, top + 0.6 * u, aT, top + 0.6 * u, xloc = xloc.bar_time, color = color.new(cSub, 40), width = 1))
+            tag(lb20, top + 0.6 * u, "20", cSub, label.style_label_lower_left)
+        tag(lb60, top + 1.6 * u, "look back 60 / 40 / 20", cSub, label.style_label_lower_left)
+    // the look-back levels: buy-side and sell-side liquidity
+    if use60
+        level(h60, h60T, kH60, tEnd, lb60, cH60, nH60, true)
+        level(l60, l60T, kL60, tEnd, lb60, cL60, nL60, false)
+    if use40
+        if nH40 != ""
+            level(h40, h40T, kH40, tEnd, lb40, cH40, nH40, true)
+        if nL40 != ""
+            level(l40, l40T, kL40, tEnd, lb40, cL40, nL40, false)
+    if use20
+        if nH20 != ""
+            level(h20, h20T, kH20, tEnd, lb20, cH20, nH20, true)
+        if nL20 != ""
+            level(l20, l20T, kL20, tEnd, lb20, cL20, nL20, false)
+    // market structure: the last shifts, and the level that would flip it
+    if msN >= 2
+        mssLine(m2L, m2F, m2A, m2D, false)
+    if msN >= 1
+        mssLine(m1L, m1F, m1A, m1D, true)
+    if flipOn and not na(flipP) and not na(flipT)
+        color fc = stTr == -1 ? cMsU : cMsD
+        dl.push(line.new(flipT, flipP, tEnd, flipP, xloc = xloc.bar_time, color = color.new(fc, 25), style = line.style_dotted, width = 1))
+        tag(tEnd, flipP, (stTr == -1 ? "flip ▲ " : "flip ▼ ") + px(flipP), fc, label.style_label_left, "Structure is " + (stTr == -1 ? "bearish" : "bullish") + ": a daily close " + (stTr == -1 ? "above" : "below") + " the " + dmy(flipT) + " swing " + (stTr == -1 ? "high " : "low ") + px(flipP) + " shifts it.")
+    // Quarterly Theory true opens
+    if tyoOn
+        refLine(tyOn, tyTn, tEnd, colTO, "true year open", "Quarterly Theory: the year's true open, the open of the first Monday of April (Q2). Bullish: buy below it; bearish: sell above it. Drawn as a reference, not scored.")
+    if tmoOn
+        refLine(tmOn, tmTn, tEnd, color.new(colTO, 30), "true month open", "Quarterly Theory: the month's true open, the open of its second Monday (Q2 of the month). Tested on NQ, ES, YM, RTY: in months that closed up the low came in Q2 13–17% of the time vs 17–18% by chance. Drawn as a reference, not scored.")
+    // cast forward
+    if showCF
+        if shadeCF and not na(cf20) and not na(cf60)
+            dx.push(box.new(cf20, top + 0.3 * u, cf60, bot - 0.3 * u, xloc = xloc.bar_time, bgcolor = color.new(colCF, 96), border_color = color.new(colCF, 90)))
+        vline(cf20, color.new(colCF, 60), line.style_dashed, 1)
+        vline(cf40, color.new(colCF, 60), line.style_dashed, 1)
+        vline(cf60, color.new(colCF, 40), line.style_dashed, 1)
+        tag(cf20, bot - 0.5 * u, "+20 " + dmy(cf20), colCF, label.style_label_upper_left)
+        tag(cf40, bot - 0.5 * u, "+40 " + dmy(cf40), colCF, label.style_label_upper_left)
+        tag(cf60, bot - 0.5 * u, "+60 " + dmy(cf60), colCF, label.style_label_upper_left)
+        if showRul
+            dl.push(line.new(aT, top + 0.6 * u, cf20, top + 0.6 * u, xloc = xloc.bar_time, color = color.new(colCF, 40), width = 1))
+            dl.push(line.new(aT, top + 0.9 * u, cf40, top + 0.9 * u, xloc = xloc.bar_time, color = color.new(colCF, 40), width = 1))
+            dl.push(line.new(aT, top + 1.2 * u, cf60, top + 1.2 * u, xloc = xloc.bar_time, color = color.new(colCF, 40), width = 1))
+            tag(cf60, top + 1.2 * u, "cast forward", colCF, label.style_label_lower_right)
+    // the other anchor (Both): its line and cast-forward ticks only
+    if both and not na(bT)
+        vline(bT, colA2, line.style_solid, 1)
+        tag(bT, top + 1.9 * u, (modeP == 0 ? "SHIFT " : "MONTH ") + dmy(bT), colA2, label.style_label_lower_left)
+        vline(bcf20, color.new(colA2, 20), line.style_dotted, 1)
+        vline(bcf40, color.new(colA2, 20), line.style_dotted, 1)
+        vline(bcf60, color.new(colA2, 20), line.style_dotted, 1)
+    // the next quarterly divider
+    if qI != "Off"
+        int nq = nextQ(dayNow)
+        if not na(nq)
+            line.delete(qNext)
+            label.delete(qNextL)
+            qNext := line.new(sessOf(nq), close, sessOf(nq), close + 1, xloc = xloc.bar_time, extend = extend.both, color = colQ, style = line.style_dashed, width = 1)
+            qNextL := label.new(sessOf(nq), top + 1.9 * u, "next: " + qName(nq) + " · " + str.format_time(nq, "dd MMM", "UTC"), xloc = xloc.bar_time, style = label.style_label_lower_left, color = #00000000, textcolor = colQ, size = size.tiny)
+
+// ═══════════════════════════════════════════════════════════════ Alerts
+var int lastAlertDay = na
+if barstate.isrealtime and tfOK and not na(aT)
+    if alTk
+        if na(tH60) and not na(h60) and tdH >= h60 and tdH[1] < h60
+            alert("Sharingan · BSL: the 60-day look-back high " + px(h60) + " swept", alert.freq_once_per_bar_close)
+        if na(tL60) and not na(l60) and tdL <= l60 and tdL[1] > l60
+            alert("Sharingan · SSL: the 60-day look-back low " + px(l60) + " swept", alert.freq_once_per_bar_close)
+        if na(tH20) and not na(h20) and tdH >= h20 and tdH[1] < h20
+            alert("Sharingan · BSL: the 20-day look-back high " + px(h20) + " swept", alert.freq_once_per_bar_close)
+        if na(tL20) and not na(l20) and tdL <= l20 and tdL[1] > l20
+            alert("Sharingan · SSL: the 20-day look-back low " + px(l20) + " swept", alert.freq_once_per_bar_close)
+    if alMk and newTD and (off == 20 or off == 40 or off == 60) and (na(lastAlertDay) or lastAlertDay != dayNow)
+        lastAlertDay := dayNow
+        alert("Sharingan · day " + str.tostring(off) + " of the cast-forward window from " + dmyY(aT), alert.freq_once_per_bar)
+    if alSh and newTD and m1Ago == 1
+        alert("Sharingan · new daily structure shift " + (m1D == -1 ? "▼: closed below the " + px(m1L) + " swing low" : "▲: closed above the " + px(m1L) + " swing high"), alert.freq_once_per_bar)
+
+// ═══════════════════════════════════════════════════════════════ Card
+var table tC = na
+if barstate.isfirst and showCrd
+    tC := table.new(posOf(crdPos), 4, 18, bgcolor = #00000000, frame_width = 0, border_color = cBd, border_width = 1, force_overlay = true)
+tc(int c, int r, string s, color fg, color bg, string tip = "", bool bold = false) =>
+    tC.cell(c, r, s, text_color = fg, bgcolor = bg, text_size = crdSz, text_halign = text.align_left, tooltip = tip, text_font_family = font.family_monospace, text_formatting = bold ? text.format_bold : text.format_none)
+lvRow(int r, string nm, float v, int tk, bool isHi, color c, int left) =>
+    string side = isHi ? "BSL " : "SSL "
+    if not na(tk)
+        tc(0, r, "✕ " + side + nm, c, cBg, "", true)
+        tc(1, r, px(v), cSub, cBg)
+        tc(2, r, "swept " + dmy(tk), c, cBg, "", true)
+        tc(3, r, "", cMu, cBg)
+    else
+        float d  = na(atr) or atr <= 0 ? na : (isHi ? v - lastC : lastC - v) / atr
+        float p1 = na(d) ? na : d <= 0 ? 1.0 : isHi ? pH20(d) : pL20(d)
+        float p2 = na(d) or left <= 0 ? na : d <= 0 ? 1.0 : isHi ? pHW(d, left) : pLW(d, left)
+        tc(0, r, side + nm, c, cBg)
+        tc(1, r, px(v) + " · " + (na(d) ? "—" : str.tostring(d, "0.0")), cTx, cBg, "distance from the last close in daily ATR(14)")
+        tc(2, r, showP and not na(p1) ? pc0(p1) : "—", cTx, cBg)
+        tc(3, r, showP and not na(p2) ? pc0(p2) : "—", cTx, cBg)
+pos(float v) => na(v) ? "" : lastC >= v ? "above" : "below"
+if barstate.islast and showCrd and not na(tC)
+    tC.clear(0, 0, 3, 17)
+    string live = barstate.isrealtime ? "● " : "◆ "
+    if not tfOK
+        tc(0, 0, live + "SHARINGAN · use a daily or intraday chart", cTx, cHd)
+    else if na(aT)
+        tc(0, 0, live + "SHARINGAN · needs 3+ months of daily history", cTx, cHd)
+    else
+        int left = 60 - off + 1
+        tc(0, 0, live + "SHARINGAN   " + syminfo.ticker + "   " + qName(dayNow) + " · anchor " + dmyY(aT) + " · day " + str.tostring(off) + " of 60", cTx, cHd, modeP == 0 ? "Anchor: the first trading day of the last closed month (ICT). Day count: trading days since the anchor; ICT expects the next market shift 20–60 days out." : "Anchor: the extreme of the last daily structure shift (calibrated). Day count: trading days since it.", true)
+        tC.merge_cells(0, 0, 3, 0)
+        int r = 1
+        tc(0, r, "ORDER FLOW", cSub, cBg, "Net change over the 60 / 40 / 20 trading days left of the anchor. ICT: trading higher → frame off the low (sell-side below); lower → frame off the high.\nTested: buy-side liquidity went first more often than a random walk predicts after up and down moves alike (the index drift); the look back does not call the next side beyond that.")
+        if mob
+            tc(1, r, arw(n60) + arw(n40) + arw(n20) + " 60/40/20", na(n60) ? cMu : n60 >= 0 ? cL40 : cH40, cBg)
+            tC.merge_cells(1, r, 3, r)
+        else
+            tc(1, r, "60d " + arw(n60) + " " + (na(n60) ? "—" : pc1(n60)), na(n60) ? cMu : n60 >= 0 ? cL40 : cH40, cBg)
+            tc(2, r, "40d " + arw(n40) + " " + (na(n40) ? "—" : pc1(n40)), na(n40) ? cMu : n40 >= 0 ? cL40 : cH40, cBg)
+            tc(3, r, "20d " + arw(n20) + " " + (na(n20) ? "—" : pc1(n20)), na(n20) ? cMu : n20 >= 0 ? cL40 : cH40, cBg)
+        r += 1
+        // structure: which way it runs, since when, and what flips it
+        string stTxt = stTr == 1 ? "▲ bullish" : stTr == -1 ? "▼ bearish" : "—"
+        color  stCol = stTr == 1 ? cMsU : stTr == -1 ? cMsD : cMu
+        tc(0, r, "STRUCTURE", cSub, cBg, "Daily market structure (" + str.tostring(swK) + "-bar swings). A shift (MSS) is a daily close beyond the last opposite swing.\nTested on NQ, ES, YM, RTY daily 2010–26: 8.5–10.3 shifts a year, median 20–21.5 trading days apart, as a random walk with the same volatility spaces them (20.7–21.6).")
+        tc(1, r, stTxt + (na(m1A) ? "" : " · MSS " + dmy(m1A)), stCol, cBg, "", true)
+        if mob
+            tc(2, r, na(flipP) ? "" : "flip " + (stTr == -1 ? "> " : "< ") + px(flipP), cTx, cBg)
+            tC.merge_cells(2, r, 3, r)
+        else
+            tc(2, r, na(flipP) ? "—" : "flip " + (stTr == -1 ? "> " : "< ") + px(flipP), cTx, cBg, "Structure shifts the other way on a daily close " + (stTr == -1 ? "above" : "below") + " this swing.")
+            tc(3, r, na(m1Ago) ? "" : str.tostring(m1Ago) + " d ago", cSub, cBg)
+        r += 1
+        if not mob
+            tc(0, r, "LIQUIDITY", cSub, cHd)
+            tc(1, r, "PRICE · ATR", cSub, cHd)
+            tc(2, r, "≤ 20 DAYS", cSub, cHd, "Chance the level trades within the next 20 trading days (walk-forward 2014–26: 3→4%, 19→20%, 39→39%, 59→58%, 79→77%, 93→95%).")
+            tc(3, r, "BY +60", cSub, cHd, "Chance it trades by +60, the window's end (" + (left > 0 ? str.tostring(left) + " trading days left" : "window over") + ").")
+            r += 1
+            if use60
+                lvRow(r, nH60, h60, kH60, true, cH60, left)
+                r += 1
+            if use40 and nH40 != ""
+                lvRow(r, nH40, h40, kH40, true, cH40, left)
+                r += 1
+            if use20 and nH20 != ""
+                lvRow(r, nH20, h20, kH20, true, cH20, left)
+                r += 1
+            tc(0, r, "— price " + px(close), cTx, cHd)
+            tC.merge_cells(0, r, 3, r)
+            r += 1
+            if use20 and nL20 != ""
+                lvRow(r, nL20, l20, kL20, false, cL20, left)
+                r += 1
+            if use40 and nL40 != ""
+                lvRow(r, nL40, l40, kL40, false, cL40, left)
+                r += 1
+            if use60
+                lvRow(r, nL60, l60, kL60, false, cL60, left)
+                r += 1
+        else
+            // the nearest standing BSL and SSL
+            float bestH = na
+            string bnH = ""
+            float bestL = na
+            string bnL = ""
+            if na(kH20) and nH20 != "" and use20
+                bestH := h20
+                bnH := nH20
+            else if na(kH40) and nH40 != "" and use40
+                bestH := h40
+                bnH := nH40
+            else if na(kH60) and use60
+                bestH := h60
+                bnH := nH60
+            if na(kL20) and nL20 != "" and use20
+                bestL := l20
+                bnL := nL20
+            else if na(kL40) and nL40 != "" and use40
+                bestL := l40
+                bnL := nL40
+            else if na(kL60) and use60
+                bestL := l60
+                bnL := nL60
+            if not na(bestH)
+                lvRow(r, bnH, bestH, na, true, cH40, left)
+            else
+                tc(0, r, "BSL", cSub, cBg)
+                tc(1, r, "all swept", cMu, cBg)
+            r += 1
+            if not na(bestL)
+                lvRow(r, bnL, bestL, na, false, cL40, left)
+            else
+                tc(0, r, "SSL", cSub, cBg)
+                tc(1, r, "all swept", cMu, cBg)
+            r += 1
+        tc(0, r, "WINDOW", cSub, cBg, "Cast forward: +20 / +40 / +60 trading days from the anchor. Tested: the marks are not special (±2 days of them: 28–31% of a 60-day window's highs / lows after a month anchor vs 25–28% by chance); a window's extremes pile up at its two ends by chance (the arcsine law).")
+        tc(1, r, (off >= 20 ? "+20 ✓ " : "+20 ") + dmy(cf20), off >= 20 ? cMu : colCF, cBg)
+        tc(2, r, (off >= 40 ? "+40 ✓ " : "+40 ") + dmy(cf40), off >= 40 ? cMu : colCF, cBg)
+        tc(3, r, (off >= 60 ? "+60 ✓ " : "+60 ") + dmy(cf60), off >= 60 ? cMu : colCF, cBg)
+        r += 1
+        if not mob
+            int nq = qI != "Off" ? nextQ(dayNow) : na
+            tc(0, r, "QUARTER", cSub, cBg, "Quarterly Theory: the year's four quarters and the true opens (the open of each cycle's second quarter). Bullish: buy below the true open; bearish: sell above. Tested: no edge as a reference (see the inputs); shown so the chart reads as the theory does.")
+            tc(1, r, qName(dayNow) + (na(nq) ? "" : " · next " + str.format_time(nq, "dd MMM", "UTC")), cTx, cBg)
+            tc(2, r, na(tyOn) ? "year TO —" : "year TO " + px(tyOn) + " · " + pos(tyOn), cTx, cBg, na(tyTn) ? "" : "True year open, " + dmyY(tyTn) + ": price is " + pos(tyOn) + " it.")
+            tc(3, r, na(tmOn) ? "month TO —" : "month TO " + px(tmOn) + " · " + pos(tmOn), cTx, cBg, na(tmTn) ? "" : "True month open, " + dmyY(tmTn) + ": price is " + pos(tmOn) + " it.")
