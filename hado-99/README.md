@@ -227,7 +227,11 @@ NQ, ES and RTY 1-minute data 2018–26: 248k C2s on 15-minute candles, 3,089 on 
 
 ## Why the name
 
-**Hadō #99, Goryūtenmetsu**, sits at the top of the numbered destructive kidō. Only the strongest kidō users can cast it; Aizen turns it on Yhwach in the final arc. This indicator started life as a single macro card (Bakudō 58). With the Fractal Model built in, it outgrew that name.
+**Hadō #99, Goryūtenmetsu** (五龍転滅), sits at the top of the numbered destructive kidō. Only the strongest kidō users can cast it: it raises five great dragons from the caster's own reiatsu and brings them down on the target. Aizen turns it on Yhwach in the final arc.
+
+This indicator climbed the kidō to get here. It began as **Tenteikūra** (天挺空羅, Bakudō #77), the spell that carries one message to everyone at once: a single card relaying what the dollar and oil were saying. It became **Bakudō #58, Kakushitsuijaku** (掴趾追雀), a tracking spell, when the card learned to follow the macro force the index was moving with. Bakudō binds and tracks; hadō strikes. With the Fractal Model built in, it outgrew the binding spells.
+
+The five dragons are the CISD's five projections, +1, +2, +2.5, +4 and +4.5, raised from the setup's own leg. And as Yhwach saw Goryūtenmetsu coming and rewrote the outcome, no projection here is certain: each one carries its tested odds, from 72% for the first to 16% for the fifth on the 15-minute pair.
 
 ## Credits
 

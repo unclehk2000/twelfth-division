@@ -1,12 +1,13 @@
 TITLE (paste into the Title field)
-Hadō 99: Macro Regime + Fractal Model for NQ, ES & RTY
+Hadō 99: Macro Regime (DXY / Oil) + C2 → C3 Fractal Model with HTF Candles for NQ, ES & RTY
 
 DESCRIPTION (paste everything below the line into the Description field)
 ────────────────────────────────────────────────────────────────────────
 
 [b]Hadō 99[/b] puts two things on one chart, each on its own card:
-• [b]Macro:[/b] which macro force the index is moving with today (the dollar or oil), how hard, and the range to expect.
-• [b]Fractal:[/b] the C2 → C3 Fractal Model drawn on price, with odds for every step.
+• [b]Macro:[/b] which macro force the index is moving with today, the dollar or oil, in one of three tested regimes; how hard it is pulling, in index points per 1% move; and the range to expect today.
+• [b]Fractal:[/b] the C2 → C3 Fractal Model drawn on price: the sweep, C2's EQ and T-spot, the CISD and its five projections, the protected swing, with odds for every step.
+• [b]HTF candles (PO3):[/b] the higher-timeframe candles of the pair right of price, tagged C1–C4, in the model's colours, ICT's green and black, or your own bodies, borders and wicks.
 Every number on both cards was measured on NQ, ES and RTY 2018–26. A result is only shown if it held at p < 0.05 (errors clustered by date), in both 2018–24 and 2025–26, and on each of the three markets. [i]It is a map of how these setups and regimes usually behave, not a signal generator.[/i]
 
 
@@ -52,17 +53,28 @@ Bullish shown; bearish is the mirror image.
 • [b]CISD[/b]: the highest open of the run of down-closing bars that delivered C2's low (up to 10 bars back). It is confirmed by the first close above it, and labelled [i]CISD · in C2[/i] when that happens inside C2. While C2 is still forming, an [b]early CISD[/b] shows as a dashed line.
 • [b]Projections[/b]: CISD + k × (CISD − C2's low) for k = +1, +2, +2.5, +4 and +4.5, each with its odds, ticked ✓ when hit.
 • [b]Protected swing[/b] (●): after the CISD, the first down-closing bar arms a level at its open. The level moves to the open of the down run into each new low. A close back above it marks the lowest 3-bar swing low in between. Greyed if taken before C4 ends.
-• [b]HTF candles (PO3)[/b]: the last 5 higher-timeframe candles drawn right of price, the one still forming on the right with a dashed border.
-  – Tagged C1–C4 for the latest setup (under the candles for a bullish setup, over them for a bearish one), each candle's time or day under it, and the pair with a countdown over them.
-  – [b]Colours:[/b] Model (the setup's blue / red, see-through bodies), ICT (green up bodies, black down bodies, black borders and wicks; white on a dark chart), or Custom: your own body, border and wick colour for up and down candles.
-  – Wick width, candle width and gap (auto by timeframe), and the offset from price.
-  – Optional: the forming candle's open, the last closed candle's high and low (the levels it must sweep to make a C2), and separators where each candle opened.
-
 [b]Pairs[/b]
 • [b]1m chart, 15-minute candles[/b].
 • [b]1H chart, daily candles[/b] (the CME day, 18:00–17:00 ET).
 • [i]Auto[/i] picks 15-minute candles on charts of 5 minutes or less, and daily candles on longer intraday charts.
 • Other chart timeframes still run, but the card marks the odds [i]untested[/i].
+
+
+[b]█ HTF CANDLES (PO3)[/b]
+
+The pair's last higher-timeframe candles (5 by default, 2–10) right of price, oldest on the left; the one still forming sits on the right with a dashed border.
+• [b]Tags:[/b] C1–C4 of the latest setup, under the candles for a bullish setup and over them for a bearish one.
+• [b]Times:[/b] each candle's open (15-minute) or day (daily) under it; the pair and a countdown to the close over the candles.
+• [b]Colours:[/b]
+  – [i]Model[/i]: the setup's blue and red, see-through bodies;
+  – [i]ICT[/i]: green up bodies, black down bodies, black borders and wicks (white instead of black on a dark chart);
+  – [i]Custom[/i]: your own body, border and wick colour, for up and down candles.
+• [b]Shape:[/b] wick width; candle width and the gap between candles (auto: 6 and 3 bars on 1–2 minute charts, 4 and 2 up to 5 minutes, 2 and 2 above); the offset from price. Wicks stop at the body, so a see-through body stays clean.
+• [b]Optional lines:[/b]
+  – the forming candle's open;
+  – the last closed candle's high and low, from where they were made: the levels the forming candle must sweep and close back inside to become a C2;
+  – separators on the chart where each candle opened.
+  An open within a hair of that high or low shares its label.
 
 
 [b]█ FRACTAL CARD[/b]
@@ -76,7 +88,15 @@ The header takes the colour of a live setup (blue bull, red bear), and goes grey
 • [b]TARGETS:[/b] the projections with their odds, ticked as they are hit.
 • [b]PROTECT:[/b] the protected swing's price and its odds of holding to the end of C4, by bars left.
 • Mobile layout keeps C2, C3, CISD and PROTECT.
-• Alerts: new C2, CISD confirmed, protected swing marked.
+
+
+[b]█ ALERTS[/b]
+
+Create one alert with "Any alert() function call". It covers:
+• the macro regime changing;
+• a new C2 (with where it closed and the odds C3 takes its other extreme);
+• a CISD confirmed;
+• a protected swing marked.
 
 
 [b]█ WHAT THE TESTS SHOWED (FRACTAL)[/b]
@@ -197,7 +217,9 @@ NQ, ES and RTY 1-minute data 2018–26: 248k C2s on 15-minute candles, 3,089 on 
 
 [b]█ WHY THE NAME[/b]
 
-[b]Hadō #99, Goryūtenmetsu[/b], sits at the top of the numbered destructive kidō. Only the strongest kidō users can cast it; Aizen turns it on Yhwach in the final arc. This indicator started life as a single macro card (Bakudō 58). With the Fractal Model built in, it outgrew that name.
+[b]Hadō #99, Goryūtenmetsu[/b] (五龍転滅), sits at the top of the numbered destructive kidō. Only the strongest kidō users can cast it: it raises five great dragons from the caster's own reiatsu and brings them down on the target. Aizen turns it on Yhwach in the final arc.
+This indicator climbed the kidō to get here. It began as [b]Tenteikūra[/b] (天挺空羅, Bakudō #77), the spell that carries one message to everyone at once: a single card relaying what the dollar and oil were saying. It became [b]Bakudō #58, Kakushitsuijaku[/b] (掴趾追雀), a tracking spell, when the card learned to follow the macro force the index was moving with. Bakudō binds and tracks; hadō strikes. With the Fractal Model built in, it outgrew the binding spells.
+The five dragons are the CISD's five projections, +1, +2, +2.5, +4 and +4.5, raised from the setup's own leg. And as Yhwach saw Goryūtenmetsu coming and rewrote the outcome, no projection here is certain: each one carries its tested odds, from 72% for the first to 16% for the fifth on the 15-minute pair.
 
 
 [b]█ CREDITS[/b]
