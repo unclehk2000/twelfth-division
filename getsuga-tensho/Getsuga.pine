@@ -1,0 +1,982 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+//@version=6
+// Getsuga · two weekly dealing ranges, each a fib from Friday (1) to Monday (0), split in eighths with SDs at 1.5 and −0.5 and
+// run through the week. Each can be turned on or off.
+// Tenshō: 1 = Friday's Shikai mid, 0 = Monday's. A day's Shikai mid is the midpoint of its overnight range (18:00 → 09:29 ET),
+// as in the Shikai / Bankai Session Map. Set at Monday 09:30.
+// Jūjishō: 1 = the CE of Friday's first presented FVG, 0 = the CE of Monday's. The first presented FVG is Byakugan's: on
+// 1-minute bars, the first three-candle wick gap from 09:30, finished by 09:59. Read from 1-minute data on any chart of 1 to
+// 15 minutes. Set when Monday's gap prints (median 09:35).
+// Last week's high / low and the week open are reference lines only. Day candles right of price in the Session Map's style.
+// Two cards read one of the ranges: the week as a ladder (every level in price order, price slotted in, ✓ or the odds by
+// Friday 17:00) and NY · 15M for today. For Jūjishō the week card adds its state: coiled or not, which way Monday shifted,
+// and the two gaps.
+// Odds: NQ + ES + RTY 1-minute 2018–26, 1,187 weeks (roll weeks left out), fitted on Tenshō's levels. They depend only on the
+// distance and the time left; on NQ 2018–26 (402 Jūjishō weeks) they fit the Jūjishō levels within 4 points.
+indicator("Getsuga · Tenshō & Jūjishō Weekly Dealing Ranges", "Getsuga", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI   = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, tooltip = "The card. Auto follows the chart background.", display = display.none)
+lblSzI   = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+txtColI  = input.color(#000001, "Chart text colour", group = gV, tooltip = "Labels that are not tied to a line's colour. Left at the default it follows the chart background.", display = display.none)
+showCard = input.bool(true, "Week card", group = gV, inline = "cd", display = display.none)
+cardPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", tooltip = "The week as a ladder: the anchors, EQ, the SDs and PWH / PWL in price order, with price slotted in between them, each with ✓ or its odds by Friday.", display = display.none)
+showNY   = input.bool(true, "NY · 15M card", group = gV, inline = "ny", display = display.none)
+nyPos    = input.string("Bottom right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "ny", tooltip = "Today, for a 15-minute trader: the nearest eighth and the nearest key level on each side of price, how far in ATR15, and the odds of trading by 11:00 and by 16:59, or ✓ once traded today. Which key level is likely first, the 09:30 open and ATR15.", display = display.none)
+layI     = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: every row. Mobile: two narrow cards for a phone (the key levels either side of price, and today's odds). Every row keeps its explanation in the tooltip.", display = display.none)
+mkOn     = input.bool(true, "Markers where levels trade", group = gV, tooltip = "A fixed marker on the bar where each key level (1, 0.5, 0, 1.5 SD, −0.5 SD) of the range the cards read, and PWH / PWL, first trades this week. Drawn once, never moved.", display = display.none)
+keepW    = input.int(1, "Weeks on the chart", minval = 1, maxval = 4, group = gV, tooltip = "How many weekly ranges stay drawn, this week's included.", display = display.none)
+
+gM = "Modes · turn each range on or off"
+tenOn   = input.bool(true, "Getsuga Tenshō · Friday's Shikai mid → Monday's", group = gM, tooltip = "1 = Friday's Shikai mid (the midpoint of its overnight, 18:00 → 09:29 ET), 0 = Monday's, set at Monday 09:30.", display = display.none)
+formOn  = input.bool(true, "Draw Tenshō while Monday's mid forms", group = gM, active = tenOn, tooltip = "Sunday 18:00 → Monday 09:30 Monday's overnight is still forming, so 0 moves with it. The card shows FORMING and no odds until 09:30.", display = display.none)
+jjOn    = input.bool(true, "Getsuga Jūjishō · Friday's first presented FVG → Monday's", group = gM, tooltip = "1 = the CE (midpoint) of Friday's first presented FVG, 0 = Monday's, set when Monday's prints.\nFirst presented FVG, as Byakugan draws it: on 1-minute bars, the first three candles from 09:30 whose wicks leave a gap (low of the third above the high of the first, or the mirror), with the third candle starting by 09:59. On NQ 2018–26 a day had one 99.8% of the time; the median prints at 09:35.\nIt is read from 1-minute data on any chart of 1 to 15 minutes, so a 15-minute chart shows the same gaps as Byakugan on 1 minute.", display = display.none)
+jBoxOn  = input.bool(true, "Show the two gaps", group = gM, inline = "jb", active = jjOn, display = display.none)
+jGapC   = input.color(color.new(#e53935, 70), "", group = gM, inline = "jb", tooltip = "Friday's and Monday's first presented FVGs, drawn for an hour from where they formed.", display = display.none)
+cardsBy = input.string("Jūjishō", "Cards and markers read", options = ["Jūjishō", "Tenshō"], group = gM, active = tenOn and jjOn, tooltip = "With both ranges on, which one the two cards and the ✓ markers follow.", display = display.none)
+
+gR = "Lines and labels"
+x1Md   = input.string("Friday's anchor", "Lines start at", options = ["Friday's anchor", "When the range is set"], group = gR, tooltip = "Friday's anchor: where Friday's line starts (Tenshō: the earlier of Friday's overnight high and low; Jūjishō: Friday's gap), as a fib drawn from Friday to Monday would.\nWhen the range is set: Monday 09:30 (Tenshō) or when Monday's gap prints (Jūjishō).", display = display.none)
+x2Md   = input.string("Past the day candles", "Lines run to", options = ["Past the day candles", "Friday 17:00"], group = gR, inline = "x2", display = display.none)
+offN   = input.int(6, "+ bars", minval = 0, maxval = 300, group = gR, inline = "x2", tooltip = "This week's lines only; past weeks end at their Friday 17:00.\nPast the day candles: the lines end + bars after the day candles (after the last bar when the candles are off), so the labels sit just right of price.\nFriday 17:00: they end where the week does, which on a low timeframe can put the labels off screen.", display = display.none)
+lblFmt = input.string("Fraction (price)", "Labels", options = ["Fraction (price)", "Fraction", "Off"], group = gR, tooltip = "At the right end of each line, e.g. 0.875 (30,023.25), the way TradingView's fib tool labels them.", display = display.none)
+nameOn = input.bool(true, "Name the anchors and SDs", group = gR, tooltip = "Adds · Fri mid / · Mon mid (Tenshō), · Fri FVG / · Mon FVG (Jūjishō) and · SD to those labels.", display = display.none)
+
+gG = "Grid · Tenshō · each tier its own colour, width and style"
+anC  = input.color(#2962ff, "Anchors 0 / 1", group = gG, inline = "a", display = display.none)
+anW  = input.int(2, "", options = [1, 2, 3, 4], group = gG, inline = "a", display = display.none)
+anS  = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "a", tooltip = "1 = Friday's Shikai mid, 0 = Monday's.", display = display.none)
+eqOn = input.bool(true, "EQ 0.5", group = gG, inline = "q0", display = display.none)
+eqC  = input.color(#2962ff, "", group = gG, inline = "q0", display = display.none)
+eqW  = input.int(1, "", options = [1, 2, 3, 4], group = gG, inline = "q0", display = display.none)
+eqS  = input.string("Dashed", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "q0", display = display.none)
+qOn  = input.bool(true, "Quarters 0.25 / 0.75", group = gG, inline = "q1", display = display.none)
+qC   = input.color(#2962ff, "", group = gG, inline = "q1", display = display.none)
+qW   = input.int(1, "", options = [1, 2, 3, 4], group = gG, inline = "q1", display = display.none)
+qS   = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "q1", display = display.none)
+oOn  = input.bool(true, "Eighths", group = gG, inline = "q2", display = display.none)
+oC   = input.color(color.new(#2962ff, 50), "", group = gG, inline = "q2", display = display.none)
+oW   = input.int(1, "", options = [1, 2, 3, 4], group = gG, inline = "q2", display = display.none)
+oS   = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "q2", tooltip = "0.125, 0.375, 0.625 and 0.875.", display = display.none)
+sdOn = input.bool(true, "SDs 1.5 / −0.5", group = gG, inline = "sd", display = display.none)
+sdC  = input.color(#9c27b0, "", group = gG, inline = "sd", display = display.none)
+sdW  = input.int(2, "", options = [1, 2, 3, 4], group = gG, inline = "sd", display = display.none)
+sdS  = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gG, inline = "sd", tooltip = "The range's standard deviations: half the range beyond Friday's mid (1.5) and beyond Monday's (−0.5).", display = display.none)
+sd2On = input.bool(false, "SDs 2 / −1", group = gG, tooltip = "One full range beyond each anchor, in the SD colour, width 1, dashed.", display = display.none)
+
+gJ = "Grid · Jūjishō · each tier its own colour, width and style"
+jAnC  = input.color(#e53935, "Anchors 0 / 1", group = gJ, inline = "a", display = display.none)
+jAnW  = input.int(2, "", options = [1, 2, 3, 4], group = gJ, inline = "a", display = display.none)
+jAnS  = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gJ, inline = "a", tooltip = "1 = the CE of Friday's first presented FVG, 0 = Monday's.", display = display.none)
+jEqOn = input.bool(true, "EQ 0.5", group = gJ, inline = "q0", display = display.none)
+jEqC  = input.color(#e53935, "", group = gJ, inline = "q0", display = display.none)
+jEqW  = input.int(1, "", options = [1, 2, 3, 4], group = gJ, inline = "q0", display = display.none)
+jEqS  = input.string("Dashed", "", options = ["Solid", "Dashed", "Dotted"], group = gJ, inline = "q0", display = display.none)
+jQOn  = input.bool(true, "Quarters 0.25 / 0.75", group = gJ, inline = "q1", display = display.none)
+jQC   = input.color(color.new(#e53935, 30), "", group = gJ, inline = "q1", display = display.none)
+jQW   = input.int(1, "", options = [1, 2, 3, 4], group = gJ, inline = "q1", display = display.none)
+jQS   = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gJ, inline = "q1", display = display.none)
+jOOn  = input.bool(false, "Eighths", group = gJ, inline = "q2", display = display.none)
+jOC   = input.color(color.new(#e53935, 55), "", group = gJ, inline = "q2", display = display.none)
+jOW   = input.int(1, "", options = [1, 2, 3, 4], group = gJ, inline = "q2", display = display.none)
+jOS   = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gJ, inline = "q2", tooltip = "0.125, 0.375, 0.625 and 0.875. Off by default so the two grids don't crowd each other.", display = display.none)
+jSdOn = input.bool(true, "SDs 1.5 / −0.5", group = gJ, inline = "sd", display = display.none)
+jSdC  = input.color(#ff6d00, "", group = gJ, inline = "sd", display = display.none)
+jSdW  = input.int(2, "", options = [1, 2, 3, 4], group = gJ, inline = "sd", display = display.none)
+jSdS  = input.string("Solid", "", options = ["Solid", "Dashed", "Dotted"], group = gJ, inline = "sd", tooltip = "Half the range beyond Friday's CE (1.5) and beyond Monday's (−0.5).", display = display.none)
+jSd2On = input.bool(false, "SDs 2 / −1", group = gJ, tooltip = "One full range beyond each anchor, in the SD colour, width 1, dashed.", display = display.none)
+
+gI = "Reference lines · last week and the week open"
+pwOn = input.bool(true, "PWH / PWL", group = gI, inline = "pw", display = display.none)
+pwC  = input.color(#787b86, "", group = gI, inline = "pw", display = display.none)
+pwW  = input.int(1, "", options = [1, 2, 3, 4], group = gI, inline = "pw", display = display.none)
+pwS  = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gI, inline = "pw", tooltip = "Last week's high and low (Sun 18:00 → Fri 17:00 ET). Where price is against them; not an anchor.", display = display.none)
+woOn = input.bool(true, "Week open", group = gI, inline = "wo", display = display.none)
+woC  = input.color(#c9a227, "", group = gI, inline = "wo", display = display.none)
+woW  = input.int(1, "", options = [1, 2, 3, 4], group = gI, inline = "wo", display = display.none)
+woS  = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gI, inline = "wo", display = display.none)
+
+gD = "Day candles · Mon–Fri right of price (Session Map style)"
+dcOn   = input.bool(true, "Show", group = gD, inline = "d0", tooltip = "Built from this chart's bars, one per trading day (18:00 → 17:00). Use a 15-minute chart: on 1–3 minutes the start of the week may not be loaded.", display = display.none)
+dcWk   = input.bool(true, "Week candle", group = gD, inline = "d0", display = display.none)
+dcOff  = input.int(15, "Offset from chart (bars)", minval = 1, maxval = 400, group = gD, tooltip = "The Session Map's candles also start 15 bars right of price. With both on, set this to about 80 so they sit side by side.", display = display.none)
+dcW    = input.int(4, "Candle width (bars)", minval = 1, maxval = 20, group = gD, display = display.none)
+dcSp   = input.int(6, "Spacing between candles", minval = 1, maxval = 20, group = gD, display = display.none)
+cColI  = input.color(#000001, "Candle colour", group = gD, inline = "cc", display = display.none)
+bodyTr = input.int(85, "Body transparency", minval = 0, maxval = 100, group = gD, inline = "cc", display = display.none)
+wickOn = input.bool(true, "Wicks", group = gD, inline = "w", display = display.none)
+hlOn   = input.bool(true, "High / low prices", group = gD, inline = "w", display = display.none)
+tickOn = input.bool(true, "25 / 37.5 / 50% ticks", group = gD, inline = "w", tooltip = "Each candle's 25, 37.5 and 50% back from its last extreme, as the Session Map draws them.", display = display.none)
+c25    = input.color(color.blue, "25%", group = gD, inline = "tk", display = display.none)
+c375   = input.color(#5c6bc0, "37.5%", group = gD, inline = "tk", display = display.none)
+c50    = input.color(#ab47bc, "50%", group = gD, inline = "tk", display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alSet = input.bool(true, "Range set (Tenshō: Monday 09:30; Jūjishō: Monday's gap)", group = gA, tooltip = "Each fires once, on the bar it happens, with the numbers in the message. They follow the ranges that are on.", display = display.none)
+alLv  = input.bool(true, "Anchors, EQ and SDs reached", group = gA, display = display.none)
+alPW  = input.bool(true, "PWH / PWL taken", group = gA, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Research constants (NQ + ES + RTY 1-minute 2018–26)
+// Odds that a level trades by Friday 17:00, given not yet: logit = I(x) + a·d + b·√d, d = the distance from price in AWR4
+// (the mean weekly range of the 4 weeks before), capped at 3. Intercepts at Monday 09:30 and the Mon–Thu closes, read between
+// them. On Friday the distance is scaled by 1 / √(time left), checked against Friday checkpoints (within 2 points).
+// Fib levels 0, 0.5, 1, 1.5, −0.5 share one model: which level it was added nothing. Fit 2018–24, scored 2025–26: Brier
+// 0.193 → 0.152. PWH / PWL have their own: they are reached less often than a fib level the same distance away (−7 points).
+var array<float> FX  = array.from(-0.326, 0.0, 1.0, 2.0, 3.0)
+var array<float> FI  = array.from(4.231, 4.051, 3.615, 3.055, 2.370)
+FA = 1.824
+FB = -7.685
+var array<float> PWI = array.from(3.657, 3.453, 3.135, 2.587, 1.955)
+PA = 0.255
+PB = -5.922
+// Odds that a level trades today, given not yet: logit = I(t) + a·d + b·√d, d = the distance from price in ATR15 (the 15-minute
+// ATR(14) at 09:30), t = minutes after 09:30, with checkpoints read between them; after the last one the distance is scaled
+// by 1 / √(time left). By 16:59: Brier 0.168 → 0.099. By 11:00: 0.190 → 0.112 (fit 2018–24, scored 2025–26). Which level
+// it was (an anchor, EQ, an SD or a plain eighth) added nothing at the same distance.
+var array<float> DX = array.from(0.0, 30.0, 60.0, 90.0, 150.0, 210.0, 270.0, 330.0, 390.0)
+var array<float> DI = array.from(4.292, 4.145, 3.971, 3.827, 3.527, 3.101, 2.815, 2.378, 0.714)
+DA = 0.1201
+DB = -2.3432
+var array<float> AX = array.from(0.0, 30.0, 60.0)
+var array<float> AI = array.from(4.313, 3.746, 2.925)
+AA = 0.1823
+AB = -2.9349
+clamp(float v, float lo, float hi) => math.max(lo, math.min(hi, v))
+sigP(float z) => 100.0 / (1.0 + math.exp(-z))
+pReach(array<float> I, float a, float b, float x, float d) =>
+    // x: −0.326 = Monday 09:30, 0 = Monday's close … 3 = Thursday's close, 4 = Friday's close
+    float xx = clamp(x, -0.326, 4.0)
+    float dd = d
+    float it = na
+    if xx >= 3
+        it := I.get(4)
+        dd := d / math.sqrt(math.max(4 - xx, 0.01))
+    else
+        int   i = xx < 0 ? 0 : int(math.floor(xx)) + 1
+        float f = (xx - FX.get(i)) / (FX.get(i + 1) - FX.get(i))
+        it := I.get(i) * (1 - f) + I.get(i + 1) * f
+    float dc = clamp(dd, 0, 3)
+    sigP(it + a * dc + b * math.sqrt(dc))
+
+pToday(array<float> X, array<float> I, float a, float b, float m, float d, float end) =>
+    int   n  = X.size()
+    float mm = math.max(m, 0)
+    float dd = d
+    float it = na
+    if mm < end
+        if mm >= X.get(n - 1)
+            it := I.get(n - 1)
+            dd := d / math.sqrt(math.max((end - mm) / (end - X.get(n - 1)), 0.01))
+        else
+            int i = 0
+            while i < n - 2 and mm >= X.get(i + 1)
+                i += 1
+            float f = (mm - X.get(i)) / (X.get(i + 1) - X.get(i))
+            it := I.get(i) * (1 - f) + I.get(i + 1) * f
+    float dc = clamp(dd, 0, 30)
+    na(it) or na(dc) ? na : sigP(it + a * dc + b * math.sqrt(dc))
+
+// ═══════════════════════════════════════════════════════════════ Colours and helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+autoC(color c) => color.r(c) == 0 and color.g(c) == 0 and color.b(c) == 1
+fgAuto = bgLum < 128 ? #d1d4dc : #131722
+txtCol = autoC(txtColI) ? fgAuto : txtColI
+cCol   = autoC(cColI) ? fgAuto : cColI
+cTxt   = isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = isDark ? #8a93a6 : #5d6476
+cHead  = #1e88e5
+cOK    = #26a69a
+cUp    = #26a69a
+cDn    = #ef5350
+cForm  = #f9a825
+lumOf(color c) => 0.299 * color.r(c) + 0.587 * color.g(c) + 0.114 * color.b(c)
+hdrTx(color c) => lumOf(c) > 165 ? #131722 : #ffffff
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+pxFmt() =>
+    int   nd = 0
+    float m  = syminfo.mintick
+    while nd < 6 and math.abs(m * math.pow(10, nd) - math.round(m * math.pow(10, nd))) > 1e-7
+        nd += 1
+    nd == 0 ? "#,##0" : "#,##0." + str.repeat("0", nd)
+var string PXF = pxFmt()
+px(float v) => na(v) ? "—" : str.tostring(v, PXF)
+pc0(float p) => na(p) ? "—" : str.tostring(math.round(p)) + "%"
+whenTx(int t) => str.format_time(t, "EEE HH:mm", TZ)
+gauge(float f, int n) =>
+    int k = na(f) ? 0 : int(math.round(clamp(f, 0, 1) * n))
+    str.repeat("█", k) + str.repeat("░", n - k)
+styleOf(string s) => s == "Dotted" ? line.style_dotted : s == "Dashed" ? line.style_dashed : line.style_solid
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+
+if not timeframe.isintraday or timeframe.in_seconds() > 15 * 60
+    runtime.error("Use an intraday chart of 15 minutes or less (15 minutes recommended).")
+
+// ═══════════════════════════════════════════════════════════════ The anchors (15-minute bars of the extended session)
+// Read the same on ETH and RTH charts and on a 1-minute chart whose history starts after Friday. Only finished bars are
+// folded in, and a mid is taken only when the 09:30 bar opens, so no future data is used.
+hmOf(int t) => hour(t, TZ) * 100 + minute(t, TZ)
+fibCtx() =>
+    var float oH   = na     // the overnight being tracked (18:00 → 09:29)
+    var float oL   = na
+    var int   oTH  = na
+    var int   oTL  = na
+    var float lM   = na     // the latest completed Shikai mid, and where its line starts
+    var int   lT   = na
+    var float fM   = na     // last week's last mid (Friday's)
+    var int   fT   = na
+    var float mM   = na     // this week's first mid (Monday's), once set
+    var int   mT   = na
+    var bool  mSet = false
+    var float wH   = na
+    var float wL   = na
+    var float pH   = na
+    var float pL   = na
+    var float wO   = na
+    var int   wT   = na
+    var float a930 = na     // the 15-minute ATR(14) at 09:30, finished bars only
+    float atr = ta.rma(ta.tr(true), 14)
+    if hmOf(time) == 930
+        a930 := atr[1]
+    if bar_index > 1
+        int  t1  = time[1]
+        int  hm1 = hmOf(t1)
+        if time_tradingday[1] != time_tradingday[2]
+            oH := na
+            oL := na
+        if hm1 >= 1800 or hm1 < 930
+            if na(oH) or high[1] > oH
+                oH := high[1]
+                oTH := t1
+            if na(oL) or low[1] < oL
+                oL := low[1]
+                oTL := t1
+        if not na(wT) and t1 >= wT
+            wH := na(wH) ? high[1] : math.max(wH, high[1])
+            wL := na(wL) ? low[1] : math.min(wL, low[1])
+    if hmOf(time) == 930 and not na(oH)
+        lM := (oH + oL) / 2
+        lT := math.min(oTH, oTL)
+        if not mSet and not na(wT)
+            mM := lM
+            mT := lT
+            mSet := true
+    if timeframe.change("W")
+        pH := wH
+        pL := wL
+        fM := lM
+        fT := lT
+        wH := na
+        wL := na
+        wO := open
+        wT := time
+        mSet := false
+        mM := na
+        mT := na
+        oH := na
+        oL := na
+    float mNow = mSet ? mM : not na(oH) ? (oH + oL) / 2 : na
+    int   mTn  = mSet ? mT : not na(oH) ? math.min(oTH, oTL) : na
+    [fM, fT, mNow, mTn, mSet, pH, pL, wO, wT, a930]
+tkE = ticker.modify(syminfo.tickerid, session.extended)
+[fMid, fT0, mMid, mT0, mSet, pwH, pwL, wkO, wkT0, atr15] = request.security(tkE, "15", fibCtx(), lookahead = barmerge.lookahead_on)
+awr4 = request.security(tkE, "W", ta.sma(high - low, 4)[1], lookahead = barmerge.lookahead_on)
+
+float rng = fMid - mMid                       // signed: 1 − 0
+bool  ok  = not na(fMid) and not na(mMid) and rng != 0
+lvl(float f) => mMid + f * rng
+fri17(int t0) => t0 + (4 * 24 + 23) * 3600000  // Sun 18:00 + 4 days 23 h = Fri 17:00
+
+// ═══════════════════════════════════════════════════════════════ This week on the chart: what has traded, and when
+newWk = not na(wkT0) and wkT0 != nz(wkT0[1])
+setNow = mSet and not mSet[1]
+var int   tSet = na
+var int   tF   = na      // Tenshō: 1, Friday's mid
+var int   tE   = na      // 0.5
+var int   tM   = na      // 0, Monday's mid
+var int   tU   = na      // 1.5 SD
+var int   tD   = na      // −0.5 SD
+var int   tPH  = na
+var int   tPL  = na
+var float wH   = na
+var float wL   = na
+var int   wTH  = na
+var int   wTL  = na
+if newWk
+    tSet := na
+    tF := na
+    tE := na
+    tM := na
+    tU := na
+    tD := na
+    tPH := na
+    tPL := na
+    wH := na
+    wL := na
+if not na(wkT0) and time >= wkT0
+    if na(wH) or high > wH
+        wH := high
+        wTH := time
+    if na(wL) or low < wL
+        wL := low
+        wTL := time
+    if na(tPH) and not na(pwH) and high > pwH
+        tPH := time
+    if na(tPL) and not na(pwL) and low < pwL
+        tPL := time
+hitAt(int t, float y, float hx, float lx) => na(t) and not na(hx) and lx <= y and hx >= y ? time : t
+if mSet and ok
+    if na(tSet)
+        tSet := time
+    tF := hitAt(tF, lvl(1), high, low)
+    tE := hitAt(tE, lvl(0.5), high, low)
+    tM := hitAt(tM, lvl(0), high, low)
+    tU := hitAt(tU, lvl(1.5), high, low)
+    tD := hitAt(tD, lvl(-0.5), high, low)
+
+// ═══════════════════════════════════════════════════════════════ Getsuga Jūjishō: each day's first presented FVG (1-minute)
+// Byakugan's rule on 1-minute bars of the extended session: from 09:30, the first three consecutive candles (all at or after
+// 09:30, the third starting by 09:59) with a wick gap. Friday's = the last one found before this week opened (Thursday's if
+// Friday has none); Monday's = the first one this week. The range is set at the close of Monday's third candle.
+string ltf = timeframe.isseconds ? timeframe.period : "1"
+[ltT, ltH, ltL, ltC] = request.security_lower_tf(tkE, ltf, [time, high, low, close])
+var int   s930   = na
+var bool  fpDone = true
+var float b1H = na
+var float b1L = na
+var int   b1T = na
+var float b2H = na
+var float b2L = na
+var int   b2T = na
+var float lpTop = na     // the latest first presented FVG found
+var float lpBot = na
+var int   lpDir = 0
+var int   lpT1  = na
+var float jFt  = na      // Friday's gap
+var float jFb  = na
+var int   jFd  = 0
+var int   jFT1 = na
+var float jMt  = na      // Monday's gap
+var float jMb  = na
+var int   jMd  = 0
+var int   jMT1 = na
+var float jP0  = na      // price when Monday's gap printed (its third candle's close)
+var int   jSetT = na
+var bool  jSet = false
+var int   jtF = na       // 1, Friday's CE
+var int   jtE = na       // 0.5
+var int   jtM = na       // 0, Monday's CE
+var int   jtU = na       // 1.5 SD
+var int   jtD = na       // −0.5 SD
+if newWk
+    jFt := lpTop
+    jFb := lpBot
+    jFd := lpDir
+    jFT1 := lpT1
+    jSet := false
+    jMt := na
+    jMb := na
+    jMd := 0
+    jMT1 := na
+    jP0 := na
+    jSetT := na
+    jtF := na
+    jtE := na
+    jtM := na
+    jtU := na
+    jtD := na
+bool  jSetNow = false
+float jPH = na           // the set bar: what traded after Monday's third candle
+float jPL = na
+int   nI  = ltT.size()
+if jjOn and nI > 0
+    if hmOf(ltT.first()) <= 959 and hmOf(ltT.last()) >= 930
+        for j = 0 to nI - 1
+            int   t = ltT.get(j)
+            float h = ltH.get(j)
+            float l = ltL.get(j)
+            int   m = hmOf(t)
+            if m >= 930 and (na(s930) or t - s930 > 12 * 3600000)
+                s930 := t - ((hour(t, TZ) * 60 + minute(t, TZ)) - 570) * 60000
+                fpDone := false
+                b1H := na
+                b1L := na
+                b1T := na
+                b2H := na
+                b2L := na
+                b2T := na
+            if jSetNow
+                jPH := na(jPH) ? h : math.max(jPH, h)
+                jPL := na(jPL) ? l : math.min(jPL, l)
+            if not fpDone and not na(b2H) and m >= 930 and t < s930 + 1800000
+                bool bu = l > b2H
+                bool be = h < b2L
+                if bu or be
+                    fpDone := true
+                    lpTop := bu ? l : b2L
+                    lpBot := bu ? b2H : h
+                    lpDir := bu ? 1 : -1
+                    lpT1 := b2T
+                    if not jSet and not na(wkT0) and t >= wkT0 and not na(jFt)
+                        jMt := lpTop
+                        jMb := lpBot
+                        jMd := lpDir
+                        jMT1 := b2T
+                        jP0 := ltC.get(j)
+                        jSet := true
+                        jSetT := t + 60000
+                        jSetNow := true
+            b2H := b1H
+            b2L := b1L
+            b2T := b1T
+            b1H := h
+            b1L := l
+            b1T := t
+float jF  = na(jFt) ? na : (jFt + jFb) / 2
+float jM  = jSet ? (jMt + jMb) / 2 : na
+float jR  = jF - jM
+bool  jOk = jjOn and jSet and not na(jR) and jR != 0
+jlvl(float f) => jM + f * jR
+if jOk
+    float hx = jSetNow ? jPH : high
+    float lx = jSetNow ? jPL : low
+    jtF := hitAt(jtF, jlvl(1), hx, lx)
+    jtE := hitAt(jtE, jlvl(0.5), hx, lx)
+    jtM := hitAt(jtM, jlvl(0), hx, lx)
+    jtU := hitAt(jtU, jlvl(1.5), hx, lx)
+    jtD := hitAt(jtD, jlvl(-0.5), hx, lx)
+
+// ═══════════════════════════════════════════════════════════════ The range the cards and markers read
+bool  cardJ = jjOn and (not tenOn or cardsBy == "Jūjishō")
+float cF    = cardJ ? jF : fMid
+float cM    = cardJ ? jM : mMid
+float cR    = cF - cM
+bool  cSet  = cardJ ? jOk : tenOn and mSet and ok
+bool  cOk   = cardJ ? jOk : tenOn and ok
+clvl(float f) => cM + f * cR
+tOf(float f) => cardJ ? (f == 1.5 ? jtU : f == 1 ? jtF : f == 0.5 ? jtE : f == 0 ? jtM : f == -0.5 ? jtD : na) : (f == 1.5 ? tU : f == 1 ? tF : f == 0.5 ? tE : f == 0 ? tM : f == -0.5 ? tD : na)
+color cAn = cardJ ? jAnC : anC
+color cEq = cardJ ? jEqC : eqC
+color cSd = cardJ ? jSdC : sdC
+
+// today's regular session (09:30 → 16:59), from this chart's bars
+inRth = hmOf(time) >= 930 and hmOf(time) < 1700
+var float o930 = na
+var int   t930 = na
+var int   rDay = na
+var float rH   = na
+var float rL   = na
+if inRth and (not inRth[1] or time_tradingday != nz(rDay))
+    o930 := open
+    t930 := time
+    rDay := time_tradingday
+    rH := high
+    rL := low
+else if inRth
+    rH := math.max(rH, high)
+    rL := math.min(rL, low)
+
+// fixed markers where each key level first trades this week
+var array<label> mkL = array.new<label>()
+var array<int>   mkW = array.new<int>()
+var int wkN = 0
+if newWk
+    wkN += 1
+    while mkW.size() > 0 and mkW.first() <= wkN - keepW
+        mkL.shift().delete()
+        mkW.shift()
+mark(int t, float y, string tx, color c) =>
+    if mkOn and t == time and not na(y)
+        mkL.push(label.new(time, y, tx, xloc = xloc.bar_time, style = y >= open ? label.style_label_down : label.style_label_up, color = color.new(c, 80), textcolor = txtCol, size = size.tiny, tooltip = tx + " · " + px(y) + " · " + whenTx(time)))
+        mkW.push(wkN)
+if cOk and cSet
+    string sfx = cardJ ? " FVG" : ""
+    mark(tOf(1), clvl(1), "✓ 1 FRI" + sfx, cAn)
+    mark(tOf(0.5), clvl(0.5), "✓ 0.5 EQ", cEq)
+    mark(tOf(0), clvl(0), "✓ 0 MON" + sfx, cAn)
+    mark(tOf(1.5), clvl(1.5), "✓ 1.5 SD", cSd)
+    mark(tOf(-0.5), clvl(-0.5), "✓ −0.5 SD", cSd)
+if not na(wkT0) and time >= wkT0
+    mark(tPH, pwH, "✓ PWH", pwC)
+    mark(tPL, pwL, "✓ PWL", pwC)
+
+// where the week stands: x = −1 at the open, −0.326 at Monday 09:30, 0 at Monday's close … 4 at Friday's close
+xAt(int t) =>
+    int   tdi  = dayofweek(time_tradingday, "UTC") - dayofweek.monday
+    float frac = clamp((t - (timestamp(TZ, year(time_tradingday, "UTC"), month(time_tradingday, "UTC"), dayofmonth(time_tradingday, "UTC"), 0, 0) - 6 * 3600000)) / (23.0 * 3600000), 0, 1)
+    tdi - 1 + frac
+dA(float y) => na(awr4) or awr4 <= 0 ? na : math.abs(y - close) / awr4
+oddsAt(int t, float y, float x) => not na(t) ? na : pReach(FI, FA, FB, x, dA(y))
+// Jūjishō state (NQ 2018–26, 402 weeks): coiled = the range is 0.20 × AWR4 or less; shifted down = Monday's gap printed
+// below Friday's CE (price at Monday's third candle under Friday's CE)
+bool jCoil = jOk and not na(awr4) and awr4 > 0 and math.abs(jR) / awr4 <= 0.20
+bool jDown = jOk and not na(jP0) and jF > jP0
+
+// alerts (once, on the bar it happens)
+string pre = "Getsuga · " + syminfo.ticker + " · "
+if tenOn and ok and alSet and setNow
+    float x0 = xAt(time)
+    alert(pre + "Tenshō set " + whenTx(time) + ": 1 = Friday's mid " + px(fMid) + ", 0 = Monday's mid " + px(mMid) + " (" + px(math.abs(rng)) + " pts" + (na(awr4) ? "" : ", " + str.tostring(math.abs(rng) / awr4, "0.00") + "× AWR4") + ") · by Friday: 1 " + pc0(oddsAt(tF, lvl(1), x0)) + " · 1.5 SD " + pc0(oddsAt(tU, lvl(1.5), x0)) + " · −0.5 SD " + pc0(oddsAt(tD, lvl(-0.5), x0)), alert.freq_once_per_bar)
+if tenOn and ok and mSet and alLv and not setNow
+    if tF == time
+        alert(pre + "Tenshō 1 (Friday's mid) " + px(lvl(1)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if tE == time
+        alert(pre + "Tenshō 0.5 (EQ) " + px(lvl(0.5)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if tM == time
+        alert(pre + "Tenshō 0 (Monday's mid) " + px(lvl(0)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if tU == time
+        alert(pre + "Tenshō 1.5 SD " + px(lvl(1.5)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if tD == time
+        alert(pre + "Tenshō −0.5 SD " + px(lvl(-0.5)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+if jOk and alSet and jSetNow
+    float x0 = xAt(jSetT)
+    alert(pre + "Jūjishō set " + whenTx(jSetT) + ": 1 = Friday's FVG CE " + px(jF) + ", 0 = Monday's " + px(jM) + " (" + px(math.abs(jR)) + " pts" + (na(awr4) ? "" : ", " + str.tostring(math.abs(jR) / awr4, "0.00") + "× AWR4, " + (jCoil ? "coiled" : "uncoiled")) + ", Monday " + (jDown ? "below" : "above") + " Friday) · by Friday: 1 " + pc0(oddsAt(jtF, jlvl(1), x0)) + " · 1.5 SD " + pc0(oddsAt(jtU, jlvl(1.5), x0)) + " · −0.5 SD " + pc0(oddsAt(jtD, jlvl(-0.5), x0)), alert.freq_once_per_bar)
+if jOk and alLv and not jSetNow
+    if jtF == time
+        alert(pre + "Jūjishō 1 (Friday's FVG CE) " + px(jlvl(1)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if jtE == time
+        alert(pre + "Jūjishō 0.5 (EQ) " + px(jlvl(0.5)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if jtM == time
+        alert(pre + "Jūjishō 0 (Monday's FVG CE) " + px(jlvl(0)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if jtU == time
+        alert(pre + "Jūjishō 1.5 SD " + px(jlvl(1.5)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+    if jtD == time
+        alert(pre + "Jūjishō −0.5 SD " + px(jlvl(-0.5)) + " reached " + whenTx(time), alert.freq_once_per_bar)
+if alPW and not na(wkT0) and time >= wkT0
+    if tPH == time
+        alert(pre + "PWH " + px(pwH) + " taken " + whenTx(time), alert.freq_once_per_bar)
+    if tPL == time
+        alert(pre + "PWL " + px(pwL) + " taken " + whenTx(time), alert.freq_once_per_bar)
+
+// ═══════════════════════════════════════════════════════════════ Day candles (this chart's bars, one per trading day)
+var array<int>   dT  = array.new<int>()
+var array<float> dO  = array.new<float>()
+var array<float> dH  = array.new<float>()
+var array<float> dL  = array.new<float>()
+var array<float> dC  = array.new<float>()
+var array<int>   dTH = array.new<int>()
+var array<int>   dTL = array.new<int>()
+if timeframe.change("D") or dT.size() == 0
+    dT.push(time_tradingday)
+    dO.push(open)
+    dH.push(high)
+    dL.push(low)
+    dC.push(close)
+    dTH.push(time)
+    dTL.push(time)
+    if dT.size() > 7
+        dT.shift()
+        dO.shift()
+        dH.shift()
+        dL.shift()
+        dC.shift()
+        dTH.shift()
+        dTL.shift()
+else
+    int k = dT.size() - 1
+    if high > dH.get(k)
+        dH.set(k, high)
+        dTH.set(k, time)
+    if low < dL.get(k)
+        dL.set(k, low)
+        dTL.set(k, time)
+    dC.set(k, close)
+
+// ═══════════════════════════════════════════════════════════════ Drawing: the ranges (one set per week each; older ones removed)
+type GW
+    array<line>  ln
+    array<label> lb
+    array<float> fr      // the fib fraction of each line (na = a reference line)
+    array<label> sl      // the reference lines' labels, at their start, clear of the fib labels on the right
+    array<box>   bx      // Jūjishō: the two gaps
+    int          key
+    bool         fin
+var array<GW> grids  = array.new<GW>()     // Tenshō
+var array<GW> gridsJ = array.new<GW>()     // Jūjishō
+killGW(GW g) =>
+    for l in g.ln
+        l.delete()
+    for l in g.lb
+        l.delete()
+    for l in g.sl
+        l.delete()
+    for b in g.bx
+        b.delete()
+fTx(float f, float y, bool jj) =>
+    string nm = not nameOn ? "" : f == 1 ? (jj ? " · Fri FVG" : " · Fri mid") : f == 0 ? (jj ? " · Mon FVG" : " · Mon mid") : f == 1.5 or f == -0.5 or f == 2 or f == -1 ? " · SD" : ""
+    lblFmt == "Off" ? "" : str.tostring(f, "0.###") + (lblFmt == "Fraction (price)" ? " (" + px(y) + ")" : "") + nm
+addL(GW g, int x1, int x2, float y, color c, int w, string st, string tx, float fr) =>
+    g.ln.push(line.new(x1, y, x2, y, xloc = xloc.bar_time, color = c, style = styleOf(st), width = w))
+    g.lb.push(label.new(x2, y, tx, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = color.new(c, math.min(color.t(c), 20.0)), size = tSz))
+    g.fr.push(fr)
+buildGrid(int key, int x1, int x2, float m0, float r0, bool jj, bool refs) =>
+    GW g = GW.new(array.new<line>(), array.new<label>(), array.new<float>(), array.new<label>(), array.new<box>(), key, false)
+    for k = -8 to 16
+        float f = k / 8.0
+        float y = m0 + f * r0
+        if k == 0 or k == 8
+            addL(g, x1, x2, y, jj ? jAnC : anC, jj ? jAnW : anW, jj ? jAnS : anS, fTx(f, y, jj), f)
+        else if k == 4
+            if jj ? jEqOn : eqOn
+                addL(g, x1, x2, y, jj ? jEqC : eqC, jj ? jEqW : eqW, jj ? jEqS : eqS, fTx(f, y, jj), f)
+        else if k == 2 or k == 6
+            if jj ? jQOn : qOn
+                addL(g, x1, x2, y, jj ? jQC : qC, jj ? jQW : qW, jj ? jQS : qS, fTx(f, y, jj), f)
+        else if k > 0 and k < 8
+            if jj ? jOOn : oOn
+                addL(g, x1, x2, y, jj ? jOC : oC, jj ? jOW : oW, jj ? jOS : oS, fTx(f, y, jj), f)
+        else if k == 12 or k == -4
+            if jj ? jSdOn : sdOn
+                addL(g, x1, x2, y, jj ? jSdC : sdC, jj ? jSdW : sdW, jj ? jSdS : sdS, fTx(f, y, jj), f)
+        else if k == 16 or k == -8
+            if jj ? jSd2On : sd2On
+                addL(g, x1, x2, y, jj ? jSdC : sdC, 1, "Dashed", fTx(f, y, jj), f)
+    if refs
+        for j = 0 to 2
+            bool  on = j < 2 ? pwOn and not na(pwH) : woOn and not na(wkO)
+            float y  = j == 0 ? pwH : j == 1 ? pwL : wkO
+            color c  = j < 2 ? pwC : woC
+            if on
+                g.ln.push(line.new(wkT0, y, x2, y, xloc = xloc.bar_time, color = c, style = styleOf(j < 2 ? pwS : woS), width = j < 2 ? pwW : woW))
+                g.fr.push(na)
+                if lblFmt != "Off"
+                    string nm = j == 0 ? "PWH" : j == 1 ? "PWL" : "Week open"
+                    g.sl.push(label.new(wkT0, y, nm + (lblFmt == "Fraction (price)" ? " (" + px(y) + ")" : ""), xloc = xloc.bar_time, style = j == 1 ? label.style_label_upper_left : label.style_label_lower_left, color = #00000000, textcolor = color.new(c, math.min(color.t(c), 20.0)), size = tSz))
+    g
+// Tenshō: drawn from the week's open (while Monday's mid forms, if on); it carries the reference lines
+x1Of() => x1Md == "Friday's anchor" ? fT0 : nz(tSet, wkT0)
+if tenOn and ok and not na(wkT0) and (mSet or formOn) and (grids.size() == 0 or grids.last().key != wkT0)
+    grids.push(buildGrid(wkT0, x1Of(), fri17(wkT0), mMid, rng, false, true))
+    while grids.size() > keepW
+        killGW(grids.shift())
+// while Monday's mid forms, 0 moves with it: keep the grid on it until 09:30 sets it
+if tenOn and ok and grids.size() > 0 and grids.last().key == wkT0 and not grids.last().fin
+    GW g = grids.last()
+    int x1 = x1Of()
+    for [i, l] in g.ln
+        float f = g.fr.get(i)
+        if not na(f)
+            float y = lvl(f)
+            l.set_y1(y)
+            l.set_y2(y)
+            l.set_x1(x1)
+            label lb = g.lb.get(i)
+            lb.set_y(y)
+            lb.set_text(fTx(f, y, false))
+    if mSet
+        g.fin := true
+// Jūjishō: drawn when Monday's gap prints; it carries the reference lines when Tenshō is off
+if jOk and jSetNow and (gridsJ.size() == 0 or gridsJ.last().key != wkT0)
+    GW g = buildGrid(wkT0, x1Md == "Friday's anchor" ? jFT1 : jSetT, fri17(wkT0), jM, jR, true, not tenOn)
+    if jBoxOn
+        g.bx.push(box.new(jFT1, jFt, jFT1 + 3600000, jFb, xloc = xloc.bar_time, border_color = jGapC, bgcolor = jGapC))
+        g.bx.push(box.new(jMT1, jMt, jMT1 + 3600000, jMb, xloc = xloc.bar_time, border_color = jGapC, bgcolor = jGapC))
+    g.fin := true
+    gridsJ.push(g)
+    while gridsJ.size() > keepW
+        killGW(gridsJ.shift())
+
+// ═══════════════════════════════════════════════════════════════ Day candles right of price (Session Map style, last bar)
+var array<box>   cdB = array.new<box>()
+var array<line>  cdL = array.new<line>()
+var array<label> cdT = array.new<label>()
+var int dcEnd = na
+drawC(float o, float h, float l, float c, int tH, int tL, int x1, int x2, string nm) =>
+    float bt = math.max(o, c)
+    float bb = math.min(o, c)
+    int   xm = int(math.round((x1 + x2) / 2))
+    cdB.push(box.new(x1, bt, x2, bb, xloc = xloc.bar_index, bgcolor = color.new(cCol, bodyTr), border_color = cCol, border_width = 1))
+    if wickOn and h > bt
+        cdL.push(line.new(xm, bt, xm, h, xloc = xloc.bar_index, color = cCol))
+    if wickOn and l < bb
+        cdL.push(line.new(xm, bb, xm, l, xloc = xloc.bar_index, color = cCol))
+    cdT.push(label.new(xm, h, hlOn ? nm + "\n" + px(h) : nm, xloc = xloc.bar_index, style = label.style_label_down, color = color.new(cCol, 90), textcolor = cCol, size = size.tiny, textalign = text.align_center))
+    if hlOn
+        cdT.push(label.new(xm, l, px(l), xloc = xloc.bar_index, style = label.style_label_up, color = #00000000, textcolor = cCol, size = size.tiny))
+    if tickOn and h > l
+        // 25 / 37.5 / 50% back from the last extreme: high first and low later = a down leg, measured up from the low
+        bool dn = tH < tL or (tH == tL and c < o)
+        for k = 0 to 2
+            float q  = k == 0 ? 0.25 : k == 1 ? 0.375 : 0.5
+            float y  = dn ? l + q * (h - l) : h - q * (h - l)
+            color cc = k == 0 ? c25 : k == 1 ? c375 : c50
+            cdL.push(line.new(x2, y, x2 + dcSp, y, xloc = xloc.bar_index, color = cc))
+            cdT.push(label.new(x2 + dcSp, y, k == 0 ? "25%" : k == 1 ? "37.5%" : "50%", xloc = xloc.bar_index, style = label.style_label_left, color = #00000000, textcolor = cc, size = size.tiny))
+stretch(array<GW> gs, int x2) =>
+    if gs.size() > 0 and gs.last().key == wkT0
+        GW g = gs.last()
+        for l in g.ln
+            l.set_x2(x2)
+        for l in g.lb
+            l.set_x(x2)
+if barstate.islast
+    for b in cdB
+        b.delete()
+    for l in cdL
+        l.delete()
+    for l in cdT
+        l.delete()
+    cdB.clear()
+    cdL.clear()
+    cdT.clear()
+    dcEnd := bar_index
+    if dcOn and not na(wkT0)
+        int step = dcW + dcSp
+        int x = bar_index + dcOff
+        for i = 0 to dT.size() - 1
+            int k = dT.get(i)
+            if k >= wkT0 - 6 * 3600000
+                drawC(dO.get(i), dH.get(i), dL.get(i), dC.get(i), dTH.get(i), dTL.get(i), x, x + dcW, str.format_time(k + 12 * 3600000, "EEE", "UTC"))
+                x += step
+        if dcWk and not na(wkO) and not na(wH)
+            drawC(wkO, wH, wL, close, wTH, wTL, x, x + dcW, "Week")
+            x += step
+        dcEnd := x
+    // this week's lines end past the day candles (or past the last bar), so the labels sit right of price
+    if x2Md == "Past the day candles"
+        int x2 = time + (dcEnd - bar_index + offN) * timeframe.in_seconds() * 1000
+        stretch(grids, x2)
+        stretch(gridsJ, x2)
+
+// ═══════════════════════════════════════════════════════════════ Cards: the week as a ladder, and today on 15 minutes
+var table TC = na
+var table TN = na
+mob  = layI == "Mobile"
+cHL  = isDark ? #1c2a40 : #dbe7fb
+cRow(table T, int r, string k, color kc, string gs, color gc, string v, string w, string tip, color wbg, color bg) =>
+    color b = na(bg) ? cBody : bg
+    T.cell(0, r, k, text_color = na(kc) ? cSub : kc, text_size = tSz, text_halign = text.align_left, bgcolor = b, text_font_family = font.family_monospace, tooltip = tip)
+    T.cell(1, r, gs, text_color = na(gc) ? cTxt : gc, text_size = tSz, text_halign = text.align_left, bgcolor = b, text_font_family = font.family_monospace, tooltip = tip)
+    T.cell(2, r, v, text_color = cTxt, text_size = tSz, text_halign = text.align_left, bgcolor = b, text_font_family = font.family_monospace, tooltip = tip)
+    T.cell(3, r, w, text_color = na(wbg) ? cTxt : hdrTx(wbg), text_size = tSz, text_halign = text.align_right, bgcolor = na(wbg) ? b : wbg, text_font_family = font.family_monospace, tooltip = tip)
+hdr(table T, int ncol, string a, string b, string c, string pill, color pc, string tip) =>
+    T.cell(0, 0, a, text_color = #ffffff, bgcolor = cHead, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    T.cell(1, 0, b, text_color = #ffffff, bgcolor = cHead, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    if ncol > 3
+        for j = 2 to ncol - 2
+            T.cell(j, 0, j == 2 ? c : "", text_color = #ffffff, bgcolor = cHead, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+    T.cell(ncol - 1, 0, pill, text_color = pc, bgcolor = #ffffff, text_size = tSz, text_halign = text.align_center, text_font_family = font.family_monospace, tooltip = tip)
+nmOf(float f) => f == 1.5 ? "1.5 SD" : f == 1 ? "1 FRI" : f == 0.5 ? "0.5 EQ" : f == 0 ? "0 MON" : f == -0.5 ? "-0.5 SD" : str.tostring(f, "0.###")
+string lvTipT = "Odds it trades by Friday 17:00 (NQ + ES + RTY 2018–26), from its distance to price in AWR4 (the mean weekly range of the 4 weeks before) and the time left; which level it is added nothing. From Monday 09:30 the week reached 0 (Monday's mid) 90% of the time, −0.5 SD 85%, 0.5 81%, 1 (Friday's mid) 71%, 1.5 SD 62%. None was reached more often than a level the same distance on the other side of the 09:30 price, and none held better than a random level on a first touch: a map, not a magnet."
+string lvTipJ = "Odds it trades by Friday 17:00, from its distance to price in AWR4 (the mean weekly range of the 4 weeks before) and the time left: the same model as Tenshō, which fit the Jūjishō levels within 4 points (NQ 2018–26). From Monday's gap the week reached 0 (Monday's CE) 95% of the time, −0.5 SD 88%, 0.5 83%, 1 (Friday's CE) 71%, 1.5 SD 62% (402 weeks). No eighth was reached more often than a level on a randomly shifted grid at the same distance, none held better on a first touch (46% for both), and the days' highs, lows and closes did not land on them more than chance: a map, not a magnet."
+string pwTip = "Last week's high / low, a reference line, not an anchor. Odds it trades by Friday 17:00 from its distance (AWR4) and the time left (after Monday 09:30: PWH 58%, PWL 40%). A PW level is reached less often than a fib level the same distance away."
+
+if barstate.islast and (cOk or (cardJ and not na(jF)))
+    bool   wait = not cOk                        // Jūjishō, before Monday's gap
+    string lvTip = cardJ ? lvTipJ : lvTipT
+    float  xN   = xAt(timenow)
+    float  fpos = wait ? na : (close - cM) / cR
+    float  rr   = wait or na(awr4) or awr4 <= 0 ? na : math.abs(cR) / awr4
+    string nowT = str.format_time(time, "MM/dd", TZ) + (mob ? " " : " · ") + str.format_time(time, "HH:mm", TZ) + (mob ? "" : " ET")
+    string posTx = wait ? "" : fpos > 1.5 or fpos < -0.5 ? "past " + (fpos > 1.5 ? "1.5" : "−0.5") : fpos > 1 or fpos < 0 ? "past " + (fpos > 1 ? "1" : "0") : "inside"
+    string rngTip = cardJ ? "1 = the CE of Friday's first presented FVG " + px(cF) + ", 0 = Monday's " + px(cM) + ". " + px(math.abs(cR)) + " pts" + (na(rr) ? "" : ", " + str.tostring(rr, "0.00") + "× AWR4 (the bar runs to 1×)") + ". NQ 2018–26 (402 weeks): the median is 0.19× AWR4 (its size moves with Tenshō's, correlation 0.89), and the week closed between the anchors 11% of the time." : "1 = Friday's Shikai mid " + px(fMid) + " (" + str.format_time(fT0, "EEE MM/dd", TZ) + "), 0 = Monday's " + px(mMid) + (mSet ? "" : " (forming until 09:30)") + ". " + px(math.abs(rng)) + " pts" + (na(rr) ? "" : ", " + str.tostring(rr, "0.00") + "× AWR4 (the bar runs to 1×)") + ". NQ + ES + RTY 2018–26: the median is 0.19× AWR4, and the week closed between the anchors 13% of the time. The smaller the range, the more of it trades: both SDs traded in 86% of the smallest quarter of weeks and 15% of the largest."
+    string stTip = "Coiled: the range is 0.20× AWR4 or less (about half of all weeks). NQ 2018–26, 402 weeks, from Monday's gap to Friday 16:59: coiled weeks traded both SDs 76% of the time and closed beyond one 90% (between the anchors 5%); uncoiled weeks 26%, 63% and 18%. That is the grid's spacing, not a volatility call: the rest of the week covered 0.98× AWR4 in coiled weeks and 1.05× in uncoiled ones, and the state added nothing once the recent daily range was known."
+    string shTip = "Which way Monday's gap printed against Friday's: the price when it printed, against Friday's CE. NQ 2018–26, 402 weeks, from that price to Friday 16:59: after Monday printed below Friday's CE the week rose 62% of the time (mean +78 bp, 177 weeks); above it, 56% (−3 bp, 225 weeks); all weeks 58% (+33 bp). The difference held in 7 of 9 years (permutation p 0.005), but it is the plain Friday → Monday price reversal: the same split on prices alone agrees 97% of the time and gives the same result, so the gaps are not the reason. It was weak in 2018–21, and long only after a down shift beat always-long on total return only in 2024–26. A lean, not a signal."
+    string gpTip = "The two first presented FVGs (Byakugan's rule: 1-minute, from 09:30, done by 09:59), their direction and size, and when Monday's printed. A bigger gap comes with a bigger day only because it forms in a fast open: once the 09:30 range up to the gap and the recent daily range are known, its size added nothing to the rest of the day's range (2,072 NQ days, scored on 2024–26), and Friday's and Monday's gaps added nothing to the week's."
+    // ── the week card: the key levels and PWH / PWL in price order, price slotted in
+    if showCard
+        if na(TC)
+            TC := table.new(posOf(cardPos), 4, 16, border_width = 0, frame_width = 1, frame_color = cHead)
+        TC.clear(0, 0, 3, 15)
+        string pill = wait ? "WAITING" : not cSet ? "FORMING" : posTx == "inside" ? "INSIDE" : (close > math.max(cF, cM) ? "▲ " : "▼ ") + str.upper(posTx)
+        color  pcl  = wait or not cSet ? cForm : posTx == "inside" ? cHead : close > math.max(cF, cM) ? cUp : cDn
+        hdr(TC, 4, "GETSUGA", cardJ ? "JŪJISHŌ" : "TENSHŌ", mob ? str.format_time(time, "HH:mm", TZ) : nowT, pill, pcl, "WAITING (Jūjishō): Monday's first presented FVG has not printed yet (09:30 → 09:59). FORMING (Tenshō): Sunday 18:00 → Monday 09:30, Monday's overnight is still forming. INSIDE: price is between the anchors. PAST 1 / 0: beyond Friday's / Monday's anchor. PAST 1.5 / −0.5: beyond an SD.")
+        int r = 1
+        if wait
+            cRow(TC, r, "1 FRI", na, "", na, px(jF), "FVG CE", "Friday's first presented FVG: " + (jFd > 0 ? "bullish " : "bearish ") + px(jFb) + " → " + px(jFt) + " (" + px(jFt - jFb) + " pts), formed " + whenTx(jFT1) + ". Its CE is 1.", na, na)
+            r += 1
+            cRow(TC, r, "0 MON", na, "", na, "09:30 → 09:59", "waiting", "Monday's first presented FVG prints between 09:30 and 09:59 (NQ: median 09:35, 99.8% of days have one). Then the range, its levels and the odds appear.", na, na)
+            r += 1
+            cRow(TC, r, "▸ PRICE", cHead, "", na, px(close), mob ? "" : "vs 1: " + (close >= jF ? "+" : "") + px(close - jF), "Price against Friday's CE.", na, cHL)
+            r += 1
+        else
+            array<float>  iy = array.new<float>()
+            array<string> ik = array.new<string>()
+            array<int>    iT = array.new<int>()
+            array<float>  iP = array.new<float>()
+            array<bool>   iW = array.new<bool>()
+            for j = 0 to 4
+                float f = j == 0 ? 1.5 : j == 1 ? 1.0 : j == 2 ? 0.5 : j == 3 ? 0.0 : -0.5
+                int   t = tOf(f)
+                iy.push(clvl(f))
+                ik.push(nmOf(f))
+                iT.push(t)
+                iP.push(not na(t) or not cSet ? na : pReach(FI, FA, FB, xN, dA(clvl(f))))
+                iW.push(false)
+            if not na(pwH) and not na(pwL)
+                iy.push(pwH)
+                ik.push("PWH")
+                iT.push(tPH)
+                iP.push(not na(tPH) ? na : pReach(PWI, PA, PB, xN, na(awr4) ? na : math.max(pwH - close, 0) / awr4))
+                iW.push(true)
+                iy.push(pwL)
+                ik.push("PWL")
+                iT.push(tPL)
+                iP.push(not na(tPL) ? na : pReach(PWI, PA, PB, xN, na(awr4) ? na : math.max(close - pwL, 0) / awr4))
+                iW.push(true)
+            array<int> ord = iy.sort_indices(order.descending)
+            string prTip = "Price on the range: " + str.tostring(fpos, "0.00") + " (0 = Monday's " + (cardJ ? "CE" : "mid") + ", 1 = Friday's)."
+            string stTx = jCoil ? "COILED" : "UNCOILED"
+            if mob
+                // the key levels either side of price
+                int ja = na
+                int jb = na
+                for j in ord
+                    if not iW.get(j)
+                        if iy.get(j) > close
+                            ja := j
+                        else if na(jb)
+                            jb := j
+                cRow(TC, r, "RANGE", na, gauge(rr, 5), cardJ ? jAnC : cHead, "", px(math.abs(cR)) + (na(rr) ? "" : " · " + str.tostring(rr, "0.00") + "×"), rngTip, na, na)
+                r += 1
+                if cardJ
+                    cRow(TC, r, stTx, jCoil ? cForm : cHead, "", na, "", jCoil ? "past SD 90%" : "past SD 63%", stTip, na, na)
+                    r += 1
+                    cRow(TC, r, jDown ? "▼ SHIFT" : "▲ SHIFT", jDown ? cDn : cUp, "", na, "", jDown ? "up 62%" : "up 56%", shTip, na, na)
+                    r += 1
+                for q = 0 to 2
+                    int j = q == 0 ? ja : q == 2 ? jb : na
+                    if q == 1
+                        cRow(TC, r, "▸ PRICE", cHead, "", na, "", str.tostring(fpos, "0.00"), prTip, na, cHL)
+                        r += 1
+                    else if not na(j)
+                        int t = iT.get(j)
+                        cRow(TC, r, (q == 0 ? "▲ " : "▼ ") + ik.get(j), na, "", na, "", not na(t) ? "✓ " + whenTx(t) : not cSet ? "—" : pc0(iP.get(j)), ik.get(j) + " " + px(iy.get(j)) + ". " + lvTip, not na(t) ? cOK : na, na)
+                        r += 1
+            else
+                cRow(TC, r, "RANGE", na, gauge(rr, 8), cardJ ? jAnC : cHead, px(cF) + " → " + px(cM) + (cSet ? "" : " (forming)"), px(math.abs(cR)) + (na(rr) ? "" : " · " + str.tostring(rr, "0.00") + "× AWR4"), rngTip, na, na)
+                r += 1
+                if cardJ
+                    cRow(TC, r, "STATE", na, stTx, jCoil ? cForm : cHead, jCoil ? "≤ 0.20× · both SDs 76%" : "> 0.20× · both SDs 26%", jCoil ? "past an SD 90%" : "past an SD 63%", stTip, na, na)
+                    r += 1
+                    cRow(TC, r, "SHIFT", na, jDown ? "▼ MON < FRI" : "▲ MON > FRI", jDown ? cDn : cUp, jDown ? "week up 62% · +78 bp" : "week up 56% · −3 bp", "all 58% · +33 bp", shTip, na, na)
+                    r += 1
+                    cRow(TC, r, "GAPS", na, "", na, "FRI " + (jFd > 0 ? "▲ " : "▼ ") + px(jFt - jFb) + " · MON " + (jMd > 0 ? "▲ " : "▼ ") + px(jMt - jMb) + " pts", "set " + whenTx(jSetT), gpTip, na, na)
+                    r += 1
+                bool placed = false
+                for j in ord
+                    float y = iy.get(j)
+                    if not placed and y < close
+                        cRow(TC, r, "▸ PRICE", cHead, "", na, px(close) + " · at " + str.tostring(fpos, "0.00"), posTx, prTip, na, cHL)
+                        r += 1
+                        placed := true
+                    int   t  = iT.get(j)
+                    float d  = dA(y)
+                    bool  pw = iW.get(j)
+                    cRow(TC, r, ik.get(j), pw ? color.new(cSub, 40) : na, not na(t) or na(d) ? "" : gauge(1 - d / 0.5, 8), y > close ? cUp : cDn, px(y) + (not na(t) or na(d) ? "" : " · " + str.tostring(d, "0.00") + "×"), not na(t) ? "✓ " + whenTx(t) : not cSet and not pw ? "09:30 Mon" : pc0(iP.get(j)) + " by Fri", ik.get(j) + " " + px(y) + (not na(t) ? ", traded " + whenTx(t) + ". " : ". ") + (pw ? pwTip : lvTip), not na(t) ? cOK : na, na)
+                    r += 1
+                if not placed
+                    cRow(TC, r, "▸ PRICE", cHead, "", na, px(close) + " · at " + str.tostring(fpos, "0.00"), posTx, prTip, na, cHL)
+                    r += 1
+                if not na(wH) and not na(awr4) and awr4 > 0
+                    cRow(TC, r, "WEEK", na, gauge((wH - wL) / awr4, 8), cHead, px(wH - wL) + " pts so far", str.tostring((wH - wL) / awr4, "0.00") + "× AWR4", "This week's high–low so far against AWR4. The median week from Monday 09:30 covers 0.9× AWR4.", na, na)
+                    r += 1
+    // ── the NY · 15M card: today around price
+    if showNY and cSet and not wait
+        if na(TN)
+            TN := table.new(posOf(nyPos), 5, 10, border_width = 0, frame_width = 1, frame_color = cHead)
+        TN.clear(0, 0, 4, 9)
+        bool  live = rDay == time_tradingday and not na(t930)
+        float mins = live ? (timenow - t930) / 60000.0 : na
+        string st  = not live ? "PRE" : mins < 90 ? "AM" : mins < 450 ? "PM" : "CLOSED"
+        hdr(TN, mob ? 3 : 5, "GETSUGA", "NY · 15M", str.format_time(time, "HH:mm", TZ) + (mob ? "" : " ET"), st, st == "AM" ? cHead : st == "PM" ? cSub : cForm, "PRE: before today's 09:30. AM: 09:30 → 10:59. PM: 11:00 → 16:59. CLOSED: after 16:59. The levels are " + (cardJ ? "Jūjishō's" : "Tenshō's") + ".")
+        // the nearest eighth and the nearest key level on each side of price
+        float u8 = na
+        float d8 = na
+        float uK = na
+        float dK = na
+        float fu8 = na
+        float fd8 = na
+        float fuK = na
+        float fdK = na
+        for k = -8 to 16
+            float f   = k / 8.0
+            float y   = clvl(f)
+            bool  key = k == -4 or k == 0 or k == 4 or k == 8 or k == 12
+            if y > close
+                if na(u8) or y < u8
+                    u8 := y
+                    fu8 := f
+                if key and (na(uK) or y < uK)
+                    uK := y
+                    fuK := f
+            else if y < close
+                if na(d8) or y > d8
+                    d8 := y
+                    fd8 := f
+                if key and (na(dK) or y > dK)
+                    dK := y
+                    fdK := f
+        string tdTip = "Odds it trades today (NQ + ES + RTY 2018–26, from 09:30), by 11:00 and by 16:59, from its distance to price in ATR15 (the 15-minute ATR(14) at 09:30) and the time left. At the same distance an anchor, EQ, an SD and a plain eighth traded equally often. At 09:30 the nearer level traded first about 75% of the time, the same as the distances alone predict and the same as a shifted grid: no pull toward the closest level."
+        int r = 1
+        if not mob
+            TN.cell(0, r, "", bgcolor = cBody, text_size = tSz)
+            TN.cell(1, r, "PRICE", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+            TN.cell(2, r, "×ATR15", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace)
+            TN.cell(3, r, "11:00", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = "Odds it trades by 11:00 (NY AM).")
+            TN.cell(4, r, "16:59", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = "Odds it trades by 16:59.")
+            r += 1
+        for q = 0 to 4
+            float y = q == 0 ? (uK != u8 ? uK : na) : q == 1 ? u8 : q == 3 ? d8 : q == 4 ? (dK != d8 ? dK : na) : na
+            float f = q == 0 ? fuK : q == 1 ? fu8 : q == 3 ? fd8 : q == 4 ? fdK : na
+            if q == 2
+                if not mob
+                    for c = 0 to 4
+                        TN.cell(c, r, c == 0 ? "▸ NOW" : c == 1 ? px(close) : "", text_color = c == 0 ? cHead : cTxt, bgcolor = cHL, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+                    r += 1
+            else if not na(y) and (not mob or q == 1 or q == 3)
+                bool   up  = q < 2
+                bool   trd = live and not na(rL) and y >= rL and y <= rH
+                float  d   = na(atr15) or atr15 <= 0 ? na : math.abs(y - close) / atr15
+                float  pA  = trd or not live ? na : pToday(AX, AI, AA, AB, mins, d, 90)
+                float  pD  = trd or not live ? na : pToday(DX, DI, DA, DB, mins, d, 450)
+                string nm  = (up ? "▲ " : "▼ ") + nmOf(f)
+                string tip = nmOf(f) + " " + px(y) + (trd ? ", traded today." : ".") + " " + tdTip
+                if mob
+                    TN.cell(0, r, nm, text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tip)
+                    TN.cell(1, r, px(y), text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tip)
+                    TN.cell(2, r, trd ? "✓ today" : pc0(pA) + " · " + pc0(pD), text_color = trd ? hdrTx(cOK) : cTxt, bgcolor = trd ? cOK : cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = tip)
+                else
+                    TN.cell(0, r, nm, text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tip)
+                    TN.cell(1, r, px(y), text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tip)
+                    TN.cell(2, r, na(d) ? "—" : str.tostring(d, "0.0"), text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = tip)
+                    TN.cell(3, r, trd ? "✓ today" : pc0(pA), text_color = trd ? hdrTx(cOK) : cTxt, bgcolor = trd ? cOK : cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = tip)
+                    TN.cell(4, r, trd ? "" : pc0(pD), text_color = cTxt, bgcolor = trd ? cOK : cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = tip)
+                r += 1
+        // which key level first, from the distances alone (calibrated within 3 points)
+        if not na(uK) and not na(dK)
+            float pu = 100 * (close - dK) / (uK - dK)
+            string fTip = "Which key level trades first, from the distances alone: a random walk reaches the nearer one first in proportion to how much nearer it is. At 09:30 this matched what happened within 3 points (NQ + ES + RTY 2018–26). It is geometry, not an edge."
+            if mob
+                TN.cell(0, r, "FIRST", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = fTip)
+                TN.cell(1, r, "▲ " + pc0(pu), text_color = cUp, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = fTip)
+                TN.cell(2, r, "▼ " + pc0(100 - pu), text_color = cDn, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = fTip)
+            else
+                TN.cell(0, r, "FIRST", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = fTip)
+                TN.cell(1, r, "▲ " + nmOf(fuK), text_color = cUp, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = fTip)
+                TN.cell(2, r, pc0(pu), text_color = cUp, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = fTip)
+                TN.cell(3, r, "▼ " + nmOf(fdK), text_color = cDn, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = fTip)
+                TN.cell(4, r, pc0(100 - pu), text_color = cDn, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = fTip)
+            r += 1
+        if not mob
+            string oTip = "Today's 09:30 open, where it sat on the range, and ATR15 (the 15-minute ATR(14) at 09:30), the unit for the distances above."
+            TN.cell(0, r, "OPEN", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = oTip)
+            TN.cell(1, r, live ? px(o930) : "—", text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = oTip)
+            TN.cell(2, r, live ? "at " + str.tostring((o930 - cM) / cR, "0.00") : "", text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = oTip)
+            TN.cell(3, r, "ATR15", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = oTip)
+            TN.cell(4, r, px(atr15), text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = oTip)
+            r += 1

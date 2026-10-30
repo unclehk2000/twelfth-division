@@ -1,0 +1,190 @@
+# Getsuga · Tenshō & Jūjishō
+
+**Two weekly dealing ranges, each a fib from Friday (1) to Monday (0) in eighths with SDs, toggled on or off: Tenshō from the Shikai mids, Jūjishō from the first presented FVGs. PWH / PWL and the week open as reference lines, day candles in the Session Map's style, fixed ✓ markers, a week ladder card and a NY · 15M card with today's odds.**
+
+TradingView indicator, Pine Script v6. Open source under the Mozilla Public License 2.0. *Not yet published on TradingView.*
+
+Files: `Getsuga.pine` (the script, both modes), `TradingView_description.txt` (publication text), `research/` (the tests behind the odds, the Jūjishō study `Getsuga_Jujisho_FPFVG_Weekly_Dealing_Range.md` and its scripts in `research/jujisho/`; no market data included).
+
+![Getsuga, desktop: Tenshō (blue) and Jūjishō (red), cards reading Jūjishō](images/Getsuga_Desktop_15m.png)
+
+![Getsuga, mobile](images/Getsuga_Mobile.png)
+
+*Mock-ups from NQ data; TradingView rendering will differ.*
+
+**Getsuga** anchors the week the way a fib drawn from Friday to Monday would, in two modes you can turn on or off:
+- **Getsuga Tenshō: 1 = Friday's Shikai mid, 0 = Monday's**, set at Monday 09:30. A day's **Shikai mid** is the midpoint of its overnight range (18:00 → 09:29 ET), as in my Shikai / Bankai Session Map.
+- **Getsuga Jūjishō: 1 = the CE of Friday's first presented FVG, 0 = Monday's**, set when Monday's prints (median 09:35). The first presented FVG is Byakugan's: on 1-minute bars, the first three-candle wick gap from 09:30, finished by 09:59. It is read from 1-minute data, so a 15-minute chart shows the same gaps as Byakugan on 1 minute.
+- Each range is split in eighths, with its **SDs at 1.5 and −0.5**, and runs through the week. Each has its own colours.
+- The labels read like TradingView's fib tool: *0.875 (30,023.25)*.
+- Last week's high and low and the week open are **reference lines** only: where price is against them, not anchors.
+- **Day candles** (Mon–Fri) sit right of price in the Session Map's style.
+- **Two cards** read one of the ranges (your choice when both are on): the week as a ladder (every level in price order with price slotted in, ✓ or the odds by Friday), and **NY · 15M** for today (the levels either side of price, the odds by 11:00 and by 16:59, which key level is likely first). For Jūjishō the week card adds **STATE** (coiled or uncoiled), **SHIFT** (which way Monday printed against Friday) and **GAPS**.
+- Fixed **✓ markers** on the bar where each key level first trades.
+- The numbers come from **1,187 weeks** of NQ, ES and RTY (2018–26), and 402 NQ weeks for Jūjishō.
+
+*A map for entries and for higher-timeframe structure. It does not call direction: Jūjishō's SHIFT row is a historical lean, shown with its caveats.*
+
+## What it draws on price
+
+- **Tenshō's range**, from where Friday's Shikai-mid line starts (the earlier of Friday's overnight high and low), through the week:
+  - 1 (Friday's mid) and 0 (Monday's mid);
+  - EQ (0.5), the quarters (0.25 / 0.75) and the eighths;
+  - the SDs, half the range beyond each anchor: 1.5 and −0.5. 2 and −1 are optional.
+- Each tier has its own colour, width and style.
+- **While Monday's overnight forms** (Sunday 18:00 → Monday 09:30), 0 moves with it. At 09:30 it is set.
+- **Reference lines**, dotted and labelled where they start, so they stay clear of the fib labels:
+  - PWH and PWL (Sun 18:00 → Fri 17:00 ET);
+  - the week open.
+- **Day candles** right of price, one per trading day (18:00 → 17:00), plus the week so far, drawn the way the Session Map draws its session candles:
+  - neutral colour, light body, wicks;
+  - the day and its high above, the low below;
+  - each candle's 25 / 37.5 / 50% back from its last extreme as ticks.
+- This week's lines end just past the day candles, so the labels sit right of price. Or run them to Friday 17:00. Past weeks end at their Friday.
+- **Jūjishō** draws its own grid (anchors, EQ, quarters and SDs by default; eighths optional so the two grids don't crowd each other) from Friday's gap, and the two gaps themselves as small boxes where they formed. It appears when Monday's gap prints; until then the card shows Friday's CE and WAITING.
+- **Markers**: a fixed ✓ label on the bar where 1, 0.5, 0, 1.5 SD, −0.5 SD (of the range the cards read), PWH and PWL first trade this week. Drawn once, never moved.
+
+## Cards
+
+**WEEK** (top right): a ladder of the range the cards read (TENSHŌ or JŪJISHŌ in its header). The anchors, EQ, the SDs and PWH / PWL in price order, with a highlighted **▸ PRICE** row slotted in where price is.
+- **RANGE:** Friday's mid → Monday's, in points and against AWR4 (the mean weekly range of the 4 weeks before; the bar runs to 1×).
+- Each level: its price, how far in AWR4 (the bar fills as price gets closer, green above and red below), and a green **✓** cell with the day and time once traded since Monday 09:30, or its odds of trading by Friday 17:00.
+- **▸ PRICE:** price and where it sits on the range (0 = Monday's mid, 1 = Friday's).
+- **WEEK:** this week's range so far against AWR4.
+- Jūjishō only:
+  - **STATE:** COILED (the range is 0.20× AWR4 or less) or UNCOILED, with how often both SDs traded and how often the week closed beyond one in that state;
+  - **SHIFT:** ▼ Monday below Friday or ▲ above (the price when Monday's gap printed against Friday's CE), with how often the rest of the week rose;
+  - **GAPS:** Friday's and Monday's gap, direction and size, and when the range was set.
+- Header pill: *WAITING (Jūjishō, before Monday's gap), FORMING (Tenshō, before 09:30), INSIDE, PAST 1 / 0, PAST 1.5 / −0.5*.
+
+**NY · 15M** (bottom right): today, for a 15-minute trader. Columns: the level, its price, how far in ATR15 (the 15-minute ATR(14) at 09:30), the odds it trades by 11:00, and by 16:59.
+- The nearest eighth and the nearest key level on each side of price, with **▸ NOW** between them. A level already traded today shows **✓ today**.
+- **FIRST:** which of the nearest key levels above and below is likely to trade first, from the distances alone.
+- **OPEN:** today's 09:30 open, where it sat on the range, and ATR15.
+- Header pill: *PRE, AM (09:30 → 10:59), PM, CLOSED*.
+
+**Mobile** folds both into narrow cards: the key levels either side of price (WEEK), and the nearest eighths with both odds plus FIRST (NY · 15M). Every row keeps its full explanation in the tooltip.
+
+## Alerts
+
+Create one alert with *Any alert() function call*. Each fires once, on the bar it happens, with the numbers in the message:
+- the range set (Tenshō at Monday 09:30, Jūjishō when Monday's gap prints): both anchors, its size, the odds of 1 and both SDs; for Jūjishō also the state and the shift;
+- 1, 0.5, 0, 1.5 SD or −0.5 SD reached, for each range that is on;
+- PWH or PWL taken.
+
+## Getsuga Tenshō: what the tests showed (NQ, ES and RTY 1-minute, 2018–26, 1,187 weeks)
+
+A result marked as holding passed pooled (p < 0.05, errors clustered by week), in 2018–24 and in 2025–26, and on each of NQ, ES and RTY. Roll weeks were left out, because Friday's mid and Monday's sit in different contracts.
+
+**The range is small against the week**
+- Its median size is 0.19× AWR4 (NQ about 100 points).
+- From Monday 09:30 the rest of the week covers about 0.9× AWR4, so most weeks travel well past it. The week closed between the anchors 13% of the time, and between the SDs 25%.
+
+**How often each level traded by Friday** (from Monday 09:30)
+- 0 (Monday's mid) 90%, −0.5 SD 85%, 0.5 81%, 1 (Friday's mid) 71%, 1.5 SD 62%.
+- Both SDs 52%, neither 5%.
+- The smaller the range, the more of it trades. Both SDs traded in 86% of the smallest quarter of weeks, and 15% of the largest.
+
+**What did not hold**
+- **No level is a magnet.** 0, 0.5, 1, 1.5 and −0.5 were each reached about as often as a level the same distance on the other side of the Monday 09:30 price.
+- **No level is a reaction level.** On a first touch none held better than a random level inside the same span.
+- **The week's extremes do not land on the eighths** any more often than on a grid shifted by a random amount.
+*So the grid is a map of where price is against Friday's and Monday's mids. It is not a list of turning points.*
+
+**Today, from the 09:30 open** (5,642 sessions)
+- **No pull to the closest level.** At 09:30 the nearer of the two levels either side of price traded first 73–75% of the time. That is what the distances alone predict (75%, a random walk), and the same as a grid shifted by a random amount. The nearer level was reached in the NY AM no more often than a level the same distance on the other side of the open (66% vs 66% for the eighths, 51% vs 51% for the key levels). Outside the grid, price came back to it no more often than it went the other way.
+- **No direction from it.** The NY AM closed toward the nearer key level 49.7% of the time.
+- At the same distance, an anchor, EQ, an SD and a plain eighth traded equally often.
+- **What does work is distance and time.** In ATR15 units, the odds a level trades by 16:59 (and by 11:00) beat the time-only base rates out of sample: Brier 0.168 → 0.099 by 16:59 and 0.190 → 0.112 by 11:00 (fit 2018–24, scored 2025–26), and they are well calibrated. ATR15 did slightly better than ADR20 or AWR4 as the unit. Weekday (Mondays and Fridays a little lower) and being inside the anchors held, but added almost nothing out of sample (Brier 0.0728 → 0.0723), so they are not used.
+- FIRST uses the random-walk odds, which matched what happened within about 3 points for the key levels.
+
+## Getsuga Jūjishō: what the tests showed (NQ 1-minute, 2018 – Oct 2026, 402 weeks, roll weeks left out)
+
+- **The gaps:** 99.8% of sessions print one by 09:59; median 09:35. Median gap 4.5 points.
+- **The range:** median 0.19× AWR4 (about 107 points), close to Tenshō's (correlation 0.89). From Monday's gap the week reached 0 95% of the time, −0.5 SD 88%, 0.5 83%, 1 71%, 1.5 SD 62%; it closed between the anchors 11%.
+- **No level is a magnet or a reaction level.** Each eighth traded as often as a level on a randomly shifted grid at the same distance (p 0.75), first touches held 46% against 46%, and the days' highs, lows and closes did not land on the grid more than chance. Day by day, Monday to Friday, nothing was significant.
+- **Gap size does not predict volatility.** Bigger gaps come with bigger days only because they form in a fast open. Once the 09:30 range up to the gap and the recent daily range are known, the gap adds nothing (2,072 sessions, scored on 2024–26). Friday's and Monday's gaps add nothing to the week's range.
+- **Coiled vs uncoiled** (0.20× AWR4, about half the weeks): coiled weeks traded both SDs 76% of the time and closed beyond one 90%; uncoiled 26% and 63%. That is the grid's spacing: the rest of the week covered 0.98× AWR4 against 1.05×, and the state added nothing once recent volatility was known.
+- **The one thing that held is direction, and it is the price, not the gaps.** When Monday's gap printed below Friday's CE, the rest of the week rose 62% of the time (+78 bp); above it, 56% (−3 bp); all weeks 58% (+33 bp). Permutation p 0.005, 7 of 9 years. But the same split on prices alone agrees 97% of the time and gives the same result: it is NQ's Friday → Monday reversal. It was weak in 2018–21 and beat always-long on total return only in 2024–26. A lean, not a signal.
+- **The odds:** Tenshō's by-Friday model fits the Jūjishō levels within 4 points (Brier 0.145 against 0.250), so both ranges use it.
+
+**The live odds for the week**
+- For the five levels: one logistic model of the distance from price (in AWR4) and the time left in the week (checkpoints at Monday 09:30 and each day's close, read between them). Which level it was added nothing, so all five share it.
+- Fitted on 2018–24 and scored on 2025–26: about 21% less error than the time-only base rates (Brier 0.193 → 0.152). In 2025–26 levels traded more often than the 2018–24 fit predicted: about 4 points overall, and up to 10–14 points in the middle of the range. The live model is fitted on the full sample.
+- On Friday the distance is scaled by the time left; checked against Friday checkpoints, it was within 2 points.
+- PWH and PWL have their own model. They traded less often than a fib level the same distance away (−7 points, held), because they usually sit at the week's extremes. From Monday 09:30: PWH 58%, PWL 40%. Brier 0.195 → 0.135.
+
+## Settings
+
+**View** sits at the top, the same as in my other indicators:
+- card theme;
+- text size;
+- chart text colour;
+- the week card on/off and position;
+- the NY · 15M card on/off and position;
+- layout: Desktop or Mobile;
+- weeks on the chart (1–4);
+- markers where levels trade.
+
+**Modes:**
+- Getsuga Tenshō on / off, and draw it while Monday's mid forms;
+- Getsuga Jūjishō on / off, and show the two gaps (with their colour);
+- which range the cards and markers read when both are on.
+
+**Lines and labels:**
+- lines start at Friday's anchor or when the range is set;
+- lines run past the day candles (+ bars) or to Friday 17:00;
+- labels: fraction (price), fraction, or off;
+- name the anchors and SDs (· Fri mid / · Mon mid, · Fri FVG / · Mon FVG, · SD).
+
+**Grid · Tenshō** and **Grid · Jūjishō**: each tier with its own colour, width (1–4) and style:
+- anchors 0 / 1;
+- EQ;
+- quarters;
+- eighths;
+- SDs 1.5 / −0.5, and 2 / −1 (optional).
+
+**Reference lines:** PWH / PWL and the week open, each on or off with its own colour, width and style.
+
+**Day candles:** on or off, the week candle, offset, width, spacing, colour and body transparency, wicks, high / low prices, and the 25 / 37.5 / 50% ticks with their colours.
+
+**Alerts:** each one on or off.
+
+## How to use
+
+- Built for CME index futures: **NQ / MNQ, ES / MES, RTY / M2K**.
+- **Use a 15-minute chart** (it needs 15 minutes or less). It holds the whole week, so the day candles and the ✓ times are complete. Jūjishō reads 1-minute data behind it, which TradingView keeps for roughly the last couple of months: plenty for this week and the last few.
+- Use a continuous, back-adjusted chart (*B-ADJ*).
+- ETH or RTH charts both work. The anchors, PWH / PWL, the week open, ATR15 and AWR4 are read from 15-minute (and weekly) bars of the extended session either way. Today's 09:30 open and what traded today come from the chart's bars.
+- With the Shikai / Bankai Session Map on the same chart, set the day candles' offset to about 80, so the two sets of candles sit side by side.
+
+## Data and method
+
+- NQ, ES and RTY front-month 1-minute data, Jan 2018 – Oct 2026 (ES to Aug 2026). 1,187 weeks, roll weeks left out.
+- Shikai mid = (overnight high + overnight low) / 2, overnight = 18:00 → 09:29 ET of the trading day.
+- First presented FVG: Byakugan's rule on 1-minute bars (09:30 → third candle by 09:59); its CE is the gap's midpoint. Jūjishō's tests: NQ only, Jan 2018 – Oct 2026, 402 weeks; a holiday session keeps its own date, as on a chart.
+- Friday's mid = last week's last trading day; Monday's = this week's first.
+- A level counts as reached when a bar trades through it, from the Monday 09:30 bar to Friday 17:00.
+- AWR4 = the mean high–low range of the 4 weeks before. ATR15 = the 15-minute ATR(14) (RMA of the true range) at 09:30.
+- NY · 15M: every trading day of a set week, 09:30 → 16:59, NY AM = 09:30 → 10:59. Fitted on 2018–24 and scored once on 2025–26 (the HYDRA method).
+- On the chart:
+  - a mid is taken only once the 09:30 bar opens, from finished 15-minute bars;
+  - AWR4 comes from weekly bars, prior weeks only;
+  - nothing uses future data.
+
+## Limitations
+
+*These are historical frequencies, not guarantees.*
+- The odds were measured on NQ, ES and RTY. Other symbols get the pooled models without a test of their own.
+- Nothing here is financial advice.
+
+## Why the name
+
+**Getsuga Tenshō**, the Moon-Fang Heaven-Piercer, is Ichigo Kurosaki's signature attack. He fires it in Shikai and in Bankai: the same move, one level up. This indicator does the same with my Shikai / Bankai Session Map: its Shikai mid, taken from the day up to the week, with day candles in place of session candles.
+**Getsuga Jūjishō**, the Moon-Fang Cross, is the cross-shaped Getsuga he fires from his two blades: here, two gaps (Friday's and Monday's first presented FVGs) make one range.
+
+## Credits
+
+- ICT concepts (*Michael J. Huddleston*): the dealing range, standard-deviation projections, the previous week's high and low, the weekly open.
+- The Shikai mid and the candle style, from my Shikai / Bankai Session Map; the first presented FVG, from my Byakugan (the first presented FVG concept is ICT's).
+- Written from scratch; open source under MPL 2.0.
