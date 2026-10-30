@@ -78,6 +78,12 @@ What the card's odds come from:
 - Built and checked locally (parser, lint, size and limits). v1 runs on TradingView; v1.1 and v1.2 are not yet compiled there.
 - **v1.2 (29 Oct 2026):** the *Gaps from* setting, ICT-style grading of the gap price is in, the merge order (FVG first), pending-swing wick CEs (sharing the graded gap's label when they sit on one of its lines), PO3 sizes by timeframe, gap names on their first candle on a daily chart, prices with thousands separators. Checked against NQZ26 1-minute data to 29 Oct: Tuesday 27 Oct's 07:00–09:00 range (low 29,519.00 at 07:45, high 29,628.75 at 08:25) and its lows at 29,578.75 (10:29) and 29,615.00 (10:38–10:39) match ICT's.
 
+## Why the name
+
+**Mangekyō Sharingan** (万華鏡写輪眼, the *Kaleidoscope Copy Wheel Eye*) is the Sharingan awakened: the three tomoe fuse into a pattern of their own, and the eye sees further than before.
+
+[Sharingan](../sharingan/) reads the quarter through its three tomoe, the 60, 40 and 20-day look backs. Mangekyō turns that same gaze inward, onto the daily candles inside the quarter, and splits each gap into eighths the way a kaleidoscope splits one image into mirrored segments. Its PO3 candles are its **Tsukuyomi**, the Mangekyō's genjutsu that holds its target inside a replayed world: while price trades through a gap, the days that made it are replayed beside it.
+
 ## Credits
 
 Fair value gap, volume imbalance, suspension block, consequent encroachment, octant grading, PO3 and the weekly range are taught by ICT (Michael J. Huddleston). Not affiliated with or endorsed by ICT.

@@ -1,33 +1,39 @@
-MANGEKYŌ · TRADINGVIEW PUBLICATION TEXT
-Script: Mangekyo.pine. Title and description below.
+TITLE (paste into the Title field)
+Mangekyō: Daily FVGs, Volume Imbalances & Suspension Blocks, Graded in Octants, with Tested Odds
 
-════════════════════════════════════════════════════════════════════════
-TITLE
-════════════════════════════════════════════════════════════════════════
-Mangekyō: Daily FVGs, Volume Imbalances & Suspension Blocks, Graded, with Tested Odds
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
 
-
-════════════════════════════════════════════════════════════════════════
-DESCRIPTION
-════════════════════════════════════════════════════════════════════════
-
-[b]Mangekyō[/b] (万華鏡, "Kaleidoscope") is the Sharingan's next stage. Sharingan reads the quarter's look back; Mangekyō reads the daily candles inside it: the higher-timeframe fair value gaps, volume imbalances and suspension blocks ICT grades from the daily chart.
+[b]Mangekyō[/b] is the Sharingan's next stage. Sharingan reads the quarter's look back; Mangekyō reads the daily candles inside it: the higher-timeframe gaps ICT grades from the daily chart and trades on the 1-minute.
+• [b]Daily gaps[/b] from the last 20, 40 or 60 trading days, or only this week's and last week's: fair value gaps (BISI / SIBI), suspension blocks and volume imbalances, anchored and named as ICT draws them.
+• [b]The gap price is in, graded as ICT grades it:[/b] a solid line at every eighth across the chart, the CE in green, each line's fraction and price at the right edge ([i]0.625 (29,577.00)[/i]). As price moves from one gap into the next, the grid moves with it.
+• [b]Inversion FVGs[/b], the daily wick CEs of the last swing candle, and the forming FVG.
+• [b]PO3:[/b] while price trades inside a gap, the daily candles that made it, replayed right of price.
+• [b]Daily data your way:[/b] the chart symbol, the front-month contract or the continuous 1!; settlement or last-trade bodies, or ICT's widest of the two.
+• [b]A card[/b] with every gap's reach and hold odds, tested against the same candles without a gap, the week's premium and discount draw, and where today sits.
+• The numbers come from NQ, ES and RTY daily data 2010–26 and YM 2017–26.
 [i]It maps the daily gaps and says how often gaps like them did what. It does not call the next move.[/i]
 
 
-[b]█ WHAT IT DRAWS[/b]
+[b]█ WHAT IT DRAWS ON PRICE[/b]
 
-• [b]Daily gaps[/b] from the last 20, 40 or 60 trading days, or ([b]Gaps from[/b]) only this week's and / or last week's, as ICT trades inside last week's FVG:
-  – [b]FVG[/b]: BISI / SIBI, three candles whose wicks leave a gap;
-  – [b]Suspension block[/b]: a candle with a volume imbalance on both sides;
-  – [b]Volume imbalance[/b]: two bodies that do not meet.
-• [b]The most local ones:[/b] the nearest live gaps above and below price (2 each by default), and any gap price is inside. Overlapping gaps on the same side merge: FVG (live, then inverted) before suspension block before imbalance.
-• [b]Anchored as ICT draws them:[/b] an FVG or imbalance from its first candle, a suspension block from the suspended candle. Each is named by its displacement candle (▼ SIBI Thu 22 Oct).
-• [b]Inversion FVGs:[/b] an FVG closed beyond is kept, in orange, from the other side, until a daily close beyond its other edge.
-• [b]Daily wick CEs:[/b] the premium and discount wick CEs of the last daily swing candle, and the midpoint between them. Yesterday counts while it is a pending swing (a lower low or higher high that today has not traded past), as ICT grades Friday's candle over the weekend. A wick CE on a line of the graded gap is named in that line's label.
-• [b]Grading:[/b] CE, quadrants or octants. The gap price is inside is graded as ICT grades it on the 1-minute chart: a solid line at every eighth across the chart, CE in green, fraction and price at the right end ([i]0.625 (29,577.00)[/i]); 0 = the near edge, 1 = the far edge.
-• [b]PO3:[/b] when price trades inside a gap, the 2–3 daily candles that made it are drawn right of price, with the gap shaded and graded and a line at the price now.
-• [b]Forming FVG:[/b] today's candle as candle 3, dashed, until the day is complete.
+• [b]Daily gaps:[/b]
+  – [b]FVG[/b]: three candles whose wicks leave a gap (BISI bullish, SIBI bearish), at least 0.25 ATR wide, with a middle candle of 0.5 ATR or more;
+  – [b]Suspension block[/b]: a candle with a volume imbalance on both sides, at least 0.25 ATR;
+  – [b]Volume imbalance[/b]: two bodies that do not meet, at least 0.10 ATR.
+• [b]The most local ones:[/b] the nearest live gaps above and below price (2 each by default), and any gap price is inside. Overlapping gaps on the same side merge: an FVG (live, then inverted) wins over a suspension block, which wins over an imbalance.
+• [b]Anchored as ICT draws them:[/b] an FVG or imbalance from its first candle, a suspension block from the suspended candle. Each is named by its displacement candle ([i]▼ SIBI Thu 22 Oct[/i]); prices are rounded to the tick, as ICT labels them.
+• [b]The graded gap:[/b] the one price is in (with a week setting, else the nearest) gets the full grid: eighths across the chart, edges and quadrants stronger, CE in green, 0 = the near edge and 1 = the far edge as the gap formed. Intraday its name sits on the top line; on a daily chart only the edges, CE and, on wider gaps, the quadrants are labelled. The other gaps are graded in CE, quadrants or octants, your choice.
+• [b]Inversion FVGs:[/b] an FVG closed beyond is kept, in orange, as support or resistance from the other side, until a daily close beyond its other edge.
+• [b]Daily wick CEs:[/b] the premium and discount wick CEs of the last daily swing candle, and the midpoint between them. Yesterday counts while it is a pending swing (a lower low or higher high that today has not traded past), as ICT grades Friday's candle over the weekend. A wick CE on a line of the graded gap is named in that line's label ([i]0.875 (29,136.50) · wick CE 29,137.00[/i]).
+• [b]PO3:[/b] when price trades inside a gap, its two or three daily candles are drawn right of price with the gap shaded and a line at the price now, sized to the chart's timeframe.
+• [b]Forming FVG:[/b] today's candle as candle 3, dashed, until the day is complete. It joins the list at the next session's open; over a weekend, Friday's gap shows here.
+
+
+[b]█ GAPS FROM: THE LOOK BACK, OR THIS WEEK AND LAST[/b]
+
+• [b]Look back (20 / 40 / 60 days):[/b] every qualifying gap of the IPDA window, nearest first.
+• [b]This week + last week[/b], [b]Last week[/b] or [b]This week[/b]: ICT trades inside last week's FVG with its octants, so the week settings drop the older, larger gaps and leave last week's and this week's alone. A gap belongs to the week its last candle closed in; the forming FVG counts as this week's.
 
 
 [b]█ DAILY DATA[/b]
@@ -36,52 +42,93 @@ DESCRIPTION
   – The unadjusted 1! jumps by the carry at each roll: 0.44–0.69 ATR in 2022–26, more than a typical daily gap is wide (0.28 ATR). Gaps from before the last roll sit at the old contract's prices.
   – A contract's own chart includes its deferred months, which traded thinly (NQ: about 0.1% of the front month's volume). Over the 60 days before each contract became front, its chart showed 5–93% more gaps than the front month did; these can be hidden.
   – The back-adjusted 1! has neither problem.
-• [b]Body close:[/b] as the chart (default, so every zone lines up with its candles), the settlement (SET on), the last trade (SET off), or the wider of the two.
+• [b]Body close:[/b] as the chart (default, so every zone meets its candles), the settlement (SET on), the last trade (SET off), or the wider of the two.
   – Wicks are the same either way, so FVGs don't change; imbalances and suspension blocks do.
   – 2018–26: last trade and settlement differ by more than 0.1 ATR on 12–18% of days, and the candle's colour flips on 3–5%. Only 44–50% of volume imbalances exist under both settings.
-  – "Widest of the two" reads both and keeps the wider, as ICT toggles SET to find the widest imbalance; a zone read with the other close gets a dashed border.
+  – [i]Widest of the two[/i] reads both and keeps the wider, as ICT toggles SET to find the widest imbalance and the longest wick; a zone read with the other close gets a dashed border.
 
 
-[b]█ THE CARD[/b]
+[b]█ CARD[/b]
 
-• [b]One row per gap:[/b] range, width and distance in ATR, status, and the tested odds:
+• [b]One row per gap:[/b] range, width and distance in ATR, status (untouched, touched, past CE, traded through, inside now), and the tested odds:
   – [b]BY FRI · 20D:[/b] the chance its near edge trades by Friday and within 20 trading days;
   – [b]HOLDS · 10D:[/b] the chance the first touch day does not trade through the far edge, then that it is not closed beyond within 10 days;
   – [b]VOL · MS:[/b] the middle candle's volume against the 20 days before, and BOS if the move broke the last daily swing.
 • [b]WEEK:[/b] the nearest gap above not reached before this week is the premium draw, the nearest below the discount draw, each with its by-Friday odds.
 • [b]TODAY:[/b] inside a gap, where today's body sits against CE, and the odds of the next 10 days from there.
-
-
-[b]█ WHAT THE TESTS FOUND[/b]
-
-NQ, ES, RTY daily 2010–26 and YM 2017–26. Each gap was matched with 5 three-candle windows that left no gap (same symbol and direction, within two years, the same middle-candle move and candle-3 close).
-
-• [b]Not a draw.[/b] Price returned to a gap within 20 days 84% of the time; to the same candles without a gap 86%.
-• [b]A small first-touch edge.[/b] The far edge (candle 1's high or low) held the first touch day 49% of the time vs 45%. It holds in 2010–24 and 2025–26 and on NQ, ES and RTY, not on YM.
-• [b]Nothing after that.[/b] Not closed beyond within 10 days of the touch: 29% vs 28%.
-• [b]Volume:[/b] high-volume gaps held more only because they were wider. Against the same candles their edge was +0.3 points; at equal width, −2 points.
-• [b]Structure:[/b] a break of structure added about 4 points at equal width (z 1.6), with none on NQ or in 2025–26.
-• [b]The week:[/b] the nearest gap above was reached by the week 66–68% of the time, below 59–61%: the same as any level as far away. When reached, the week's extreme stopped inside it 27–30% of the time, as inside a same-size band.
-• [b]ICT's body rule:[/b] when the touch day closed back outside, 44% survived the next 10 days; near half 34%; past CE 16%. Same at any level that deep (43 / 31 / 21%).
-• [b]Inversion FVGs:[/b] no edge (touch day 43.5% vs 44.4%), so they are drawn, not scored.
-
-So the reach odds come from distance and days left, and the hold odds from the gap's width.
-• [b]Walk-forward 2014–26, 5 days:[/b]
-  – above 6→5%, 21→22%, 41→36%, 60→57%, 81→79%, 95→94%;
-  – below 6→10%, 21→22%, 40→41%, 60→61%, 80→82%, 95→95%.
-• [b]FVG touch day, locked test 2025–26:[/b] 11→14%, 37→41%, 59→57%, 79→82%.
+• [b]Mobile layout:[/b] the nearest gap above and below, the week and today.
 
 
 [b]█ ALERTS[/b]
 
-Create one alert with "Any alert() function call". It covers price entering a gap, CE traded, a daily close beyond, and (optional) a new gap.
+Create one alert with "Any alert() function call". It covers price entering a gap, CE traded, a daily close beyond (an FVG becoming an inversion FVG), and, off by default, a new gap.
 
 
-[b]█ NOTES[/b]
+[b]█ WHAT THE TESTS SHOWED[/b]
 
-• [b]Charts:[/b] daily or intraday.
-• [b]Repainting:[/b] daily data comes from completed days only, so it does not repaint. Today's touches and the forming FVG come from the chart's bars; a gap formed today joins the list at the next session's open.
-• [b]Companions:[/b] quarterly look backs live in Sharingan, the week's own range in Getsuga Tenshō, opening gaps in OpenGaps and RTH gaps in Benihime.
-• [b]Credits:[/b] fair value gap, volume imbalance, suspension block, consequent encroachment, octant grading, PO3 and the weekly range are taught by ICT (Michael J. Huddleston). Not affiliated with or endorsed by ICT.
+NQ, ES, RTY daily 2010–26 and YM 2017–26. Each gap was matched with 5 three-candle windows that left no gap: same symbol and direction, within two years, the same middle-candle move and candle-3 close.
+• [b]Not a draw.[/b] Price returned to a gap within 20 days 84% of the time; to the same candles without a gap 86%.
+• [b]A small first-touch edge.[/b] The far edge (candle 1's high or low) held the first touch day 48.7% of the time vs 45.0% (t 3.7). It holds in 2010–24 and 2025–26 and on NQ, ES and RTY, not on YM.
+• [b]Nothing after that.[/b] Not closed beyond within 10 days of the touch: 29% vs 28%.
+• [b]Volume:[/b] high-volume gaps held more only because they were wider. Against the same candles their edge was +0.3 points; at equal width, −2 points.
+• [b]Structure:[/b] a break of structure added about 4 points at equal width (z 1.6), with none on NQ or in 2025–26.
+• [b]The week:[/b] the nearest gap above was reached by the week's end 66–68% of the time, below 59–61%: the same as any level as far away. When reached, the week's extreme stopped inside it 27–30% of the time, as inside a same-size band.
+• [b]ICT's body rule:[/b] when the touch day closed back outside, 44% survived the next 10 days; near half 34%; past CE 16%. The same at any level that deep (43 / 31 / 21%).
+• [b]Inversion FVGs:[/b] no edge (touch day 43.5% vs 44.4%), so they are drawn, not scored.
+So the reach odds come from distance and days left, and the hold odds from the gap's width:
+• [b]Reach, walk-forward 2014–26, 5 days:[/b] above 6→5%, 21→22%, 41→36%, 60→57%, 81→79%, 95→94%; below 6→10%, 21→22%, 40→41%, 60→61%, 80→82%, 95→95%.
+• [b]Hold, FVG touch day, locked test 2025–26:[/b] 11→14%, 37→41%, 59→57%, 79→82%. An FVG's touch day held 48% at 0.25 ATR wide, 71% at 0.5 and 87% at 1 ATR.
+
+
+[b]█ SETTINGS[/b]
+
+[b]View[/b] sits at the top, as in my other indicators: theme, card text size, layout (Desktop / Mobile), card position.
+[b]Daily data:[/b] daily candles from (chart symbol, front month, 1!, back-adjusted 1!); body close (as the chart, widest, settlement, last trade).
+[b]Gaps:[/b] gaps from (look back, this + last week, last week, this week); the look back (20 / 40 / 60); how many each side; FVG, suspension block and volume imbalance on or off, each with its minimum width in ATR; the FVG's displacement; inversion FVGs; merging; hiding the deferred month's gaps.
+[b]Drawing:[/b] the grade of the other gaps (CE, quadrants, octants); how far right they run; the daily wick CE (last swing, yesterday, off); colours for BISI, SIBI, suspension blocks, imbalances, inversion FVGs, the wick CEs and the graded gap's CE; fill transparency.
+[b]PO3:[/b] when to show it (inside a gap, always, off); offset, candle width and spacing (auto by timeframe); candle colour.
+[b]Card:[/b] on / off; the tested odds.
+[b]Alerts:[/b] price enters a gap, CE traded, closed beyond, new gap.
+
+
+[b]█ HOW TO USE[/b]
+
+• Works on daily and intraday charts; the daily gaps carry through to the 1-minute.
+• To trade it as ICT does in his commentary, set [i]Gaps from[/i] to [i]Last week[/i] (or [i]This week + last week[/i]) and watch the graded gap's eighths on the 1-minute.
+• Built for CME index futures: NQ, ES, RTY and YM. The back-adjusted 1! is the cleanest daily history; the front-month contract matches the contract you trade.
+• Match [i]Body close[/i] to your chart's SET setting (the default does this for you), or use [i]Widest of the two[/i] to read both as ICT does.
+• Quarterly look backs live in Sharingan, the week's own range in Getsuga, opening gaps in OpenGaps and RTH gaps in Benihime, so nothing here duplicates them.
+
+
+[b]█ DATA AND METHOD[/b]
+
+• NQ, ES and RTY daily candles 2010–26, YM 2017–26: unadjusted continuous (front contract, rolled 8 calendar days before expiry), back-adjusted, and each contract's own history; settlement and 16:59 last-trade closes from 1-minute data 2018–26.
+• [b]Controls:[/b] 5 matched no-gap windows per gap, same symbol and direction, within ±2 years, matched on the middle candle's body and the third candle's close.
+• [b]Lifecycle[/b] per gap: first touch, CE traded, far edge traded, closed beyond.
+• [b]Statistics:[/b] errors clustered by week. A result is kept only at p < 0.05, with the same sign in 2010–24 and 2025–26 and on NQ, ES and RTY.
+• [b]Reach odds:[/b] a model on distance and days left, scored walk-forward (each year fit on the years before). [b]Hold odds:[/b] fit on 2010–24, locked, scored on 2025–26.
+• [b]The engine[/b] was ported to Python and matched against the research detector level for level. It reproduces ICT's own numbers: the 29,530.75 BISI top (21 Aug), Friday 23 Oct's wick CEs 29,222.00 / 29,051.75 / 29,137.00, and the 22 Oct SIBI's eighths 29,376.25 … 29,677.25 that he graded on 26 Oct.
+• [b]On the chart:[/b] daily data comes from completed days only, so it does not repaint. Today's touches and the forming FVG come from the chart's own bars.
+
+
+[b]█ LIMITATIONS[/b]
+
+[i]These are historical frequencies, not guarantees.[/i]
+• The odds were measured on NQ, ES, RTY and YM. Other symbols get the same models without a test of their own.
+• Most of the gap lore did not beat the same candles without a gap; those parts are drawn because ICT teaches them, not scored.
+• Nothing here is financial advice.
+
+
+[b]█ WHY THE NAME[/b]
+
+[b]Mangekyō Sharingan[/b] (万華鏡写輪眼, the [i]Kaleidoscope Copy Wheel Eye[/i]) is the Sharingan awakened: the three tomoe fuse into a pattern of their own, and the eye sees further than before.
+Sharingan reads the quarter through its three tomoe, the 60, 40 and 20-day look backs. Mangekyō turns that same gaze inward, onto the daily candles inside the quarter, and splits each gap into eighths the way a kaleidoscope splits one image into mirrored segments.
+Its PO3 candles are its [b]Tsukuyomi[/b], the Mangekyō's genjutsu that holds its target inside a replayed world: while price trades through a gap, the days that made it are replayed beside it.
+
+
+[b]█ CREDITS[/b]
+
+• ICT concepts ([i]Michael J. Huddleston[/i]): fair value gaps, volume imbalances, suspension blocks, consequent encroachment, octant grading, inversion FVGs, PO3, the weekly range, and reading the widest bodies by toggling the settlement (SET).
+• Not affiliated with or endorsed by ICT. Written from scratch; open source under MPL 2.0.
 
 [i]Historical frequencies, not guarantees. Not financial advice.[/i]
