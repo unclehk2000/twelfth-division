@@ -1,0 +1,54 @@
+TITLE (paste into the Title field)
+Eternal Mangekyō: ICT Weekly FVGs, Volume Imbalances & Suspension Blocks with Tested Odds, PO3 Weekly Candles & Countdown
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Eternal Mangekyō[/b] reads the weekly candles the way Mangekyō reads the daily ones: the weekly fair value gaps, volume imbalances and suspension blocks, the PD arrays ICT frames the month and the quarter with.
+• [b]Weekly gaps[/b] from the last 12, 26 or 52 weeks, the most local ones above and below price; the one price is in graded in octants across the chart, with prices.
+• [b]PO3:[/b] when price trades inside one, its weekly candles are drawn right of price, with a [b]countdown to the weekly close[/b].
+• [b]Mitigated when:[/b] touched, CE traded, far edge traded, or closed beyond (ICT's default, after which an FVG turns inversion).
+• [b]A card[/b] with each gap's size, status, tested odds of being reached within 4 and 12 weeks, and of holding.
+• The numbers come from NQ, ES, RTY weekly 2010–26 and YM 2017–26, tested against the same weekly candles without a gap.
+
+[i]A map of the weekly PD arrays and their tested odds. It does not call direction.[/i]
+
+[b]█ THE NAME[/b]
+In Naruto, the Mangekyō Sharingan dims each time it is used. The Eternal Mangekyō (永遠の万華鏡, "Eternal Kaleidoscope") is its final form, the eye that no longer fades. Daily gaps come and go within weeks; weekly gaps stay on the chart for months. This is Mangekyō's weekly form, its sister indicator: Mangekyō stays as it is, and the new additions live here.
+
+[b]█ WHAT IT DRAWS[/b]
+• [b]FVG:[/b] three weeks whose wicks leave a gap, BISI (bullish) or SIBI (bearish). [b]Suspension block:[/b] a week with a volume imbalance on both sides. [b]Volume imbalance:[/b] two weekly bodies that do not meet.
+• Default sizes: FVG ≥ 0.10 weekly ATR with a middle week ≥ 0.25 ATR, block ≥ 0.10, imbalance ≥ 0.05. That leaves 8–10 FVGs, 3–4 blocks and 5–6 imbalances a year per market.
+• [b]The most local[/b] 2 above and 2 below price (1–8), plus any price is in. The one price is in (or the nearest) is graded at every eighth with prices; the others get CE, quadrants or octants.
+• [b]Mitigated when[/b] (new): closed beyond (ICT), far edge traded, CE traded or touched. This week's range so far counts. A display choice: the odds do not change with it.
+• [b]Inversion FVGs[/b] after a weekly close beyond, in their own colour, until a close beyond the other edge.
+• [b]The forming FVG:[/b] this week's candle as candle 3, dashed, until the week completes.
+• [b]Weekly wick CEs[/b] of the last weekly swing candle, or of last week.
+• [b]PO3:[/b] the gap's two or three weekly candles right of price, shaded and graded, with the [b]countdown[/b] (new) to Friday's 17:00 ET close and this week's range so far.
+• [b]Data:[/b] weekly candles from the chart, the front-month contract, the continuous 1! or the back-adjusted 1!; bodies at the settlement, the last trade or the wider of the two.
+
+[b]█ CARD[/b]
+One row per gap, laid out as on the chart (above, price, inside, below):
+• [b]WEEKLY GAP:[/b] the name and displacement week ([i]▲ BISI · wk 21 Sep 26[/i]).
+• [b]RANGE[/b] and [b]ATR · DIST:[/b] the width in weekly ATR at formation and the distance from the last weekly close.
+• [b]STATUS:[/b] untouched, touched, past CE, traded through, inside now, inverted.
+• [b]4W · 12W:[/b] the chance the near edge trades within 4 and within 12 weeks.
+• [b]HOLDS · 4W:[/b] the chance the week of the first touch does not trade through the far edge, then that the gap is not closed beyond within 4 weeks.
+• [b]THIS WEEK[/b] (inside a gap): if the week closes where price sits, the chance the gap survives 4 more weeks.
+• [b]Mobile layout:[/b] the nearest gap above and below.
+
+[b]█ ALERTS[/b]
+Create one alert with "Any alert() function call". It covers price entering a weekly gap, its CE trading, a weekly close beyond, and a new gap (off by default).
+
+[b]█ WHAT THE TESTS SHOWED[/b]
+731 weekly FVGs (668 touched), each matched with 5 three-week windows that left no gap (same market and direction, within ±2 years, the middle week's body and the third week's close matched). Errors clustered by week.
+• [b]The week of the first touch holds the far edge[/b] 43.7% of the time, against 38.9% for the same candles without a gap: [b]+4.2 ± 2.0 points[/b]. Positive on every market (NQ +4.7, ES +2.2, RTY +0.6, YM +12.7) and in both periods (2010–24 +3.6, 2025–26 +11.5), as on the daily chart (+3.5).
+• [b]As a draw[/b], weekly gaps were revisited slightly less often: 76.5% within 12 weeks vs 80.3%. The reach odds therefore come from distance: walk-forward 2014–26 at 4 weeks, gaps below price 4→4, 18→15, 39→39, 58→71, 78→86, 93→100% (Brier 0.113 vs 0.165 for a flat rate); gaps above 4→5, 20→14, 40→27, 59→41, 80→84, 95→85% (0.158 vs 0.245; fewer of them, so looser).
+• [b]Width carries the hold.[/b] An FVG 0.1 / 0.25 / 0.5 / 1 weekly ATR wide holds the touch week 15 / 45 / 72 / 89% of the time and survives 4 weeks 19 / 36 / 52 / 68%.
+• [b]After the touch week:[/b] no edge (40.1% vs 40.5% not closed beyond within 4 weeks).
+• [b]The touch week's close[/b] (FVG): back outside, 61% survive 4 more weeks; near half 51%; past CE 29%.
+
+[b]█ CREDITS[/b]
+Fair value gap, volume imbalance, suspension block, consequent encroachment, octant grading and PO3 are taught by ICT (Michael J. Huddleston). Built from Mangekyō's own code. Not affiliated with or endorsed by ICT. Daily gaps live in Mangekyō, the quarter in Sharingan.
+
+[i]For education. Past behaviour does not promise future results.[/i]
