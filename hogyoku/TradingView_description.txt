@@ -1,0 +1,40 @@
+TITLE (paste into the Title field)
+Hōgyoku: Four-Market HTF Profiler — NQ ES YM RTY Price Delivery Matrix, C1-C2-C3, SMT & PSP, Tested Reach Odds
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Hōgyoku[/b] profiles NQ, ES, YM and RTY on 15m, 1H, 4H and D at once.
+• [b]The price delivery matrix[/b]: each market's last candle (C2) against the one before (C1): bull C2, bear C2, expansion, inside, outside.
+• [b]The four markets' C1-C2-C3[/b] drawn side by side and aligned on C1, so SMT and PSP show at a glance.
+• [b]Reach odds[/b] for the forming candle, with each market's own calibration.
+• [b]The matrix readings that passed HYDRA[/b], each with its tested edge over the drift.
+
+[i]Reach odds and tested context. On these timeframes direction is mostly drift, and the card says so.[/i]
+
+[b]█ THE NAME[/b]
+The Hōgyoku (崩玉, "Breaking Orb") is the orb Kisuke Urahara created in Bleach, the one Aizen spent a century chasing. It reads the hearts of everyone around it and gives shape to what they want. Hōgyoku reads the markets around your chart: what each of the four index futures is delivering on each timeframe. Only the readings that survived testing carry a number.
+
+[b]█ WHAT IT SHOWS[/b]
+• [b]Matrix[/b] (4 markets × 4 timeframes): ▲ C2 (swept C1's low, closed back above), ▼ C2, ⇧/⇩ expansion, ◆ inside, ✕ outside. Tooltips give the sweeps, the close in C1's range and C2's move in ATR.
+• [b]Profile[/b]: C1, C2 and the forming C3 of all four markets for one timeframe, each scaled so its C1 high and low land on the chart market's. Drawn with Hadō 99's candle system: Model / ICT / Custom colours, wick width, C1–C3 tags, times, countdown, forming C3 dashed.
+• [b]C3 reach[/b]: the chance the forming candle trades through C2's high / low and C1's high / low, fixed at its open; ✓ when traded.
+• [b]C3 up[/b]: the chart market's drift plus any passing reading active now, in points for that market.
+• [b]Individual sensitivity[/b]: a sweep threshold per market (0 = tested) and a fitted reach calibration per market.
+• [b]Alert[/b]: a tested reading on the profile timeframe.
+
+[b]█ WHAT THE TESTS SHOWED[/b] (all four markets 2018 – Oct 2026; fit 2018–24, scored 2025–26)
+• [b]The drift[/b]: the next candle closed up 51–53.5% of the time with no signal (15m to D). Every reading is measured against that, not 50%.
+• [b]Reach[/b]: off by 2.3–2.5 points on average on 15m and 4H, 4.8 on 1H (timid above 65%); 85–227 millinats better than the base rate out of sample.
+• [b]The full matrix in machine-learned models[/b] (own + all three partners) added nothing out of sample over each market's own candle, for direction or for reach.
+• [b]The cross-market positive regression[/b]: on 15m the laggard catches up. ES, YM and RTY C3 moves load negatively on their own C2 move and positively on the other three's (ES t +4.9 / +2.5, YM +5.9 / +3.4 in 2018–24 / 2025–26; RTY decayed, NQ weak).
+• [b]15 of 72 matrix readings passed the suite's rule[/b] (p < 0.05 clustered by day, same sign in both periods and on all four markets; about 3.6 by chance). Each is worth 0.5–2.5 points:
+  – 15m: expansion candles reverse (2.0–2.1), laggard / leader catch-up (1.0–1.1), PSP against the candle's colour (0.8–1.1);
+  – 1H: bull C2 (1.2), all four bull C2 (2.1), expansion up reverses (1.8);
+  – 4H: bull C2 + SMT (2.5).
+  Bear C2 and the bearish SMTs did not pass anywhere. Combined, the readings still add almost no out-of-sample skill, so the card shows them as context, not a signal.
+
+[b]█ CREDITS[/b]
+The GXV HTF Profiler-PRO by Gregorius_XV and cdikici71 (MPL-2.0), with El3mentss's rework, was studied for its concepts (C1-C2-C3, SMT, PSP); none of its code is used. SMT divergence and HTF candle reading are taught by ICT (Michael J. Huddleston). Not affiliated with or endorsed by ICT or GXV.
+
+[i]For education. Past behaviour does not promise future results.[/i]
