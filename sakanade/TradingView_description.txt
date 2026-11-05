@@ -1,0 +1,52 @@
+TITLE (paste into the Title field)
+Sakanade: Is the High or Low In? Machine-Learned Odds the Day's and Week's High / Low Hold, ICT Time of Day & Weekly Profiles
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Sakanade[/b] answers the question every intraday trader asks: is the high (or the low) already in? It gives the live odds that the day's high and low (18:00–17:00 ET), and the week's, hold to the close.
+• [b]On price:[/b] the day's and the week's highs and lows, each named with its odds.
+• [b]In the pane:[/b] the odds bar by bar, so you can see when the day "turned".
+• [b]A card[/b] with the four extremes, whether a CPI / NFP / FOMC release is still ahead, and when highs and lows tend to form.
+• [b]The day model is gradient-boosted trees[/b], trained on 1.1 million samples of NQ, ES and RTY 1-minute data and run inside Pine.
+
+[i]Odds that an extreme holds. It does not call direction.[/i]
+
+[b]█ THE NAME[/b]
+Sakanade (逆撫, "Stroking the Wrong Way") is Shinji Hirako's zanpakutō in Bleach. Its release, [i]Sakasama no Sekai[/i] ("the world upside down"), flips its opponent's senses: up becomes down, left becomes right, and what looks like a top may be the bottom. Every trader has sold the "high" that wasn't. Sakanade puts a tested number on whether the turn is really in.
+
+[b]█ WHAT IT SHOWS[/b]
+• [b]Day high / low[/b], solid, each named with its odds ([i]Day high 29,326.00 · holds 72%[/i]).
+• [b]Week high / low[/b], dashed ([i]= week low · holds 68%[/i] when it is the day's).
+• [b]The pane:[/b] the day's high (red) and low (green) odds bar by bar, the week's dotted, with guides at 50% and 80%.
+• [b]Card:[/b] the four extremes with gauges, prices and the time they were set; the next release still ahead today; where extremes form; the out-of-sample score. Mobile shows the four extremes only.
+• [b]Alert:[/b] the day's high or low odds rising through your level (80% by default).
+• Intraday charts up to 1 hour.
+
+[b]█ HOW THE DAY ODDS ARE MADE[/b]
+• [b]Samples:[/b] every 15 minutes of the trading day, NQ + ES + RTY 1-minute: 911,630 in 2018–24 for training, 237,142 in 2025 – Oct 2026 for the one out-of-sample test.
+• [b]Outcome:[/b] the running high (low) is not exceeded before 16:59.
+• [b]Inputs:[/b]
+  – a Brownian touch probability: the distance to the extreme in daily ATR(14), over the square root of the volatility still to come today, from the intraday volatility profile embedded minute by minute;
+  – the time, the range used, where price sits in the range;
+  – the extreme against PDH / PDL, the move since 18:00;
+  – when the extreme was set and how long ago;
+  – a CPI / NFP (08:30) or FOMC (14:00) release still ahead today;
+  – the weekday.
+• [b]Model:[/b] 50 gradient-boosted trees of depth 3, exported into the script as nested conditions (checked against the trained model to within 0.00002).
+
+[b]█ WHAT THE TESTS SHOWED (2025 – Oct 2026, out of sample)[/b]
+• [b]Day:[/b] Brier 0.135 against 0.239 for a flat rate and 0.138 for the Brownian probability alone. The trees beat the Brownian model by 0.007 log-loss (95% CI 0.003–0.011), on NQ, ES and RTY each. Calibration: 6→6, 15→15, 25→26, 35→36, 45→47, 55→57, 65→66, 75→78, 85→88, 96→98%.
+• [b]What matters:[/b] the Brownian probability carries 94% of the trees' gain; the time of day, the extreme against PDH / PDL, the range used, when the extreme was set and a release ahead carry the rest.
+• [b]Week:[/b] the Brownian model alone, Brier 0.143 vs 0.248 flat. The trees did [i]not[/i] beat it there (−0.003, CI −0.011 to 0.006), so they are not used.
+• [b]Where extremes form[/b] (2018–24): the day's high in Asia 16%, London 10%, 06:00–09:30 9%, NY AM 27%, NY PM 37%; the low 23%, 11%, 9%, 29%, 29%. The week's high Mon 18%, Tue 19%, Wed 12%, Thu 17%, Fri 34%; the low 33%, 16%, 11%, 17%, 24%.
+• Extremes pile up at the ends of each window, as a random walk's do (the arcsine law). No midweek day stands out the way the "Tuesday low of the week" teaching says. That is why distance and time do most of the work.
+
+[b]█ NOTES[/b]
+• The day is CME's trading day, 18:00–17:00 ET. Holidays and half days are not special-cased; the week counts weekdays to Friday.
+• The release calendar covers 2025–27.
+
+[b]█ CREDITS[/b]
+ICT (Michael J. Huddleston) teaches the time of day and the weekly profiles in which highs and lows form. The model is built from scratch. Not affiliated with or endorsed by ICT.
+
+[i]For education. Past behaviour does not promise future results.[/i]
