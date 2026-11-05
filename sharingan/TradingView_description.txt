@@ -1,5 +1,12 @@
+UPDATE v3.1 (Nov 2026)
+• LTF structure on a layer's own unit (MSS, BOS, flip), in the daily structure's style.
+• Equal highs / lows on 1-hour swings, with reach odds. Tested: reached within 20 hours 77.3% vs 75.3% for single swings at the same distance (2025–26; 2018–24 +2.5 points). Not drawn on 5 / 15 minutes, where they tested slightly worse.
+• Quarterly range expectation: ADR60 × √63 from the quarter's start, as tubes (p25–p75), with the range used and the fill odds on the card (Brier 0.148 vs 0.250 on 2022–26).
+• Hide LTF levels beyond 2 / 4 / 8 ATR.
+• Entry model off by default (tested: no edge).
+
 TITLE (paste into the Title field)
-Sharingan: ICT Quarterly Shift, IPDA Look Back / Cast Forward, Liquidity, Daily Structure & True Opens
+Sharingan: ICT Quarterly Shift & IPDA Ranges Down to 1 Minute, Liquidity Odds, Quarterly Theory & a Model Scorecard
 
 DESCRIPTION (paste everything below the line into the Description field)
 ────────────────────────────────────────────────────────────────────────
@@ -10,6 +17,9 @@ DESCRIPTION (paste everything below the line into the Description field)
 • [b]Daily market structure:[/b] the last two shifts (MSS) and the swing a daily close must clear to flip it back.
 • [b]Quarterly Theory:[/b] the quarters (Q1–Q4) and the true year and month opens.
 • [b]A card[/b] with the order flow, the structure, every level's tested odds of trading within 20 days and by +60, the window and the quarter.
+• [b]v3, the lower timeframes:[/b] the same 60 / 40 / 20 carried down the Quarterly Theory fractal (hours in a day, 15 minutes in a 6-hour session, 5 minutes in a 90-minute quarter, 1 minute in a 22.5-minute quarter), each layer with its own look back, cast forward and tested reach odds.
+• [b]Quarterly Theory cycles:[/b] the week, the day and the session split into A / M / D / X quarters, with their true opens.
+• [b]An entry model with a live scorecard:[/b] an HTF fair value gap, a swing sweep, an order block and SMT, drawn with backtest marks and its own running score against break-even.
 • The numbers come from NQ, ES, YM and RTY daily data, 2010–26.
 [i]A map of where the liquidity rests and when ICT expects the next shift. It does not call direction.[/i]
 
@@ -33,6 +43,42 @@ DESCRIPTION (paste everything below the line into the Description field)
 • [b]Quarterly Theory:[/b] the [b]true year open[/b] (the open of the first Monday of April, the start of the year's Q2) and the [b]true month open[/b] (the open of the second Monday), dashed and run right as references.
 • [b]The cast forward:[/b] +20 / +40 / +60 marks, the +20 → +60 window shaded, and brackets above price. Future dates skip weekends and CME equity holidays.
 • [b]Quarterly dividers:[/b] Jan / Apr / Jul / Oct, or ICT's Dec / Mar / Jun / Sep, each named ([i]Q4 2026[/i]), plus the next one ahead.
+
+
+[b]█ THE LOWER TIMEFRAMES (v3)[/b]
+
+ICT's IPDA look back counts trading days inside a month. Carried down the Quarterly Theory fractal, each layer keeps the 20 / 40 / 60 count on a smaller unit and anchors on the first unit of the last closed period one cycle down:
+• [b]H:[/b] 1-hour units, anchored on the last closed trading day (18:00–17:00 ET).
+• [b]M15:[/b] 15-minute units, on the last closed 6-hour session (18:00, 00:00, 06:00, 12:00).
+• [b]M5:[/b] 5-minute units, on the last closed 90-minute quarter.
+• [b]M1:[/b] 1-minute units, on the last closed 22.5-minute quarter.
+On each layer:
+• The 20 / 40 / 60-unit highs (BSL) and lows (SSL) left of the anchor, run right while they stand with their chance of trading within the next 20 units; dotted to the candle that took them, ✕ there, once swept.
+• The cast-forward marks, +20 / +40 / +60 units from the anchor.
+• Auto picks the layers from the chart: 1 minute → M1 + M5; 2–5 minutes → M5 + M15; 6–15 minutes → M15 + H; up to 1 hour → H. Custom lets you pick any.
+
+
+[b]█ QUARTERLY THEORY CYCLES (v3)[/b]
+
+Daye splits every cycle into four quarters: A (accumulation), M (manipulation), D (distribution), X (reversal or continuation). The true open is the open of the second.
+• [b]Week:[/b] Monday / Tuesday / Wednesday / Thursday.
+• [b]Day:[/b] 18:00–00:00 / 00:00–06:00 / 06:00–12:00 / 12:00–17:00 ET.
+• [b]Session:[/b] the four 90-minute quarters of each 6-hour session.
+Each quarter is boxed over its own range with its letter, and the true opens (week, day, session) are dashed to the cycle's end. Auto shows the two cycles that fit the chart.
+
+
+[b]█ THE ENTRY MODEL AND ITS SCORECARD (v3)[/b]
+
+A chain studied from the "Forever" scripts and written from scratch, at 1m–15m, 5m–1H or 15m–4H:
+• a higher-timeframe fair value gap;
+• on the chart, a swing low (high) swept by a bearish (bullish) candle with a body of at least half its range: its open is the order block;
+• the SMT pair (auto: NQ ↔ ES, RTY / YM → ES) diverges from one of the gap's three candles;
+• a close back through the order block's open confirms it.
+Entry: a limit at the order block. Stop: the SMT extreme. Targets: your R multiples and the gap's external range (ERL). Each order block counts once.
+• [b]Backtest marks:[/b] ◆ target, ✕ stop, orange ◆ target before the fill (no fill), + ERL.
+• [b]Scorecard:[/b] on the bars loaded, wins, losses and no-fills at your scorecard target, the win rate against break-even (33% at 2R) and the total in R.
+• [b]Alerts:[/b] FVG + SMT formed, model active, target or stop.
+[i]Drawn so it can be watched, not as an edge: see the tests below.[/i]
 
 
 [b]█ CARD[/b]
@@ -76,6 +122,20 @@ Create one alert with "Any alert() function call". It covers:
 • [b]Quarterly Theory, the year:[/b] 16 years is too few to test. The true opens are drawn as references, not scored.
 
 
+[b]█ WHAT THE LOWER-TIMEFRAME TESTS SHOWED (NQ, ES and RTY 1-minute, 2018 – Oct 2026)[/b]
+
+Fitted on 2018–24, scored once on 2025–26. The null is the same bars with each move's direction flipped at random: it keeps the volatility and the time of day and removes direction.
+[b]Held:[/b]
+• [b]The reach odds.[/b] Within 20 units a standing level 0.5–1 ATR away traded 76–80% of the time, 1–2 ATR 52–62%, 2–3 ATR 29–43%, 3–5 ATR 12–24%. The distance model's Brier score on 2025–26: 0.150 → 0.117 on M15 (H 0.130 → 0.091, M5 0.146 → 0.110, M1 0.143 → 0.111). It reads within about 5 points up to 80%, and high above that (H: 96% read 82%).
+[b]Not found:[/b]
+• [b]Levels as magnets.[/b] A standing look-back level traded no more often than a decoy the same distance on the other side of the open: within ±1 point on every layer.
+• [b]Cast-forward timing.[/b] 22–34% of a window's highs and lows sat within 2 units of +20 / +40 or at its end, against 23–37% on the flipped bars.
+• [b]Order flow.[/b] The 60-unit move before the anchor did not say which side traded first (M5: high first 57.3% after up moves, 55.8% flipped; 51.0% after down moves, 51.3% flipped).
+• [b]Quarterly Theory.[/b] The manipulation quarter held the cycle's counter-extreme 27.5% of weeks (25.8% flipped), 19.1% of days (20.0%), 26.2% of sessions (26.1%). Q2 breaking one side of Q1 and the cycle closing on the other side of the true open: 37.2% (36.8%), 40.4% (41.4%), 35.9% (36.0%).
+• [b]The entry model.[/b] About 57,000 filled trades. At 2R the target came first 34.3% (1m–15m), 35.4% (5m–1H) and 34.5% (15m–4H) of the time, against 33.8%, 33.8% and 33.5% flipped; 2025–26 +0.6, −0.4, −1.5 points. About +0.03R a trade before costs, which a commission and a tick of slippage remove. Sweeps that took a standing look-back level: 32.8% at 2R.
+• [b]SMT at the sweeps.[/b] After the first sweep of a standing level, price came back one ATR before going one ATR further 53.6% of the time with SMT and 54.8% without (H), 61.4% vs 63.0% (M15), 60.2% vs 61.5% (M5); 2025–26 lower again with SMT.
+
+
 [b]█ SETTINGS[/b]
 
 [b]View[/b] sits at the top, as in my other indicators: theme, card text size, layout (Desktop / Mobile), card position.
@@ -87,6 +147,9 @@ Create one alert with "Any alert() function call". It covers:
 [b]Quarterly dividers:[/b] Jan · Apr · Jul · Oct, Dec · Mar · Jun · Sep (ICT) or off; how many to show; colour.
 [b]Card:[/b] on / off; the tested odds for each level.
 [b]Alerts:[/b] level taken, +20 / +40 / +60 reached, new structure shift.
+[b]LTF IPDA · the Quarterly Theory fractal:[/b] the layers on or off; Auto or your own (H, M15, M5, M1); reach odds; cast-forward marks; colours. The 60 / 40 / 20 switches above apply to every layer.
+[b]Quarterly Theory · A / M / D / X cycles:[/b] on or off; Auto or your own (week, day, session); true opens; past cycles kept; the four colours.
+[b]Entry model:[/b] on or off; alignment (Auto, 1m – 15m, 5m – 1H, 15m – 4H); the SMT pair (auto or your symbol); projections in R; the scorecard target; setups kept; backtest marks; colours; alerts.
 
 
 [b]█ HOW TO USE[/b]
@@ -121,12 +184,14 @@ Create one alert with "Any alert() function call". It covers:
 [b]Sharingan[/b] (写輪眼, the [i]Copy Wheel Eye[/i]) is the Uchiha clan's eye: it reads an opponent's movement so closely that it can copy a technique and see the next strike before it lands. Fully awakened, it shows three tomoe.
 Here the three tomoe are the three look backs, 60, 40 and 20 trading days: what price has already done. The cast forward is the copy, the same 20 / 40 / 60 days projected ahead of the anchor, where the next shift is expected. The eye reads; it does not decide. Neither does this indicator.
 Its next stage, [b]Mangekyō[/b], turns the same gaze onto the daily candles inside the quarter.
+v3 is the copy ninja's habit. Kakashi carried a single Sharingan and copied a thousand techniques, and this version copies the daily look back down the fractal to the hour, the session and the minute. It copies an entry model too, the way the eye copies any jutsu it sees. But a copied technique is only as good as the original, so the scorecard sits beside it: the copy runs at the rate of a coin flip.
 
 
 [b]█ CREDITS[/b]
 
 • ICT concepts ([i]Michael J. Huddleston[/i]): quarterly shifts and IPDA data ranges (the 60 / 40 / 20-day look back and the cast forward), buy-side and sell-side liquidity, market-structure shifts.
-• Quarterly Theory (the Q1–Q4 cycles and true opens): taught by [i]Daye[/i].
+• Quarterly Theory (the Q1–Q4 cycles, the A / M / D / X quarters and true opens): taught by [i]Daye[/i].
+• The entry model (HTF FVG, swing tiers, order block, SMT, projections, ERL, backtest marks) was studied from the "Forever" scripts, and the quarter boxes from "Daye Quarterly Theory" by [i]CantoLab[/i]; both written from scratch here.
 • Not affiliated with or endorsed by either. Written from scratch; open source under MPL 2.0.
 
 [i]Historical frequencies, not guarantees. Not financial advice.[/i]

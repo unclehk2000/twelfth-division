@@ -16,9 +16,16 @@
 // (NQ, ES, YM, RTY daily 2010–26, walk-forward), and what the timing claims came to when tested.
 // Quarterly shift, IPDA data range and look-back / cast-forward concepts are taught by ICT (Michael J. Huddleston).
 // Not affiliated with or endorsed by ICT. Daily fair value gaps live in Mangekyō, not here.
+// v3, the lower timeframes: ICT's 20 / 40 / 60 carried down the Quarterly Theory fractal (H: hours / the day, M15: 15 minutes /
+//   the 6-hour session, M5: 5 minutes / the 90-minute quarter, M1: 1 minute / the 22.5-minute quarter), each with its own look
+//   back, cast forward and tested reach odds; Daye's Quarterly Theory quarters (A / M / D / X) for the week, day and session with
+//   their true opens; and an HTF FVG → sweep → order block → SMT entry model with backtest marks and a live scorecard, drawn as a
+//   reference with its test result (no edge: about +0.03R a trade before costs). The entry model and the quarter boxes were
+//   studied from the "Forever" scripts and "Daye Quarterly Theory" by CantoLab, and written from scratch.
+// Quarterly Theory (the A / M / D / X cycles and true opens) is taught by Daye. Not affiliated with or endorsed by either.
 
 // behind_chart = false: the card and levels draw in front of the candles (Pine v6 defaults overlay visuals to behind the chart)
-indicator("Sharingan", "Sharingan", overlay = true, behind_chart = false, max_lines_count = 200, max_labels_count = 200, max_boxes_count = 20, max_bars_back = 500)
+indicator("Sharingan", "Sharingan", overlay = true, behind_chart = false, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500, max_bars_back = 500)
 
 TZ  = "America/New_York"
 DAY = 86400000
@@ -70,6 +77,12 @@ qI    = input.string("Jan · Apr · Jul · Oct", "Dividers (Q1–Q4)", options =
 qN    = input.int(8, "Show the last", minval = 1, maxval = 24, group = gQ, active = qI != "Off", display = display.none)
 colQ  = input.color(color.new(#7e57c2, 30), "", group = gQ, active = qI != "Off", display = display.none)
 
+gR = "Quarterly range expectation"
+qrOn   = input.bool(true, "This quarter's expected range", group = gR, tooltip = "How far a calendar quarter usually travels, scaled to the average daily range of the 60 trading days before it began: expected range = 1.0 × ADR60 × √63 (median), p25 0.83×, p75 1.33×. Measured on NQ, ES and RTY daily data 2010–26 (201 quarters): fitted on 2010–21; on 2022–26, 30% of quarters finished below p25, 47% below p50 and 70% below p75. Live fill odds from the share of the quarter gone and of the range used; on 2022–26 they scored a Brier of 0.148 against 0.250 for the base rate. Not direction.", display = display.none)
+qrAnc  = input.string("Range", "Anchor", options = ["Range", "Open", "Both"], group = gR, tooltip = "Range: the quarter's low + the expected range above and its high − the expected range below; both move as the quarter sets new extremes, and a side is done once the quarter's range reaches it. Open: the quarter's open ± half the expected range, fixed for the quarter.", display = display.none)
+qrBand = input.bool(true, "p25–p75 tubes", group = gR, inline = "qb", display = display.none)
+cQR    = input.color(#9c27b0, "", group = gR, inline = "qb", display = display.none)
+
 gC = "Card"
 showCrd = input.bool(true, "Card", group = gC, display = display.none)
 showP   = input.bool(true, "Tested odds for each level", group = gC, tooltip = "The chance each untaken look-back high / low trades within the next 20 trading days, and by +60 (the window's end), from its distance at the last close in daily ATR(14) and the days left.\nFit on NQ, ES, YM, RTY daily 2010–26 (one model, highs and lows separately). Walk-forward 2014–26, each year fit on the years before, read 3→4%, 19→20%, 39→39%, 59→58%, 79→77%, 93→95% (20 days) and 3→5%, 19→22%, 39→41%, 60→60%, 80→77%, 94→92% (by +60). Single years ran 0.7–1.3× the average: a trending year takes fewer levels on one side.\nFor scale, within 20 days: a high 1 ATR away 72%, 2 ATR 49%, 3 ATR 29%; a low 62%, 39%, 25%.", active = showCrd, display = display.none)
@@ -78,6 +91,53 @@ gN = "Alerts (create one alert with 'Any alert() function call')"
 alTk = input.bool(true, "Look-back level taken", group = gN, inline = "a1", display = display.none)
 alMk = input.bool(true, "+20 / +40 / +60 reached", group = gN, inline = "a1", display = display.none)
 alSh = input.bool(false, "New structure shift", group = gN, inline = "a2", display = display.none)
+
+
+gLT = "LTF IPDA · the Quarterly Theory fractal"
+ltOn  = input.bool(true, "LTF layers", group = gLT, tooltip = "ICT's 20 / 40 / 60 look back and cast forward, carried one Quarterly Theory cycle down at a time. Each layer counts its own unit and anchors on the first unit of its last closed period:\nH · 1 hour, anchored on the last closed trading day (18:00–17:00 ET);\nM15 · 15 minutes, the last closed 6-hour session (18:00, 00:00, 06:00, 12:00);\nM5 · 5 minutes, the last closed 90-minute quarter;\nM1 · 1 minute, the last closed 22.5-minute quarter.\nLook back: the 20 / 40 / 60 units left of the anchor, their highs (BSL) and lows (SSL), standing until taken. Cast forward: +20 / +40 / +60 units from the anchor. The 60 / 40 / 20 switches under Look back apply to every layer.\nTested on NQ, ES, RTY 1-minute 2018 – Oct 2026 (fit 2018–24, scored 2025–26): the chance a standing level trades comes from its distance (in the layer's ATR(14)): within 20 units, 0.5–1 ATR 76–80%, 1–2 ATR 52–62%, 2–3 ATR 29–43%, 3–5 ATR 12–24%. What did not hold: the levels traded no more often than a decoy the same distance on the other side of the period's open (within ±1 point on every layer); highs and lows did not gather at +20 / +40 / +60 (22–34% within 2 units of a mark against 23–37% on the same bars with each move's direction flipped); the 60-unit order flow did not say which side goes first.", display = display.none)
+ltSel = input.string("Auto", "Layers", options = ["Auto", "Custom"], group = gLT, tooltip = "Auto, by the chart: 1 minute → M1 + M5; 2–5 minutes → M5 + M15; 6–15 minutes → M15 + H; 16–60 minutes → H. Above that, the daily look back above is the layer.", display = display.none)
+lyH   = input.bool(true, "H", group = gLT, inline = "ly", active = ltSel == "Custom", display = display.none)
+lyM15 = input.bool(true, "M15", group = gLT, inline = "ly", active = ltSel == "Custom", display = display.none)
+lyM5  = input.bool(false, "M5", group = gLT, inline = "ly", active = ltSel == "Custom", display = display.none)
+lyM1  = input.bool(false, "M1", group = gLT, inline = "ly", active = ltSel == "Custom", display = display.none)
+ltOdds = input.bool(true, "Reach odds on the labels", group = gLT, tooltip = "The chance a standing level trades within the next 20 units (20 hours on H, 5 hours on M15, 100 minutes on M5, 20 minutes on M1), from its distance in the layer's ATR(14). Scored on 2025–26 after fitting on 2018–24: Brier 0.130 → 0.091 (H), 0.150 → 0.117 (M15), 0.146 → 0.110 (M5), 0.143 → 0.111 (M1); within about 5 points of the actual rate up to 80%, high above that (H: 96% read 82%).", display = display.none)
+ltCF  = input.bool(true, "Cast-forward marks", group = gLT, display = display.none)
+cLyH  = input.color(#d32f2f, "BSL", group = gLT, inline = "lc", display = display.none)
+cLyL  = input.color(#00897b, "SSL", group = gLT, inline = "lc", display = display.none)
+cLyF  = input.color(color.new(#e53935, 40), "Marks", group = gLT, inline = "lc", display = display.none)
+ltStrI = input.string("Coarser layer", "LTF structure", options = ["Off", "Coarser layer", "Both layers"], group = gLT, tooltip = "Market structure on a layer's own unit (H = 1-hour bars, M15 = 15-minute, M5, M1), drawn like the daily structure: the last two shifts (MSS, dashed, from the swing broken to the close beyond it), the last break of structure with the trend (BOS, dotted) and the flip level. Coarser layer: the larger of the two layers on the chart; Both layers: each, named.", display = display.none)
+ltSwK  = input.int(3, "LTF swing size (bars each side)", minval = 2, maxval = 10, group = gLT, display = display.none)
+ltEqI  = input.bool(true, "Equal highs / lows on H", group = gLT, tooltip = "Two 3-bar 1-hour swing highs (lows) within 0.2 × the median ATR(14), both still standing (studied from fadizeidan's Institutional Order Flow, written from scratch). Tested on NQ, ES and RTY 2018–26 against single swings at the same distance: 1-hour equal levels were reached within 20 hours 77.3% vs 75.3% (2025–26, +2.0 ± 0.8; 2018–24 +2.5 ± 0.4). On 5 and 15 minutes they were reached slightly less often than single swings, so they are drawn on H only. Odds on the label: reach within 20 hours at the current distance.", display = display.none)
+ltNear = input.string("Off", "Hide LTF levels beyond", options = ["Off", "2 ATR", "4 ATR", "8 ATR"], group = gLT, tooltip = "Declutter: standing LTF levels further than this from price, in the layer's own ATR(14), are not drawn (still on the card). Swept levels always show.", display = display.none)
+
+gQT = "Quarterly Theory · A / M / D / X cycles"
+qtOn  = input.bool(true, "Cycle quarters", group = gQT, tooltip = "Daye's Quarterly Theory: every cycle splits into four quarters, A (accumulation), M (manipulation), D (distribution) and X (reversal or continuation), and its true open is the open of the second. Week: Mon / Tue / Wed / Thu. Day: 18:00–00:00 / 00:00–06:00 / 06:00–12:00 / 12:00–17:00 ET. Session: the four 90-minute quarters of each 6-hour session. Each quarter is boxed over its own range.\nTested on NQ, ES, RTY 1-minute 2018–26 against the same bars with each move's direction flipped at random: the manipulation quarter (Q2) held the cycle's counter-extreme 27.5% of weeks (25.8% flipped), 19.1% of days (20.0%), 26.2% of sessions (26.1%); Q2 breaking one side of Q1 and the cycle closing on the other side of the true open: 37.2% (36.8%), 40.4% (41.4%), 35.9% (36.0%). Drawn as a reference, not an edge.", display = display.none)
+qtSel = input.string("Auto", "Cycles", options = ["Auto", "Custom"], group = gQT, tooltip = "Auto, by the chart: up to 15 minutes → day + session; up to 1 hour → week + day; up to 4 hours → week.", display = display.none)
+qtW   = input.bool(true, "Week", group = gQT, inline = "qc", active = qtSel == "Custom", display = display.none)
+qtD   = input.bool(true, "Day", group = gQT, inline = "qc", active = qtSel == "Custom", display = display.none)
+qtS   = input.bool(false, "Session", group = gQT, inline = "qc", active = qtSel == "Custom", display = display.none)
+qtTO  = input.bool(true, "True opens", group = gQT, inline = "qo", display = display.none)
+qtHist = input.int(1, "Past cycles kept", minval = 0, maxval = 5, group = gQT, inline = "qo", display = display.none)
+cQA = input.color(color.new(#787b86, 88), "A", group = gQT, inline = "qcol", display = display.none)
+cQM = input.color(color.new(#ff5252, 88), "M", group = gQT, inline = "qcol", display = display.none)
+cQD = input.color(color.new(#4caf50, 88), "D", group = gQT, inline = "qcol", display = display.none)
+cQX = input.color(color.new(#2962ff, 88), "X", group = gQT, inline = "qcol", display = display.none)
+
+gMD = "Entry model · HTF FVG → sweep → OB → SMT"
+mdOn   = input.bool(false, "Entry model", group = gMD, tooltip = "Off by default: tested, no edge (2R hit 34.3–35.4% vs 33.5–33.8% for random entries, ≈ +0.03R before costs). A higher-timeframe fair value gap; on the chart, a swing low (high) swept by a bearish (bullish) candle with a body of at least half its range, whose open is the order block; a later close back above (below) that open confirms it, provided the SMT pair diverged from one of the gap's three candles first. Entry: a limit at the order block's open. Stop: the SMT extreme. Targets: the R multiples below and the gap's external range (ERL).\nTested on NQ, ES, RTY 1-minute 2018 – Oct 2026 (about 57,000 filled trades, each order block counted once): at 2R the target came first 34.3% (1m–15m), 35.4% (5m–1H), 34.5% (15m–4H) of the time, against 33.8%, 33.8%, 33.5% on the same bars after the fill with each move's direction flipped; 2025–26 +0.6, −0.4, −1.5 points. About +0.03R a trade before costs, which a commission and a tick of slippage remove. Sweeps that took a standing LTF look-back level did no better (32.8% at 2R). Drawn with its scorecard so it can be watched, not as an edge.", display = display.none)
+mdAl   = input.string("Auto", "Alignment", options = ["Auto", "1m – 15m", "5m – 1H", "15m – 4H"], group = gMD, tooltip = "Auto: a 1-minute chart uses 15-minute gaps, 5 minutes uses 1 hour, 15 minutes uses 4 hours. Other charts: off.", display = display.none)
+mdPA   = input.bool(true, "SMT pair: auto", group = gMD, inline = "pr", tooltip = "Auto: NQ ↔ ES, RTY → ES, YM → ES (micros alike), on the same contract month as the chart.", display = display.none)
+mdPair = input.symbol("CME_MINI:ES1!", "", group = gMD, inline = "pr", active = not mdPA, display = display.none)
+mdProj = input.string("1, 2, 3", "Projections (R)", group = gMD, display = display.none)
+mdScR  = input.float(2.0, "Scorecard target (R)", minval = 0.5, maxval = 10, step = 0.5, group = gMD, tooltip = "The target the scorecard and the backtest marks count: a win when price reaches it before the stop after the fill, a no-fill when it reaches it first.", display = display.none)
+mdKeep = input.int(3, "Setups kept on the chart", minval = 1, maxval = 20, group = gMD, display = display.none)
+mdMk   = input.bool(true, "Backtest marks", group = gMD, inline = "mk", display = display.none)
+cMdU   = input.color(#0068bd, "Bullish", group = gMD, inline = "mc", display = display.none)
+cMdD   = input.color(#bd0000, "Bearish", group = gMD, inline = "mc", display = display.none)
+cMdF   = input.color(color.new(#787b86, 90), "FVG", group = gMD, inline = "mc", display = display.none)
+alMd1  = input.bool(true, "Alert: FVG + SMT formed", group = gMD, inline = "ma", display = display.none)
+alMd2  = input.bool(true, "Model active", group = gMD, inline = "ma", display = display.none)
+alMd3  = input.bool(false, "Target / stop", group = gMD, inline = "mb", display = display.none)
 
 int modeP = anchI == "Last structure shift" ? 1 : 0
 bool both = anchI == "Both"
@@ -624,10 +684,866 @@ if barstate.isrealtime and tfOK and not na(aT)
     if alSh and newTD and m1Ago == 1
         alert("Sharingan · new daily structure shift " + (m1D == -1 ? "▼: closed below the " + px(m1L) + " swing low" : "▲: closed above the " + px(m1L) + " swing high"), alert.freq_once_per_bar)
 
+
+// ═══════════════════════════════════════════════════════════════ v3 · LTF IPDA layers (the Quarterly Theory fractal)
+// Runs on the layer's own unit. A period changes at the trading day (H), the 6-hour session (M15), the 90-minute quarter (M5),
+// the 22.5-minute quarter (M1). Anchor = the first unit of the last closed period; levels from the 20 / 40 / 60 units before it.
+lyEng(int kind) =>
+    int mod = (hour(time, TZ) * 60 + minute(time, TZ) + 360) % 1440
+    int sub = kind == 1 ? 0 : kind == 2 ? int(math.floor(mod / 360.0)) : kind == 3 ? int(math.floor(mod / 90.0)) : int(math.floor(mod / 22.5))
+    int pid = time_tradingday + sub
+    var int pS = na
+    var int aI = na
+    var array<float> lv = array.new<float>(6, na)
+    var array<int>   lo = array.new<int>(6, na)
+    var array<int>   sw = array.new<int>(6, na)
+    float x20 = ta.highest(high, 20)
+    float x40 = ta.highest(high, 40)
+    float x60 = ta.highest(high, 60)
+    float m20 = ta.lowest(low, 20)
+    float m40 = ta.lowest(low, 40)
+    float m60 = ta.lowest(low, 60)
+    int   b20 = ta.highestbars(high, 20)
+    int   b40 = ta.highestbars(high, 40)
+    int   b60 = ta.highestbars(high, 60)
+    int   d20 = ta.lowestbars(low, 20)
+    int   d40 = ta.lowestbars(low, 40)
+    int   d60 = ta.lowestbars(low, 60)
+    float uA  = ta.sma(high - low, 14)
+    if pid != pid[1]
+        aI := pS
+        pS := bar_index
+        if not na(aI) and aI >= 61 and bar_index - aI < 400
+            int ofs = bar_index - aI + 1
+            lv.set(0, x20[ofs])
+            lv.set(1, x40[ofs])
+            lv.set(2, x60[ofs])
+            lv.set(3, m20[ofs])
+            lv.set(4, m40[ofs])
+            lv.set(5, m60[ofs])
+            lo.set(0, time[ofs - b20[ofs]])
+            lo.set(1, time[ofs - b40[ofs]])
+            lo.set(2, time[ofs - b60[ofs]])
+            lo.set(3, time[ofs - d20[ofs]])
+            lo.set(4, time[ofs - d40[ofs]])
+            lo.set(5, time[ofs - d60[ofs]])
+            for j = 0 to 5
+                sw.set(j, int(na))
+            for i = ofs - 1 to 1
+                for j = 0 to 5
+                    if na(sw.get(j)) and (j < 3 ? high[i] >= lv.get(j) : low[i] <= lv.get(j))
+                        sw.set(j, time[i])
+    for j = 0 to 5
+        if na(sw.get(j)) and not na(lv.get(j)) and (j < 3 ? high >= lv.get(j) : low <= lv.get(j))
+            sw.set(j, time)
+    int nU = na(aI) ? int(na) : bar_index - aI
+    int aT_ = na(nU) or nU > 400 ? int(na) : time[nU]
+    int c20 = na(nU) or nU < 20 or nU > 400 ? int(na) : time[nU - 20]
+    int c40 = na(nU) or nU < 40 or nU > 400 ? int(na) : time[nU - 40]
+    int c60 = na(nU) or nU < 60 or nU > 400 ? int(na) : time[nU - 60]
+    [aT_, lv.get(0), lv.get(1), lv.get(2), lv.get(3), lv.get(4), lv.get(5), lo.get(0), lo.get(1), lo.get(2), lo.get(3), lo.get(4), lo.get(5), sw.get(0), sw.get(1), sw.get(2), sw.get(3), sw.get(4), sw.get(5), uA, nU, c20, c40, c60, time]
+
+int  tfS    = timeframe.in_seconds()
+bool ltAuto = ltSel == "Auto"
+bool onH    = ltOn and timeframe.isintraday and (ltAuto ? tfS > 300 and tfS <= 3600 : lyH)
+bool onF    = ltOn and timeframe.isintraday and (ltAuto ? tfS > 60 and tfS <= 900 : lyM15)
+bool onV    = ltOn and timeframe.isintraday and (ltAuto ? tfS <= 300 : lyM5)
+bool onO    = ltOn and timeframe.isintraday and (ltAuto ? tfS <= 60 : lyM1)
+[Ha, Hh20, Hh40, Hh60, Hl20, Hl40, Hl60, Ho1, Ho2, Ho3, Ho4, Ho5, Ho6, Hs1, Hs2, Hs3, Hs4, Hs5, Hs6, Hatr, HnU, Hc20, Hc40, Hc60, Hut] = request.security(syminfo.tickerid, onH ? "60" : timeframe.period, lyEng(1))
+[Fa, Fh20, Fh40, Fh60, Fl20, Fl40, Fl60, Fo1, Fo2, Fo3, Fo4, Fo5, Fo6, Fs1, Fs2, Fs3, Fs4, Fs5, Fs6, Fatr, FnU, Fc20, Fc40, Fc60, Fut] = request.security(syminfo.tickerid, onF ? "15" : timeframe.period, lyEng(2))
+[Va, Vh20, Vh40, Vh60, Vl20, Vl40, Vl60, Vo1, Vo2, Vo3, Vo4, Vo5, Vo6, Vs1, Vs2, Vs3, Vs4, Vs5, Vs6, Vatr, VnU, Vc20, Vc40, Vc60, Vut] = request.security(syminfo.tickerid, onV ? "5" : timeframe.period, lyEng(3))
+[Oa, Oh20, Oh40, Oh60, Ol20, Ol40, Ol60, Oo1, Oo2, Oo3, Oo4, Oo5, Oo6, Os1, Os2, Os3, Os4, Os5, Os6, Oatr, OnU, Oc20, Oc40, Oc60, Out] = request.security(syminfo.tickerid, onO ? "1" : timeframe.period, lyEng(4))
+
+// ── v3.1 · LTF structure on a layer's unit (all values from closed bars: lookahead on with [1] offsets)
+ltStr(int k) =>
+    var int   trend = 0
+    var float shP = na
+    var int   shT = na
+    var float slP = na
+    var int   slT = na
+    var bool  shB = false
+    var bool  slB = false
+    var float m1L = na
+    var int   m1F = na
+    var int   m1A = na
+    var int   m1D = 0
+    var float m2L = na
+    var int   m2F = na
+    var int   m2A = na
+    var int   m2D = 0
+    var float bL = na
+    var int   bF = na
+    var int   bA = na
+    var int   bD = 0
+    var array<float> eHp = array.new<float>()
+    var array<int>   eHt = array.new<int>()
+    var array<float> eLp = array.new<float>()
+    var array<int>   eLt = array.new<int>()
+    var float eqH = na
+    var int   eqH1 = na
+    var int   eqH2 = na
+    var float eqL = na
+    var int   eqL1 = na
+    var int   eqL2 = na
+    float hh = ta.highest(high, 2 * k + 1)[1]
+    float ll = ta.lowest(low, 2 * k + 1)[1]
+    float at = ta.atr(14)[1]
+    float md = ta.median(ta.atr(14), 14)[1]
+    if bar_index > 2 * k + 2
+        if high[k + 1] == hh
+            shP := high[k + 1]
+            shT := time[k + 1]
+            shB := false
+        if low[k + 1] == ll
+            slP := low[k + 1]
+            slT := time[k + 1]
+            slB := false
+    if not na(slP) and trend >= 0 and close[1] < slP
+        if trend == 1
+            m2L := m1L
+            m2F := m1F
+            m2A := m1A
+            m2D := m1D
+            m1L := slP
+            m1F := slT
+            m1A := time[1]
+            m1D := -1
+        trend := -1
+        slB := true
+    else if not na(shP) and trend <= 0 and close[1] > shP
+        if trend == -1
+            m2L := m1L
+            m2F := m1F
+            m2A := m1A
+            m2D := m1D
+            m1L := shP
+            m1F := shT
+            m1A := time[1]
+            m1D := 1
+        trend := 1
+        shB := true
+    else if trend == 1 and not shB and not na(shP) and close[1] > shP
+        bL := shP
+        bF := shT
+        bA := time[1]
+        bD := 1
+        shB := true
+    else if trend == -1 and not slB and not na(slP) and close[1] < slP
+        bL := slP
+        bF := slT
+        bA := time[1]
+        bD := -1
+        slB := true
+    // equal highs / lows: 3-bar swings, within 0.2 × the median ATR, both standing
+    if bar_index > 20
+        if not na(eqH) and high[1] > eqH
+            eqH := na
+        if not na(eqL) and low[1] < eqL
+            eqL := na
+        for q = eHp.size() - 1 to 0
+            if q >= 0 and q < eHp.size() and high[1] > eHp.get(q)
+                eHp.remove(q)
+                eHt.remove(q)
+        for q = eLp.size() - 1 to 0
+            if q >= 0 and q < eLp.size() and low[1] < eLp.get(q)
+                eLp.remove(q)
+                eLt.remove(q)
+        if high[2] > high[3] and high[2] > high[1]
+            float p2 = high[2]
+            for q = eHp.size() - 1 to 0
+                if q >= 0 and q < eHp.size() and math.abs(eHp.get(q) - p2) < 0.2 * md
+                    eqH := math.max(eHp.get(q), p2)
+                    eqH1 := eHt.get(q)
+                    eqH2 := time[2]
+                    break
+            eHp.push(p2)
+            eHt.push(time[2])
+            if eHp.size() > 10
+                eHp.shift()
+                eHt.shift()
+        if low[2] < low[3] and low[2] < low[1]
+            float p2 = low[2]
+            for q = eLp.size() - 1 to 0
+                if q >= 0 and q < eLp.size() and math.abs(eLp.get(q) - p2) < 0.2 * md
+                    eqL := math.min(eLp.get(q), p2)
+                    eqL1 := eLt.get(q)
+                    eqL2 := time[2]
+                    break
+            eLp.push(p2)
+            eLt.push(time[2])
+            if eLp.size() > 10
+                eLp.shift()
+                eLt.shift()
+    [trend, shP, shT, slP, slT, m1L, m1F, m1A, m1D, m2L, m2F, m2A, m2D, bL, bF, bA, bD, eqH, eqH1, eqH2, eqL, eqL1, eqL2, at]
+string ltTfC = onH ? "60" : onF ? "15" : onV ? "5" : "1"
+string ltTfF = onO ? "1" : onV ? "5" : onF ? "15" : "60"
+bool   ltSOn = ltStrI != "Off" and (onH or onF or onV or onO)
+bool   ltS2  = ltSOn and ltStrI == "Both layers" and ltTfF != ltTfC
+[sCt, sCsh, sCshT, sCsl, sCslT, sC1L, sC1F, sC1A, sC1D, sC2L, sC2F, sC2A, sC2D, sCbL, sCbF, sCbA, sCbD, sCeH, sCeH1, sCeH2, sCeL, sCeL1, sCeL2, sCat] = request.security(syminfo.tickerid, ltSOn ? ltTfC : timeframe.period, ltStr(ltSwK), lookahead = barmerge.lookahead_on)
+[sFt, sFsh, sFshT, sFsl, sFslT, sF1L, sF1F, sF1A, sF1D, sF2L, sF2F, sF2A, sF2D, sFbL, sFbF, sFbA, sFbD, sFeH, sFeH1, sFeH2, sFeL, sFeL1, sFeL2, sFat] = request.security(syminfo.tickerid, ltS2 ? ltTfF : timeframe.period, ltStr(ltSwK), lookahead = barmerge.lookahead_on)
+
+// ── v3.1 · quarterly range expectation: ADR60 frozen at the quarter's first day, the quarter's open / high / low so far
+qrEng() =>
+    var float a = na
+    var float qo = na
+    var float qh = na
+    var float ql = na
+    var int   qt = na
+    var int   qhT = na
+    var int   qlT = na
+    float s60 = ta.sma(high - low, 60)[1]
+    if timeframe.change("3M")
+        a   := s60
+        qo  := open
+        qh  := high
+        ql  := low
+        qt  := time
+        qhT := time
+        qlT := time
+    else if not na(qo)
+        if high > qh
+            qh  := high
+            qhT := time
+        if low < ql
+            ql  := low
+            qlT := time
+    [a, qo, qh, ql, qt, qhT, qlT]
+[qrA, qrO, qrH, qrL, qrT, qrHT, qrLT] = request.security(syminfo.tickerid, "D", qrEng(), lookahead = barmerge.lookahead_on)
+int qrEnd = request.security(syminfo.tickerid, "3M", time_close, lookahead = barmerge.lookahead_on)
+float qrR50 = na(qrA) ? na : 0.998 * qrA * math.sqrt(63)
+float qrR25 = na(qrA) ? na : 0.826 * qrA * math.sqrt(63)
+float qrR75 = na(qrA) ? na : 1.330 * qrA * math.sqrt(63)
+float qrE   = na(qrT) or na(qrEnd) or qrEnd <= qrT ? na : math.max(0.0, math.min(1.0, (time - qrT) / (qrEnd - qrT)))
+float qrU   = na(qrR50) or qrR50 <= 0 ? na : (qrH - qrL) / qrR50
+// P(the quarter's range reaches the expected range by quarter end), rows: share of the quarter gone (<25, 25–50, 50–75, 75%+),
+// columns: share of the expected range used (<50, 50–75, 75–100, 100%+); fitted on 2010–21
+qrP(float e, float u) =>
+    if na(e) or na(u)
+        float(na)
+    else
+        int eb = e < 0.25 ? 0 : e < 0.5 ? 1 : e < 0.75 ? 2 : 3
+        int ub = u < 0.5 ? 0 : u < 0.75 ? 1 : u < 1.0 ? 2 : 3
+        array.from(45, 62, 91, 100, 23, 42, 77, 100, 0, 14, 50, 100, 0, 3, 13, 100).get(eb * 4 + ub) / 100.0
+
+type Ly
+    string nm
+    string per
+    int    um
+    float  ka
+    float  kb
+    float  kc
+    int    aT
+    array<float> lv
+    array<int>   lo
+    array<int>   sw
+    float  atr
+    int    nU
+    array<int>   cf
+    int    uT
+    color  tr
+
+// minutes to the next tradeable minute: CME index futures halt 17:00–18:00 ET and from Friday 17:00 to Sunday 18:00
+advU(int t0, int n, int um) =>
+    int t = t0
+    if n > 0
+        for k = 1 to n
+            t += um * 60000
+            int h = hour(t, TZ)
+            int d = dayofweek(t, TZ)
+            if d == dayofweek.saturday or (d == dayofweek.friday and h >= 17) or (d == dayofweek.sunday and h < 18)
+                int add = d == dayofweek.friday ? 2 : d == dayofweek.saturday ? 1 : 0
+                t := timestamp(TZ, year(t, TZ), month(t, TZ), dayofmonth(t, TZ), 18, 0) + add * DAY
+            else if h == 17
+                t := timestamp(TZ, year(t, TZ), month(t, TZ), dayofmonth(t, TZ), 18, 0)
+    t
+lyP(Ly y, float d, bool isHi) => na(d) ? na : d <= 0 ? 1.0 : 1.0 / (1.0 + math.exp(-(y.ka + y.kb * math.log(math.max(d, 0.02)) + (isHi ? y.kc : 0.0))))
+lyName(int j) => j == 0 or j == 3 ? "20" : j == 1 or j == 4 ? "40" : "60"
+lyUse(int j) => j % 3 == 0 ? use20 : j % 3 == 1 ? use40 : use60
+
+array<Ly> LY = array.new<Ly>()
+if barstate.islast
+    if onO
+        LY.push(Ly.new("M1", "22.5m", 1, 1.3215, -1.8535, -0.0609, Oa, array.from(Oh20, Oh40, Oh60, Ol20, Ol40, Ol60), array.from(Oo1, Oo2, Oo3, Oo4, Oo5, Oo6), array.from(Os1, Os2, Os3, Os4, Os5, Os6), Oatr, OnU, array.from(Oc20, Oc40, Oc60), Out, color.new(cLyH, 60)))
+    if onV
+        LY.push(Ly.new("M5", "90m", 5, 1.2533, -1.9143, -0.1484, Va, array.from(Vh20, Vh40, Vh60, Vl20, Vl40, Vl60), array.from(Vo1, Vo2, Vo3, Vo4, Vo5, Vo6), array.from(Vs1, Vs2, Vs3, Vs4, Vs5, Vs6), Vatr, VnU, array.from(Vc20, Vc40, Vc60), Vut, color.new(cLyH, 45)))
+    if onF
+        LY.push(Ly.new("M15", "6h", 15, 1.2507, -1.7638, -0.1793, Fa, array.from(Fh20, Fh40, Fh60, Fl20, Fl40, Fl60), array.from(Fo1, Fo2, Fo3, Fo4, Fo5, Fo6), array.from(Fs1, Fs2, Fs3, Fs4, Fs5, Fs6), Fatr, FnU, array.from(Fc20, Fc40, Fc60), Fut, color.new(cLyH, 25)))
+    if onH
+        LY.push(Ly.new("H", "day", 60, 1.4165, -2.4574, -0.3554, Ha, array.from(Hh20, Hh40, Hh60, Hl20, Hl40, Hl60), array.from(Ho1, Ho2, Ho3, Ho4, Ho5, Ho6), array.from(Hs1, Hs2, Hs3, Hs4, Hs5, Hs6), Hatr, HnU, array.from(Hc20, Hc40, Hc60), Hut, color.new(cLyH, 0)))
+
+// the cast-forward mark of a layer: its time (past or ahead)
+lyMark(Ly y, int n) => na(y.nU) ? int(na) : y.nU >= n ? y.cf.get(int(n / 20) - 1) : advU(y.uT, n - y.nU, y.um)
+
+float ltThr = ltNear == "2 ATR" ? 2.0 : ltNear == "4 ATR" ? 4.0 : ltNear == "8 ATR" ? 8.0 : na
+var array<line>  dl3 = array.new<line>()
+var array<label> db3 = array.new<label>()
+if barstate.islast
+    while dl3.size() > 0
+        line.delete(dl3.pop())
+    while db3.size() > 0
+        label.delete(db3.pop())
+    int xEnd = time + 6 * tfS * 1000
+    for y in LY
+        if not na(y.aT)
+            float tr = color.t(y.tr)
+            for j = 0 to 5
+                float v = y.lv.get(j)
+                bool  isHi = j < 3
+                // merge a level into the longer window with the same price
+                bool dup = false
+                for jj = (isHi ? 0 : 3) to j - 1
+                    if jj < j and jj >= (isHi ? 0 : 3) and y.lv.get(jj) == v and lyUse(jj)
+                        dup := true
+                if lyUse(j) and not na(v) and not dup
+                    string nm = lyName(j)
+                    for jj = j + 1 to (isHi ? 2 : 5)
+                        if jj <= (isHi ? 2 : 5) and jj > j and y.lv.get(jj) == v and lyUse(jj)
+                            nm += "/" + lyName(jj)
+                    color c = color.new(isHi ? cLyH : cLyL, tr)
+                    int t0 = y.lo.get(j)
+                    int tk = y.sw.get(j)
+                    string side = (isHi ? "BSL " : "SSL ")
+                    if not na(tk)
+                        dl3.push(line.new(t0, v, tk, v, xloc = xloc.bar_time, color = c, width = 1, style = line.style_dotted))
+                        db3.push(label.new(tk, v, "✕", xloc = xloc.bar_time, style = label.style_label_center, color = #00000000, textcolor = c, size = size.tiny, tooltip = y.nm + " " + side + nm + " " + px(v) + " · swept " + str.format_time(tk, "HH:mm dd MMM", TZ)))
+                    else
+                        float d = na(y.atr) or y.atr <= 0 ? na : (isHi ? v - close : close - v) / y.atr
+                        float p = lyP(y, d, isHi)
+                        string od = ltOdds and not na(p) ? " · " + str.tostring(math.round(p * 100)) + "%" : ""
+                        if na(ltThr) or na(d) or d <= ltThr
+                            dl3.push(line.new(t0, v, xEnd, v, xloc = xloc.bar_time, color = c, width = 1))
+                            db3.push(label.new(xEnd, v, y.nm + " " + side + nm + " " + px(v) + od, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = c, size = size.tiny, tooltip = y.nm + " look back (" + y.per + " anchor " + str.format_time(y.aT, "HH:mm dd MMM", TZ) + "): the " + nm + "-unit " + (isHi ? "high" : "low") + ", formed " + str.format_time(t0, "HH:mm dd MMM", TZ) + ", standing. " + (na(d) ? "" : str.tostring(d, "0.0") + " ATR away; ") + "chance it trades within 20 units: " + (na(p) ? "—" : str.tostring(math.round(p * 100)) + "%") + " (tested, distance only)."))
+            if ltCF
+                for n in array.from(20, 40, 60)
+                    int tm = lyMark(y, n)
+                    if not na(tm)
+                        dl3.push(line.new(tm, close, tm, close + 1, xloc = xloc.bar_time, extend = extend.both, color = color.new(cLyF, math.max(color.t(cLyF), tr)), style = line.style_dotted, width = 1))
+                        db3.push(label.new(tm, nz(y.lv.get(2), high), y.nm + " +" + str.tostring(n), xloc = xloc.bar_time, style = label.style_label_lower_left, color = #00000000, textcolor = color.new(cLyF, math.max(color.t(cLyF), tr)), size = size.tiny, tooltip = y.nm + " cast forward: +" + str.tostring(n) + " units (" + str.tostring(n * y.um) + " minutes of trading) from the anchor. Tested: not a turning point beyond chance."))
+
+// ═══ v3.1 · LTF structure on the layer's unit, equal highs / lows on H, and this quarter's expected range
+var array<line>     dl4 = array.new<line>()
+var array<label>    db4 = array.new<label>()
+var array<linefill> df4 = array.new<linefill>()
+ltNm(string tf) => tf == "60" ? "H" : tf == "15" ? "M15" : tf == "5" ? "M5" : "M1"
+ltTag(int t, float y, string s, color c, string st, string tip) =>
+    db4.push(label.new(t, y, s, xloc = xloc.bar_time, style = st, color = #00000000, textcolor = c, size = size.tiny, tooltip = tip))
+ltMss(string nm, float lv, int tf, int ta, int d, bool last) =>
+    if not na(lv) and not na(tf) and not na(ta) and d != 0
+        color c = color.new(d == 1 ? cMsU : cMsD, last ? 0 : 45)
+        dl4.push(line.new(tf, lv, ta, lv, xloc = xloc.bar_time, color = c, style = line.style_dashed, width = 1))
+        ltTag(tf, lv, nm + (d == 1 ? " MSS ▲" : " MSS ▼"), c, d == 1 ? label.style_label_lower_left : label.style_label_upper_left, nm + (d == 1 ? " bullish" : " bearish") + " shift: a close beyond the " + px(lv) + " swing after structure ran the other way.")
+ltBos(string nm, float lv, int tf, int ta, int d) =>
+    if not na(lv) and not na(tf) and not na(ta) and d != 0
+        color c = color.new(d == 1 ? cMsU : cMsD, 35)
+        dl4.push(line.new(tf, lv, ta, lv, xloc = xloc.bar_time, color = c, style = line.style_dotted, width = 1))
+        ltTag(ta, lv, nm + " BOS", c, d == 1 ? label.style_label_lower_left : label.style_label_upper_left, nm + " break of structure with the trend: a close beyond the " + px(lv) + " swing.")
+ltFlip(string nm, int tr, float sh, int shT, float sl, int slT, int tEnd) =>
+    float fp = tr == -1 ? sh : tr == 1 ? sl : na
+    int   ft = tr == -1 ? shT : tr == 1 ? slT : na
+    if not na(fp) and not na(ft)
+        color c = color.new(tr == -1 ? cMsU : cMsD, 25)
+        dl4.push(line.new(ft, fp, tEnd, fp, xloc = xloc.bar_time, color = c, style = line.style_dotted, width = 1))
+        ltTag(tEnd, fp, nm + (tr == -1 ? " flip ▲ " : " flip ▼ ") + px(fp), c, label.style_label_left, nm + " structure is " + (tr == -1 ? "bearish" : "bullish") + ": a close " + (tr == -1 ? "above " : "below ") + px(fp) + " shifts it.")
+ltEq(float v, int t1, int t2, bool isHi, float at, int tEnd) =>
+    if not na(v) and not na(t1) and not na(t2)
+        color c = color.new(isHi ? cLyH : cLyL, 10)
+        dl4.push(line.new(t1, v, t2, v, xloc = xloc.bar_time, color = c, style = line.style_dotted, width = 2))
+        dl4.push(line.new(t2, v, tEnd, v, xloc = xloc.bar_time, color = color.new(c, 50), width = 1))
+        float d = na(at) or at <= 0 ? na : (isHi ? v - close : close - v) / at
+        float p = na(d) ? na : d <= 0 ? 1.0 : 1.0 / (1.0 + math.exp(-(1.1204 - 1.1766 * math.log(math.max(d, 0.02)))))
+        ltTag(tEnd, v, "H " + (isHi ? "EQH " : "EQL ") + px(v) + (ltOdds and not na(p) ? " · " + str.tostring(math.round(p * 100)) + "% ≤ 20h" : ""), c, label.style_label_left, "Equal " + (isHi ? "highs" : "lows") + ": two 1-hour swings within 0.2 × the median ATR, " + str.format_time(t1, "dd MMM HH:mm", TZ) + " and " + str.format_time(t2, "dd MMM HH:mm", TZ) + ". Odds: reach within 20 hours at this distance (" + (na(d) ? "—" : str.tostring(d, "0.0")) + " 1-hour ATR), fitted on NQ / ES / RTY 2018–26.")
+qrTube(float a, float b, float m, int t0, int t1, bool done, string nm, string tip) =>
+    color e = color.new(cQR, done ? 75 : 40)
+    if qrBand
+        line l1 = line.new(t0, a, t1, a, xloc = xloc.bar_time, color = e, width = 1)
+        line l2 = line.new(t0, b, t1, b, xloc = xloc.bar_time, color = e, width = 1)
+        dl4.push(l1)
+        dl4.push(l2)
+        df4.push(linefill.new(l1, l2, color.new(cQR, done ? 95 : 88)))
+    dl4.push(line.new(t0, m, t1, m, xloc = xloc.bar_time, color = color.new(cQR, done ? 60 : 0), style = qrBand ? line.style_dotted : line.style_dashed, width = 1))
+    ltTag(t1, m, nm, color.new(cQR, done ? 50 : 0), label.style_label_left, tip)
+if barstate.islast
+    while dl4.size() > 0
+        line.delete(dl4.pop())
+    while db4.size() > 0
+        label.delete(db4.pop())
+    while df4.size() > 0
+        linefill.delete(df4.pop())
+    int tEndL = time + 6 * tfS * 1000
+    if ltSOn
+        string nC = ltNm(ltTfC)
+        ltMss(nC, sC2L, sC2F, sC2A, sC2D, false)
+        ltMss(nC, sC1L, sC1F, sC1A, sC1D, true)
+        ltBos(nC, sCbL, sCbF, sCbA, sCbD)
+        ltFlip(nC, sCt, sCsh, sCshT, sCsl, sCslT, tEndL)
+        if ltEqI and ltTfC == "60"
+            ltEq(sCeH, sCeH1, sCeH2, true, sCat, tEndL)
+            ltEq(sCeL, sCeL1, sCeL2, false, sCat, tEndL)
+    if ltS2
+        string nF = ltNm(ltTfF)
+        ltMss(nF, sF2L, sF2F, sF2A, sF2D, false)
+        ltMss(nF, sF1L, sF1F, sF1A, sF1D, true)
+        ltBos(nF, sFbL, sFbF, sFbA, sFbD)
+        ltFlip(nF, sFt, sFsh, sFshT, sFsl, sFslT, tEndL)
+    if qrOn and tfOK and not na(qrR50) and not na(qrEnd) and not na(qrT)
+        float  pF  = qrP(qrE, qrU)
+        string qn  = "Q" + str.tostring(int((month(qrT + 6 * 3600000, TZ) - 1) / 3) + 1)
+        string rg  = str.tostring(math.round(qrR50)) + " pts (p25–p75 " + str.tostring(math.round(qrR25)) + "–" + str.tostring(math.round(qrR75)) + ")"
+        string ftx = na(pF) ? "" : qrU >= 1 ? " · filled" : " · fill " + pc0(pF) + " by " + str.format_time(qrEnd - 3600000, "dd MMM", TZ)
+        string tip = qn + " expected range " + rg + " = ADR60 at the quarter's start (" + str.tostring(qrA, format.mintick) + ") × √63 × 1.0. Used so far: " + (na(qrU) ? "—" : str.tostring(math.round(qrU * 100)) + "%") + ". Fill odds: the chance the quarter's range reaches the expected range by quarter end, given how much of the quarter has gone (" + (na(qrE) ? "—" : str.tostring(math.round(qrE * 100)) + "%") + ") and how much of the range is used; on 2022–26 they scored a Brier of 0.148 vs 0.250 for the base rate. Range, not direction."
+        if qrAnc != "Open"
+            float um = qrL + qrR50
+            float dm = qrH - qrR50
+            qrTube(qrL + qrR25, qrL + qrR75, um, qrT, qrEnd, qrH >= um, qn + " exp. ▲ " + px(um) + (qrH >= um ? " ✓" : "") + " · " + rg + ftx, tip)
+            qrTube(qrH - qrR75, qrH - qrR25, dm, qrT, qrEnd, qrL <= dm, qn + " exp. ▼ " + px(dm) + (qrL <= dm ? " ✓" : ""), tip)
+        if qrAnc != "Range"
+            float uo = qrO + qrR50 / 2
+            float dO = qrO - qrR50 / 2
+            qrTube(qrO + qrR25 / 2, qrO + qrR75 / 2, uo, qrT, qrEnd, qrH >= uo, qn + " open + ½ exp. " + px(uo) + (qrH >= uo ? " ✓" : "") + (qrAnc == "Open" ? " · " + rg + ftx : ""), tip)
+            qrTube(qrO - qrR75 / 2, qrO - qrR25 / 2, dO, qrT, qrEnd, qrL <= dO, qn + " open − ½ exp. " + px(dO) + (qrL <= dO ? " ✓" : ""), tip)
+
+// ═══════════════════════════════════════════════════════════════ v3 · Quarterly Theory cycles (A / M / D / X)
+type Qc
+    int   id
+    int   q
+    float hi
+    float lo
+    array<box> bx
+    line  tOp
+    label tl
+
+bool qtAuto = qtSel == "Auto"
+bool qwOn = qtOn and timeframe.isintraday and (qtAuto ? tfS > 900 and tfS <= 14400 : qtW and tfS <= 14400)
+bool qdOn = qtOn and timeframe.isintraday and (qtAuto ? tfS <= 3600 : qtD and tfS <= 3600)
+bool qsOn = qtOn and timeframe.isintraday and (qtAuto ? tfS <= 900 : qtS and tfS <= 900)
+var Qc QW = Qc.new(na, -1, na, na, array.new<box>(), na, na)
+var Qc QD = Qc.new(na, -1, na, na, array.new<box>(), na, na)
+var Qc QS = Qc.new(na, -1, na, na, array.new<box>(), na, na)
+qCol(int q) => q == 0 ? cQA : q == 1 ? cQM : q == 2 ? cQD : cQX
+qLet(int q) => q == 0 ? "A" : q == 1 ? "M" : q == 2 ? "D" : "X"
+qStep(Qc c, int id, int q, int qEnd, int cEnd, string nm, string toNm) =>
+    if q >= 0
+        if id != c.id or q != c.q
+            if id != c.id
+                c.id := id
+                line.delete(c.tOp)
+                label.delete(c.tl)
+                c.tOp := na
+                c.tl := na
+                while c.bx.size() > 4 * (qtHist + 1) - 1
+                    box.delete(c.bx.shift())
+            c.q  := q
+            c.hi := high
+            c.lo := low
+            color bc = qCol(q)
+            c.bx.push(box.new(time, high, qEnd, low, xloc = xloc.bar_time, bgcolor = bc, border_color = color.new(bc, math.max(0, color.t(bc) - 40)), border_width = 1, text = qLet(q), text_size = size.tiny, text_color = color.new(bc, math.max(0, color.t(bc) - 70)), text_halign = text.align_left, text_valign = text.align_top))
+            if q == 1 and qtTO
+                c.tOp := line.new(time, open, cEnd, open, xloc = xloc.bar_time, color = color.new(cQM, 20), style = line.style_dashed, width = 1)
+                c.tl := label.new(cEnd, open, toNm, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = color.new(cQM, 20), size = size.tiny, tooltip = toNm + ": the open of the " + nm + "'s second quarter. Bullish: buy below it; bearish: sell above (Quarterly Theory). Tested: no edge (see the inputs).")
+        else
+            c.hi := math.max(c.hi, high)
+            c.lo := math.min(c.lo, low)
+        if c.bx.size() > 0
+            box b = c.bx.last()
+            b.set_top(c.hi)
+            b.set_bottom(c.lo)
+    c
+
+int qMod = (hour(time, TZ) * 60 + minute(time, TZ) + 360) % 1440
+int qDow = dayofweek(time_tradingday, "UTC")
+int qDay0 = time - qMod * 60000                  // 18:00 ET at the start of this trading day
+if qwOn
+    int wq = qDow >= dayofweek.monday and qDow <= dayofweek.thursday ? qDow - dayofweek.monday : -1
+    qStep(QW, time_tradingday - (qDow - dayofweek.monday) * DAY, wq, qDay0 + 23 * 3600000, qDay0 + (4 - wq) * DAY - 3600000, "week", "true week open")
+if qdOn
+    int dq = int(math.floor(qMod / 360.0))
+    qStep(QD, time_tradingday, dq, qDay0 + math.min((dq + 1) * 360, 1380) * 60000, qDay0 + 1380 * 60000, "day", "true day open")
+if qsOn
+    int s6 = int(math.floor(qMod / 360.0))
+    int sq = int(math.floor((qMod - s6 * 360) / 90.0))
+    int sEnd = qDay0 + math.min((s6 + 1) * 360, 1380) * 60000
+    qStep(QS, time_tradingday + s6, sq, math.min(qDay0 + (s6 * 360 + (sq + 1) * 90) * 60000, sEnd), sEnd, "session", "true session open")
+
+// ═══════════════════════════════════════════════════════════════ v3 · Entry model: HTF FVG → sweep → order block → SMT
+// Bull logic in "signed" prices; a bearish setup runs the same code on negated prices (s = −1).
+string mdHTF = mdAl == "1m – 15m" ? "15" : mdAl == "5m – 1H" ? "60" : mdAl == "15m – 4H" ? "240" : tfS == 60 ? "15" : tfS == 300 ? "60" : tfS == 900 ? "240" : ""
+bool mdOK = mdOn and mdHTF != "" and timeframe.isintraday and timeframe.in_seconds(mdHTF) > tfS
+string pRoot = syminfo.root == "NQ" ? "ES" : syminfo.root == "MNQ" ? "MES" : syminfo.root == "MES" ? "MNQ" : syminfo.root == "M2K" or syminfo.root == "MYM" ? "MES" : syminfo.root == "ES" ? "NQ" : "ES"
+string pSuf = str.replace(syminfo.ticker, syminfo.root, "")
+string pairT = mdPA ? syminfo.prefix + ":" + pRoot + pSuf : mdPair
+string pairNm = mdPA ? pRoot : str.replace(str.substring(mdPair, str.pos(mdPair, ":") + 1), "1!", "")
+[mH1, mH2, mH3, mL1, mL2, mL3, mT1, mT2, mT3, mC1, mTn] = request.security(syminfo.tickerid, mdOK ? mdHTF : timeframe.period, [high[1], high[2], high[3], low[1], low[2], low[3], time[1], time[2], time[3], close[1], time], lookahead = barmerge.lookahead_on)
+[qH1, qH2, qH3, qL1, qL2, qL3] = request.security(pairT, mdOK ? mdHTF : timeframe.period, [high[1], high[2], high[3], low[1], low[2], low[3]], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[qHc, qLc] = request.security(pairT, timeframe.period, [high, low], ignore_invalid_symbol = true)
+bool newHB = mdOK and mTn != mTn[1]
+int  htfMs = mdOK ? timeframe.in_seconds(mdHTF) * 1000 : 1
+
+var array<float> PJ = array.new<float>()
+if barstate.isfirst
+    for part in str.split(str.replace_all(mdProj, " ", ""), ",")
+        float v = str.tonumber(part)
+        if not na(v) and v > 0
+            PJ.push(v)
+
+type Fv
+    int   s
+    float top
+    float bot
+    float erl
+    bool  mit
+    int   t3
+    int   t1e
+    array<float> aN
+    array<float> aP
+    array<int>   aT
+    array<int>   bk
+    array<float> bN
+    array<float> bP
+    array<bool>  fd
+    array<float> y2
+    array<int>   win
+    array<float> ex
+    array<int>   exT
+    array<float> stH
+    array<float> st
+    array<float> it
+    array<float> lt
+    array<float> itH
+    array<float> pO
+    array<int>   pI
+    array<int>   pT
+    bool  trade
+    float E
+    float S
+    int   tC
+    int   tF
+    int   tE
+    int   res
+    bool  erlHit
+    int   aj
+    box   fb
+    label fl
+
+type Tr
+    Fv    f
+    line  ob
+    line  sl
+    line  er
+    line  sm
+    label lob
+    label lsm
+    array<line>  pj
+    array<label> pl
+
+var array<Fv> FV = array.new<Fv>()
+var int mdLastT = na
+var int mdLastS = 0
+var array<Tr> TR = array.new<Tr>()
+var int scW = 0
+var int scL = 0
+var int scN = 0
+var float scR = 0.0
+bool evW = false
+bool evL = false
+bool evN = false
+bool evE = false
+int  evS = 0
+string evMsg = ""
+
+sg(int s, float v) => s == 1 ? v : -v
+newFv(int s) =>
+    float top = s == 1 ? mL1 : -mH1
+    float bot = s == 1 ? mH3 : -mL3
+    Fv f = Fv.new(s, top, bot, s == 1 ? math.max(mH1, mH2) : -math.min(mL1, mL2), false, mT3, mT1 + htfMs,
+         array.from(sg(s, s == 1 ? mL3 : mH3), sg(s, s == 1 ? mL2 : mH2), sg(s, s == 1 ? mL1 : mH1)),
+         array.from(sg(s, s == 1 ? qL3 : qH3), sg(s, s == 1 ? qL2 : qH2), sg(s, s == 1 ? qL1 : qH1)),
+         array.from(mT3, mT2, mT1), array.from(-1, -1, -1), array.from(0.0, 0.0, 0.0), array.from(0.0, 0.0, 0.0),
+         array.from(false, false, false), array.from(float(na), float(na), float(na)), array.from(-1, -1, -1), array.from(float(na), float(na), float(na)), array.from(int(na), int(na), int(na)),
+         array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(), array.new<int>(), array.new<int>(),
+         false, na, na, na, na, na, 0, false, -1, na, na)
+    // seed the chart's swing lows (signed) from the gap's first candle
+    int back = math.min(int((time - mT3) / (tfS * 1000)), 300)
+    if back >= 3
+        for j = back - 1 to 2
+            float lj = s == 1 ? low[j] : -high[j]
+            float lp = s == 1 ? low[j + 1] : -high[j + 1]
+            float ln = s == 1 ? low[j - 1] : -high[j - 1]
+            if time[j] >= mT3 and lj < lp and lj < ln
+                f.stH.push(lj)
+                f.st.push(lj)
+    f.fb := box.new(mT3, s == 1 ? mL1 : mL3, time, s == 1 ? mH3 : mH1, xloc = xloc.bar_time, bgcolor = cMdF, border_color = #00000000, text = (s == 1 ? "+FVG " : "−FVG ") + (mdHTF == "60" ? "1H" : mdHTF == "240" ? "4H" : mdHTF + "m"), text_size = size.tiny, text_color = color.new(cMdF, 20), text_halign = text.align_right, text_valign = s == 1 ? text.align_bottom : text.align_top)
+    f
+killFv(Fv f) =>
+    box.delete(f.fb)
+    f
+dropTr(Tr r) =>
+    line.delete(r.ob)
+    line.delete(r.sl)
+    line.delete(r.er)
+    line.delete(r.sm)
+    label.delete(r.lob)
+    label.delete(r.lsm)
+    for l in r.pj
+        line.delete(l)
+    for l in r.pl
+        label.delete(l)
+    box.delete(r.f.fb)
+    r
+
+if mdOK and newHB and not na(mL3) and not na(qL3)
+    if mL1 > mH3
+        FV.push(newFv(1))
+    if mH1 < mL3
+        FV.push(newFv(-1))
+    while FV.size() > 10
+        killFv(FV.shift())
+
+if mdOK and FV.size() > 0
+    int i = 0
+    while i < FV.size()
+        Fv f = FV.get(i)
+        int s = f.s
+        float Lx = s == 1 ? low : -high
+        float Hx = s == 1 ? high : -low
+        float Ox = sg(s, open)
+        float Cx = sg(s, close)
+        float C1x = sg(s, close[1])
+        float pLx = s == 1 ? qLc : -qHc
+        bool dead = false
+        if not f.trade
+            // the gap fails: an HTF close beyond it, or price runs to its external range after trading into it
+            if newHB and sg(s, mC1) < f.bot and time > f.t1e
+                dead := true
+            if not f.mit
+                f.erl := math.max(f.erl, Hx)
+                if Lx < f.top
+                    f.mit := true
+            else if Hx > f.erl
+                dead := true
+            if not dead
+                // swings on the chart: 3-bar pivot lows (signed), promoted short → intermediate → long term
+                float l1 = s == 1 ? low[1] : -high[1]
+                float l2 = s == 1 ? low[2] : -high[2]
+                if time[1] >= f.t3 and l1 < l2 and l1 < Lx
+                    f.stH.push(l1)
+                    f.st.push(l1)
+                    int n = f.stH.size()
+                    if n > 2 and f.stH.get(n - 2) < f.stH.get(n - 3) and f.stH.get(n - 2) < f.stH.get(n - 1)
+                        float p = f.stH.remove(n - 2)
+                        int k = f.st.indexof(p)
+                        if k >= 0
+                            f.st.remove(k)
+                            f.it.push(p)
+                            f.itH.push(p)
+                            int m = f.itH.size()
+                            if m > 2 and f.itH.get(m - 2) < f.itH.get(m - 3) and f.itH.get(m - 2) < f.itH.get(m - 1)
+                                float p2 = f.itH.remove(m - 2)
+                                int k2 = f.it.indexof(p2)
+                                if k2 >= 0
+                                    f.it.remove(k2)
+                                    f.lt.push(p2)
+                    if f.stH.size() > 60
+                        f.stH.shift()
+                    if f.itH.size() > 60
+                        f.itH.shift()
+                // SMT: against each of the gap's three candles, bucketed bY the HTF length from that candle's start
+                for j = 0 to 2
+                    int b = int(math.floor((time - f.aT.get(j)) / htfMs))
+                    if b != f.bk.get(j)
+                        f.bk.set(j, b)
+                        f.bN.set(j, Lx)
+                        f.bP.set(j, pLx)
+                    else
+                        f.bN.set(j, math.min(f.bN.get(j), Lx))
+                        f.bP.set(j, math.min(f.bP.get(j), pLx))
+                    if not f.fd.get(j)
+                        if (f.bN.get(j) - f.aN.get(j)) * (f.bP.get(j) - f.aP.get(j)) < 0
+                            f.fd.set(j, true)
+                            f.y2.set(j, f.bN.get(j))
+                            f.win.set(j, bar_index)
+                            f.ex.set(j, Lx)
+                            f.exT.set(j, time)
+                            if alMd1 and barstate.isrealtime
+                                evMsg := "Sharingan · " + (s == 1 ? "+" : "−") + "FVG with SMT (" + pairNm + "), waiting for the order block"
+                    else if Lx < f.ex.get(j)
+                        f.ex.set(j, Lx)
+                        if (Lx - f.aN.get(j)) * (pLx - f.aP.get(j)) < 0
+                            f.y2.set(j, Lx)
+                            f.win.set(j, bar_index)
+                            f.exT.set(j, time)
+                        else
+                            f.win.set(j, -1)
+                // sweeps: long term first, then intermediate, then short term; a bearish candle (body ≥ half its range) makes an OB
+                bool okc = Hx - Lx > 0 and Ox - Cx >= 0.5 * (Hx - Lx)
+                bool got = false
+                for tier = 0 to 2
+                    if not got
+                        array<float> A = tier == 0 ? f.lt : tier == 1 ? f.it : f.st
+                        int q = A.size() - 1
+                        while q >= 0
+                            if Lx < A.get(q)
+                                A.remove(q)
+                                got := true
+                            q -= 1
+                        if got
+                            if tier == 0
+                                int q2 = f.it.size() - 1
+                                while q2 >= 0
+                                    if Lx < f.it.get(q2)
+                                        f.it.remove(q2)
+                                    q2 -= 1
+                            if tier <= 1
+                                int q3 = f.st.size() - 1
+                                while q3 >= 0
+                                    if Lx < f.st.get(q3)
+                                        f.st.remove(q3)
+                                    q3 -= 1
+                            if okc and f.pO.size() < 20
+                                f.pO.push(Ox)
+                                f.pI.push(bar_index)
+                                f.pT.push(time)
+                // confirmation: the last bar closed back above a pending OB's open, with a live SMT that came first
+                if f.pO.size() > 0
+                    int cr = -1
+                    for q = 0 to f.pO.size() - 1
+                        if cr < 0 and bar_index - 1 > f.pI.get(q) and C1x > f.pO.get(q)
+                            cr := q
+                    if cr >= 0
+                        int bj = -1
+                        float bY = na
+                        for j = 0 to 2
+                            if f.fd.get(j) and f.win.get(j) >= 0 and f.win.get(j) < bar_index and (na(bY) or f.y2.get(j) < bY)
+                                bY := f.y2.get(j)
+                                bj := j
+                        if bj >= 0 and bY < f.pO.get(cr) and f.pT.get(cr) == mdLastT and s == mdLastS
+                            // the same order block already traded from an overlapping gap: count it once
+                            f.trade := true
+                        else if bj >= 0 and bY < f.pO.get(cr)
+                            mdLastT := f.pT.get(cr)
+                            mdLastS := s
+                            f.trade := true
+                            f.E := f.pO.get(cr)
+                            f.S := bY
+                            f.tC := time
+                            f.aj := bj
+                            f.res := 0
+                            color c = s == 1 ? cMdU : cMdD
+                            float R = f.E - f.S
+                            Tr r = Tr.new(f, na, na, na, na, na, na, array.new<line>(), array.new<label>())
+                            int ob0 = f.pT.get(cr)
+                            r.ob  := line.new(ob0, sg(s, f.E), time + 3 * tfS * 1000, sg(s, f.E), xloc = xloc.bar_time, color = c, width = 2)
+                            r.lob := label.new(ob0, sg(s, f.E), (s == 1 ? "+OB " : "−OB ") + px(sg(s, f.E)), xloc = xloc.bar_time, style = s == 1 ? label.style_label_upper_right : label.style_label_lower_right, color = #00000000, textcolor = c, size = size.tiny, tooltip = "Order block: the open of the sweeping candle; a limit entry here. Stop " + px(sg(s, f.S)) + " (the SMT extreme), risk " + px(R) + ".")
+                            r.sl  := line.new(ob0, sg(s, f.S), time + 3 * tfS * 1000, sg(s, f.S), xloc = xloc.bar_time, color = color.new(c, 40), style = line.style_dotted, width = 1)
+                            r.sm  := line.new(f.aT.get(bj), sg(s, f.aN.get(bj)), f.exT.get(bj), sg(s, f.y2.get(bj)), xloc = xloc.bar_time, color = color.new(c, 30), style = line.style_dotted, width = 1)
+                            r.lsm := label.new(f.exT.get(bj), sg(s, f.y2.get(bj)), "SMT " + pairNm, xloc = xloc.bar_time, style = s == 1 ? label.style_label_up : label.style_label_down, color = #00000000, textcolor = color.new(c, 30), size = size.tiny)
+                            if f.erl > f.E
+                                r.er := line.new(time, sg(s, f.erl), time + 3 * tfS * 1000, sg(s, f.erl), xloc = xloc.bar_time, color = color.new(c, 50), style = line.style_dashed, width = 1)
+                            for v in PJ
+                                r.pj.push(line.new(ob0, sg(s, f.E + v * R), time + 3 * tfS * 1000, sg(s, f.E + v * R), xloc = xloc.bar_time, color = color.new(c, 55), width = 1))
+                                r.pl.push(label.new(time + 3 * tfS * 1000, sg(s, f.E + v * R), str.tostring(v) + "R", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = color.new(c, 30), size = size.tiny))
+                            f.fb.set_right(time)
+                            TR.push(r)
+                            if alMd2 and barstate.isrealtime
+                                evMsg := "Sharingan · " + (s == 1 ? "bullish" : "bearish") + " model active: limit " + px(sg(s, f.E)) + ", stop " + px(sg(s, f.S)) + " (" + mdHTF + " FVG + " + pairNm + " SMT)"
+                        else
+                            // closed through without a live SMT: those OBs are spent
+                            int q = f.pO.size() - 1
+                            while q >= 0
+                                if bar_index - 1 > f.pI.get(q) and C1x > f.pO.get(q)
+                                    f.pO.remove(q)
+                                    f.pI.remove(q)
+                                    f.pT.remove(q)
+                                q -= 1
+        if dead
+            killFv(FV.remove(i))
+        else
+            if not f.trade
+                f.fb.set_right(time)
+            i += 1
+    // drop gaps that produced a trade from the waiting list (the trade carries them)
+    int k = FV.size() - 1
+    while k >= 0
+        if FV.get(k).trade
+            FV.remove(k)
+        k -= 1
+
+// trade management: fill at the OB open, then the stop or the scorecard target; no-fill if the target comes first
+if mdOK and TR.size() > 0
+    for r in TR
+        Fv f = r.f
+        if f.res == 0 and time > f.tC
+            int s = f.s
+            float Lx = s == 1 ? low : -high
+            float Hx = s == 1 ? high : -low
+            float R = f.E - f.S
+            float tg = f.E + mdScR * R
+            int xr = time + 3 * tfS * 1000
+            if na(f.tF)
+                if Lx <= f.E
+                    f.tF := time
+                    if Lx <= f.S
+                        f.res := -1
+                else if Hx >= tg
+                    f.res := 2
+            else
+                if Lx <= f.S
+                    f.res := -1
+                else if Hx >= tg
+                    f.res := 1
+                if not f.erlHit and f.erl > f.E and Hx >= f.erl
+                    f.erlHit := true
+                    evE := true
+                    evS := s
+            if f.res != 0
+                f.tE := time
+                xr := time
+                if f.res == 1
+                    scW += 1
+                    scR += mdScR
+                    evW := true
+                else if f.res == -1
+                    scL += 1
+                    scR -= 1
+                    evL := true
+                else
+                    scN += 1
+                    evN := true
+                evS := s
+                if alMd3 and barstate.isrealtime
+                    evMsg := "Sharingan · model " + (f.res == 1 ? "target " + str.tostring(mdScR) + "R hit" : f.res == -1 ? "stopped" : "target before the fill (no fill)")
+            r.ob.set_x2(xr)
+            r.sl.set_x2(xr)
+            if not na(r.er)
+                r.er.set_x2(xr)
+            for l in r.pj
+                l.set_x2(xr)
+            for l in r.pl
+                l.set_x(xr)
+    // keep the last N setups drawn
+    int nDone = 0
+    for r in TR
+        if r.f.res != 0
+            nDone += 1
+    while nDone > mdKeep and TR.size() > 0
+        Tr r0 = TR.shift()
+        if r0.f.res != 0
+            nDone -= 1
+        dropTr(r0)
+
+plotshape(mdMk and evW and evS == 1, "Bull target", shape.diamond, location.abovebar, cMdU, size = size.tiny, display = display.pane)
+plotshape(mdMk and evW and evS == -1, "Bear target", shape.diamond, location.belowbar, cMdD, size = size.tiny, display = display.pane)
+plotshape(mdMk and evL and evS == 1, "Bull stop", shape.xcross, location.belowbar, color.new(#ff5252, 0), size = size.tiny, display = display.pane)
+plotshape(mdMk and evL and evS == -1, "Bear stop", shape.xcross, location.abovebar, color.new(#ff5252, 0), size = size.tiny, display = display.pane)
+plotshape(mdMk and evN, "No fill", shape.diamond, location.top, color.new(#ea9023, 0), size = size.tiny, display = display.pane)
+plotshape(mdMk and evE, "ERL hit", shape.cross, location.top, color.new(#00a113, 0), size = size.tiny, display = display.pane)
+if evMsg != ""
+    alert(evMsg, alert.freq_once_per_bar)
+qTxt(Qc c, bool on, string nm, string ab) => on and c.q >= 0 ? nm + " " + qLet(c.q) + (na(c.tOp) ? "" : " · " + ab + (close >= c.tOp.get_y1() ? " ▲" : " ▼")) : ""
+
 // ═══════════════════════════════════════════════════════════════ Card
 var table tC = na
 if barstate.isfirst and showCrd
-    tC := table.new(posOf(crdPos), 4, 18, bgcolor = #00000000, frame_width = 0, border_color = cBd, border_width = 1, force_overlay = true)
+    tC := table.new(posOf(crdPos), 4, 28, bgcolor = #00000000, frame_width = 0, border_color = cBd, border_width = 1, force_overlay = true)
 tc(int c, int r, string s, color fg, color bg, string tip = "", bool bold = false) =>
     tC.cell(c, r, s, text_color = fg, bgcolor = bg, text_size = crdSz, text_halign = text.align_left, tooltip = tip, text_font_family = font.family_monospace, text_formatting = bold ? text.format_bold : text.format_none)
 lvRow(int r, string nm, float v, int tk, bool isHi, color c, int left) =>
@@ -647,7 +1563,7 @@ lvRow(int r, string nm, float v, int tk, bool isHi, color c, int left) =>
         tc(3, r, showP and not na(p2) ? pc0(p2) : "—", cTx, cBg)
 pos(float v) => na(v) ? "" : lastC >= v ? "above" : "below"
 if barstate.islast and showCrd and not na(tC)
-    tC.clear(0, 0, 3, 17)
+    tC.clear(0, 0, 3, 27)
     string live = barstate.isrealtime ? "● " : "◆ "
     if not tfOK
         tc(0, 0, live + "SHARINGAN · use a daily or intraday chart", cTx, cHd)
@@ -679,6 +1595,19 @@ if barstate.islast and showCrd and not na(tC)
             tc(2, r, na(flipP) ? "—" : "flip " + (stTr == -1 ? "> " : "< ") + px(flipP), cTx, cBg, "Structure shifts the other way on a daily close " + (stTr == -1 ? "above" : "below") + " this swing.")
             tc(3, r, na(m1Ago) ? "" : str.tostring(m1Ago) + " d ago", cSub, cBg)
         r += 1
+        if qrOn and not na(qrR50) and not na(qrT)
+            float  pQ  = qrP(qrE, qrU)
+            string qn2 = "Q" + str.tostring(int((month(qrT + 6 * 3600000, TZ) - 1) / 3) + 1)
+            string qtt = "Quarterly range expectation: ADR60 at the quarter's start × √63 (median; p25 0.83×, p75 1.33×). Used = the quarter's high − low so far over the expected range. Fill = the chance the range reaches it by quarter end (2010–21 fit; Brier 0.148 vs 0.250 on 2022–26). Range, not direction."
+            tc(0, r, "QUARTER", cSub, cBg, qtt)
+            if mob
+                tc(1, r, qn2 + " used " + (na(qrU) ? "—" : str.tostring(math.round(qrU * 100)) + "%") + (na(pQ) ? "" : qrU >= 1 ? " ✓" : " · fill " + pc0(pQ)), cTx, cBg)
+                tC.merge_cells(1, r, 3, r)
+            else
+                tc(1, r, qn2 + " exp. " + str.tostring(math.round(qrR50)) + " pts", cTx, cBg)
+                tc(2, r, "used " + (na(qrU) ? "—" : str.tostring(math.round(qrU * 100)) + "%"), cTx, cBg)
+                tc(3, r, na(pQ) ? "—" : qrU >= 1 ? "filled ✓" : "fill " + pc0(pQ), na(pQ) ? cMu : cQR, cBg, "", true)
+            r += 1
         if not mob
             tc(0, r, "LIQUIDITY", cSub, cHd)
             tc(1, r, "PRICE · ATR", cSub, cHd)
@@ -753,3 +1682,62 @@ if barstate.islast and showCrd and not na(tC)
             tc(1, r, qName(dayNow) + (na(nq) ? "" : " · next " + str.format_time(nq, "dd MMM", "UTC")), cTx, cBg)
             tc(2, r, na(tyOn) ? "year TO —" : "year TO " + px(tyOn) + " · " + pos(tyOn), cTx, cBg, na(tyTn) ? "" : "True year open, " + dmyY(tyTn) + ": price is " + pos(tyOn) + " it.")
             tc(3, r, na(tmOn) ? "month TO —" : "month TO " + px(tmOn) + " · " + pos(tmOn), cTx, cBg, na(tmTn) ? "" : "True month open, " + dmyY(tmTn) + ": price is " + pos(tmOn) + " it.")
+            r += 1
+        // v3: the LTF layers, the Quarterly Theory cycles, the entry model and its scorecard
+        for y in LY
+            if not na(y.aT) and r < 24
+                float bH = na
+                float bL = na
+                for j = 0 to 5
+                    float v = y.lv.get(j)
+                    if lyUse(j) and na(y.sw.get(j)) and not na(v)
+                        if j < 3 and v > close and (na(bH) or v < bH)
+                            bH := v
+                        if j >= 3 and v < close and (na(bL) or v > bL)
+                            bL := v
+                float dH = na(bH) or na(y.atr) or y.atr <= 0 ? na : (bH - close) / y.atr
+                float dL = na(bL) or na(y.atr) or y.atr <= 0 ? na : (close - bL) / y.atr
+                float pHh = lyP(y, dH, true)
+                float pLl = lyP(y, dL, false)
+                int nx = na(y.nU) ? na : y.nU < 20 ? 20 : y.nU < 40 ? 40 : y.nU < 60 ? 60 : na
+                tc(0, r, y.nm + " · " + y.per, cSub, cBg, y.nm + ": " + str.tostring(y.um) + "-minute units, anchored on the first unit of the last closed " + y.per + " period (" + str.format_time(y.aT, "HH:mm dd MMM", TZ) + "); " + (na(y.nU) ? "" : str.tostring(y.nU) + " units since. ") + "Odds: the chance the nearest standing level trades within 20 units, from its distance in the layer's ATR(14) (tested; the levels are not magnets beyond their distance).")
+                tc(1, r, na(bH) ? "BSL all swept" : "BSL " + px(bH) + " · " + str.tostring(dH, "0.0") + (ltOdds ? " · " + str.tostring(math.round(pHh * 100)) + "%" : ""), na(bH) ? cMu : cLyH, cBg)
+                tc(2, r, na(bL) ? "SSL all swept" : "SSL " + px(bL) + " · " + str.tostring(dL, "0.0") + (ltOdds ? " · " + str.tostring(math.round(pLl * 100)) + "%" : ""), na(bL) ? cMu : cLyL, cBg)
+                tc(3, r, na(nx) ? "+60 ✓" : "+" + str.tostring(nx) + " " + str.format_time(lyMark(y, nx), "HH:mm", TZ), cMu, cBg, "The next cast-forward mark of this layer (tested: not a turning point beyond chance).")
+                r += 1
+        if (qwOn or qdOn or qsOn) and not mob and r < 24
+            tc(0, r, "QT", cSub, cBg, "Quarterly Theory: the quarter each cycle is in (A accumulation, M manipulation, D distribution, X reversal / continuation) and price against its true open (▲ above, ▼ below). Tested on NQ, ES, RTY 2018–26: no edge against the same bars with each move's direction flipped (see the inputs).")
+            tc(1, r, qTxt(QW, qwOn, "week", "TWO"), cTx, cBg)
+            tc(2, r, qTxt(QD, qdOn, "day", "TDO"), cTx, cBg)
+            tc(3, r, qTxt(QS, qsOn, "session", "TSO"), cTx, cBg)
+            r += 1
+        if mdOK and r < 24
+            string al = mdHTF == "15" ? "1m–15m" : mdHTF == "60" ? "5m–1H" : "15m–4H"
+            string st = FV.size() > 0 ? "waiting · " + str.tostring(FV.size()) + " FVG" : "no open FVG"
+            color  sc = cMu
+            string rk = ""
+            if TR.size() > 0
+                Fv f = TR.last().f
+                color fc = f.s == 1 ? cMdU : cMdD
+                if f.res == 0
+                    st := (f.s == 1 ? "▲ " : "▼ ") + (na(f.tF) ? "limit " : "in at ") + px(sg(f.s, f.E)) + " · stop " + px(sg(f.s, f.S))
+                    sc := fc
+                    rk := "risk " + px(f.E - f.S)
+                else if f.res == 1
+                    st := (f.s == 1 ? "▲ " : "▼ ") + str.tostring(mdScR) + "R ✓ " + str.format_time(f.tE, "HH:mm dd MMM", TZ)
+                    sc := fc
+                else if f.res == -1
+                    st := (f.s == 1 ? "▲ " : "▼ ") + "stopped ✕ " + str.format_time(f.tE, "HH:mm dd MMM", TZ)
+                else
+                    st := (f.s == 1 ? "▲ " : "▼ ") + "no fill " + str.format_time(f.tE, "HH:mm dd MMM", TZ)
+            tc(0, r, "MODEL " + al, cSub, cBg, "HTF FVG → sweep → order block → close back through with " + pairNm + " SMT first. Limit at the OB open, stop at the SMT extreme. Tested on NQ, ES, RTY 1-minute 2018–26 (about 57,000 filled trades): at 2R, 34.3% (1m–15m), 35.4% (5m–1H), 34.5% (15m–4H) against 33.8%, 33.8%, 33.5% with the post-fill moves' direction flipped; 2025–26 +0.6, −0.4, −1.5 points. About +0.03R a trade before costs: no edge.")
+            tc(1, r, st, sc, cBg)
+            tc(2, r, "SMT " + pairNm, cSub, cBg)
+            tc(3, r, rk, cSub, cBg)
+            r += 1
+            int nR = scW + scL
+            float be = 1.0 / (1.0 + mdScR)
+            tc(0, r, "SCORE", cSub, cBg, "On the bars loaded on this chart, at " + str.tostring(mdScR) + "R: wins (target before the stop after the fill), losses (stop), no-fills (target before the fill). Break-even win rate at " + str.tostring(mdScR) + "R: " + str.tostring(math.round(be * 100)) + "% before costs. Tested 2018–26: 34–35% at 2R, the coin-flip rate.")
+            tc(1, r, "W " + str.tostring(scW) + " · L " + str.tostring(scL) + " · NF " + str.tostring(scN), cTx, cBg)
+            tc(2, r, nR > 0 ? "win " + str.tostring(math.round(100.0 * scW / nR)) + "% · BE " + str.tostring(math.round(be * 100)) + "%" : "win — · BE " + str.tostring(math.round(be * 100)) + "%", nR > 0 and 1.0 * scW / nR > be ? cMsU : cTx, cBg)
+            tc(3, r, (scR >= 0 ? "+" : "") + str.tostring(scR, "0.0") + "R", scR >= 0 ? cMsU : cMsD, cBg, "Total in R before costs (+" + str.tostring(mdScR) + " a win, −1 a loss).")
