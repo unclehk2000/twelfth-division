@@ -1,0 +1,279 @@
+UPDATE v3.2 (Nov 2026)
+• RTH-only structure: breaks of structure (BOS, dotted, last 3) next to the shifts and the flip level.
+• Drawings in front of the candles.
+
+TITLE (paste into the Title field)
+Benihime: ICT RTH Opening Range Gap as a Dealing Range, Weekly ORG CEs, RTH-Only Structure & NQ / ES / RTY Triplet
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Benihime[/b] maps RTH gaps the way NWOGs are mapped. An RTH gap is the overnight move between two regular sessions: from the prior RTH close (the 16:14 bar, the 16:15 ET close) to the next 09:30 ET open.
+• [b]Today's gap is the day's dealing range[/b], graded like Zabimaru's opening range (bold edges and CE, solid quarters, dotted eighths, ±0.5 SD), with CE ✓ / fill ✓ labels on the candle and each sister's ✓ / ✗.
+• [b]This week's ORG CEs[/b] named by weekday and carried to Friday, last week's Monday and Friday dashed, as ICT does.
+• [b]RTH-only structure[/b] from 1-hour candles of the regular session, whatever the chart's session: swings, shifts, the flip level, yesterday's RTH high and low.
+• [b]The triplet[/b]: NQ, ES and RTY's own gaps side by side; sisters that have already filled add to the fill odds.
+• Every gap of the last 10 sessions (up to 60) runs right in price; the last five get steps one and two gap sizes beyond them.
+• A tally-style card tracks today's gap against the average RTH gap. Its [b]FILL bar[/b] fills as price trades back toward the prior close.
+• [b]Live odds[/b] for the fill and the CE (and ICT's CE by 10:00) follow the gap's size, the time, how far price is from the fill now, how far it has already come back, and where the open sat in the overnight range. They are measured on [b]6,169 gaps[/b] on NQ, ES and RTY (2018–26) and checked out of sample.
+• [b]Desktop and Mobile[/b] layouts, and alerts.
+• Release days (CPI, NFP, PPI, GDP, PCE, retail sales) switch the day's regime.
+[i]It is a map of where the RTH gaps sit and how gaps of each size usually behave, not a signal generator.[/i]
+
+
+[b]█ TODAY'S ORG · THE DEALING RANGE[/b]
+
+ICT treats the RTH ORG (the prior 16:14 close to the 09:30 open) as a ready-made range for the day. He grades it in quadrants and octants, calls the CE the "half gap", and looks for PD arrays on its levels.
+• [b]The grid[/b], drawn the way Zabimaru draws the opening range:
+  – the open and the prior close as bold edges, named [i]premium[/i] (gap up) or [i]discount[/i] (gap down) as ICT does;
+  – the CE in bold;
+  – the quarters solid and the eighths dotted;
+  – ±0.5 SD, ICT's first ballpark for how far a gap can run.
+• [b]CE ✓ / fill ✓ labels[/b] sit on the candle where each first traded, with the sisters: ✓ reached their own by 5 minutes after, ✗ not, … while it runs ([i]CE ✓ 10:05 · ES ✓ · RTY ✓[/i]).
+• [b]ICT's "70% likelihood of trading to the CE by 10:00":[/b] the CE row shows live odds of the CE by 10:00 until then.
+
+
+[b]█ THIS WEEK'S ORG CEs[/b]
+
+ICT carries each day's ORG CE through the week, and keeps the Monday and Friday ORGs of the last two weeks.
+• This week's CEs are named by weekday ([i]Mon ORG CE 29,571.25 ✓ Tue 05:03[/i]) and drawn in the CE colour.
+• Last week's Monday and Friday are dashed.
+• They live on the chart, not the card.
+
+
+[b]█ RTH STRUCTURE · THE JIGSAW[/b]
+
+With the chart set to RTH, each session is a piece and the ORGs are the gaps between them. ICT calls it a jigsaw puzzle, with ETH filling in the missing pieces. Benihime reads the regular session's own 1-hour candles from 09:30, whatever the chart's session:
+• [b]Swings[/b] ▼ / ▲: a higher high (lower low) than the two candles either side.
+• [b]Shifts[/b] ([i]RTH MSS ▲ / ▼[/i]): a 1-hour close takes the last swing on the other side.
+• [b]The flip level[/b], labelled with the state ([i]RTH ▼ since 10/22 09:30 · flip 30,113.00[/i]): a close through it shifts structure back.
+• [b]Yesterday's RTH high and low.[/b]
+
+
+[b]█ THE TRIPLET[/b]
+
+NQ, ES and RTY's own RTH gaps today, row by row: direction, size against each one's own 20-session average, and when each one's CE and fill traded. They sit in one card row, [b]SISTERS[/b]: each sister's state and what those already filled add to the fill odds now.
+
+
+[b]█ WHAT IT DRAWS ON PRICE[/b]
+
+• [b]Every RTH gap[/b] of the last N sessions (default 10, up to 60): its edges (the prior close and the open) and its [b]CE[/b] (consequent encroachment, the 50%). Each one starts at its own 09:30 open and runs to the right of price.
+• [b]The staircase, the last 5 sessions (rolling):[/b] octants are optional (off by default, since today's gap is graded on its own); only today's gap is shaded by default; the previous days' SDs can be switched off.
+• Each staircase gap also gets [b]±1 SD[/b] (dashed) and [b]±2 SD[/b] (solid): one and two gap sizes above its top and below its bottom. Five gaps stepping through the week build a staircase of levels.
+• [b]Each ±2 SD line carries its gap's weekday[/b] at the right end, e.g. [i]Tue +2 SD[/i] or [i]Wed CPI −2 SD[/i], so every step can be traced to the day it came from.
+• [b]Release days keep their staircase[/b] (±1 / ±2 SD and the labels) for as long as they stay on the chart, not only while they are one of the last five. Their labels then add the date.
+• [b]Sessions 6 to N[/b] (default 10): quarters only (25%, CE, 75%).
+• [b]Older gaps:[/b] edges and CE only.
+• [b]Filled gaps fade.[/b] The labels on the right give the date, the release tag, and [i]CE[/i] or [i]filled[/i]. Labels at nearly the same price share one, so they never print over each other. Hover a label for the prior close, the open, the size against the average, when the CE and the fill were reached, and the ±1 SD prices.
+
+
+[b]█ RELEASE REGIME[/b]
+
+• [b]Major releases, CPI and NFP[/b] (orange): the release calendars Gran Rey Cero and Desgarrón use.
+• [b]Other 08:30 releases[/b] (purple):
+  – [b]PPI[/b] (BLS);
+  – [b]GDP[/b] and [b]PCE[/b] / personal income and outlays (BEA);
+  – [b]retail sales[/b] (Census).
+• [b]Your own dates[/b] are tagged [i]NEWS[/i] in the purple colour.
+• The dates are the actual release days, including the shutdown moves, taken from the agencies' archives and ALFRED. CPI, NFP and PPI are loaded to Dec 2027; GDP, PCE and retail sales to Dec 2026.
+
+[b]What the tests showed[/b] (NQ, ES and RTY, 2018–26):
+• [b]CPI and NFP gaps run 1.4–1.5× the size of normal-day gaps[/b] (p < 0.001, in both periods and on every symbol). 35–40% of them are over 1.5× the 20-session average, against 21% of normal-day gaps.
+• [b]The other releases move price at 08:30[/b]: their 08:30–08:34 range runs 1.8–3.6× a normal day's, in every period and on every symbol. [i]Their RTH gaps were not reliably bigger[/i] (PPI 1.14×, GDP 1.20×, retail sales 1.18×, PCE 1.00×; none held in both periods).
+• [b]For its size, a release-day gap behaves like any other gap.[/b] No fill or CE odds differed once size was accounted for. [i]The regime tells you how big the gap is likely to be; the odds come from its size.[/i]
+
+
+[b]█ CARD · THE LIVE NUMBERS[/b]
+
+v3's card is compact. It keeps the live, tested numbers. The structure (the week's CEs, RTH-only shifts and flip, yesterday's RTH high and low, the open gaps) is drawn on the chart. A row that has happened turns into a green [b]✓[/b] cell with the time.
+[b]During RTH:[/b]
+• [b]GAP:[/b] points, %, [i]premium[/i] or [i]discount[/i]. The bar shows the size against the 20-session average (full at 2.5×): small, below avg, above avg, large, very large. The tooltip adds the open's place in the overnight range and the average gap.
+• [b]FILL:[/b] the bar fills as price trades back toward the prior close (the CE marked in the middle), with the fill odds by 16:14 now, or ✓ and the time.
+• [b]CE:[/b] the midpoint, the odds by 10:00 (until 10:00, ICT's rule) and by 16:14, or ✓ and the time.
+• [b]±1 SD:[/b] each side's odds by 16:14, or the time reached; once filled, the side beyond the prior close shows its odds after the fill.
+• [b]SISTERS:[/b] each sister's direction, size against its own average and state (✓ filled, ½ CE only, ✗ neither), and what they add to the fill odds now. The tooltip lists the full triplet with times.
+[b]Outside RTH:[/b] if it opened now (the gap from the 16:14 close, its size and fill odds), the coming session's releases, the last gap's result.
+[b]Mobile[/b] shows one narrow card: GAP, FILL, CE, ±1 SD and TRI. Every row keeps its full explanation in the tooltip.
+
+
+[b]█ ALERTS[/b]
+
+Create one alert on the indicator with [i]Any alert() function call[/i]. Each fires once, on the bar it happens, with the numbers in the message:
+• [b]new gap at 09:30:[/b] size against the average, the release tag, and the fill odds;
+• [b]CE reached:[/b] the time, and the fill odds at that moment;
+• [b]filled:[/b] the time, and the odds of −1 SD by 16:14 after the fill;
+• [b]±1 SD reached[/b] (off by default);
+• [b]RTH-only structure shift[/b] (off by default).
+
+
+[b]█ THE LECTURE CLAIMS: A HYDRA PASS[/b]
+
+NQ, ES and RTY 1-minute, 2018 to Oct 2026, 6,233 gaps.
+• [b]Nulls:[/b] each claim was a head with its own null: a mirror level (the same distance on the other side of the 09:30 open), the same day's RTH bars shuffled within each 30 minutes, or drift-neutral splits.
+• [b]Protocol:[/b] fished on 2018–24 (errors clustered by date, Benjamini–Hochberg at 10%), then scored once on 2025–26.
+• [b]Result:[/b] 23 heads; 5 passed the fishing stage and 2 held. Both are the downside skew, not the levels: in RTH a level below the open trades about 3 points more often than one the same distance above, and their high-side twins go the other way.
+[b]Not found:[/b]
+• [b]CE by 10:00 ("70%"):[/b] it is 56% (85% for gaps under half the average, 59% at 0.5–1×), against 54.7% for the mirror level. Distance, not a pull.
+• [b]The 0.5 projection:[/b] runs did not end there more than at the levels either side (+0.1 ± 0.6 points past the close after the fill, 0.0 ± 0.6 past the open).
+• [b]Carried CEs as draws:[/b] the nearest traded 54.9% of the time against 53.7% (2025–26 alone +5.7, z 2.8). Their grouping, or price above or below it, said nothing about direction (−2.1 ± 3.9% of ATR10) or range.
+• [b]RTH redelivering ETH:[/b] RTH took the overnight high 64.6% and low 58.3% of the time (shuffled 65.2% / 57.5%). Gaps ETH had already traded were not revisited more.
+• [b]RTH-only shifts:[/b] the next 7 RTH hours carried on no more than chance (+0.7 ± 2.3% of ATR10).
+• [b]Yesterday's RTH high / low:[/b] no pull beyond the mirror (+0.8 ± 1.0 points once the skew is out).
+• [b]"Rarely three trending sessions":[/b] 24.9% vs 24.2% in 2018–24 (2025–26 alone 13.2% vs 25.4%, 129 days).
+[b]What went in:[/b]
+• [b]ICT's CE by 10:00[/b] as live odds from the size, the distance, the open's place in the overnight range and the time. Brier 0.212 → 0.163 against time alone, scored on 2025–26.
+• [b]The sisters[/b] in the fill model: about +2 to +3 points per sister on top of v2's terms. Brier 0.1500 → 0.1496 out of sample; clearer in 2025–26 (z 2.1) than 2018–24 (z 1.0).
+• [b]The grid, the week's CEs and the RTH structure[/b] are drawn as ICT's map, with these results in their tooltips.
+
+
+[b]█ WHAT THE TESTS SHOWED[/b]
+
+Reached during RTH (09:30–16:14), by size against the 20-session average:
+
+[b]Fill[/b]
+• under 0.5×: [b]88%[/b];
+• 0.5–1×: 64%;
+• 1–1.5×: 49%;
+• 1.5–2.5×: 38%;
+• 2.5× and over: [b]22%[/b].
+
+[b]CE[/b]
+• under 0.5×: [b]94%[/b];
+• 0.5–1×: 82%;
+• 1–1.5×: 69%;
+• 1.5–2.5×: 63%;
+• 2.5× and over: [b]49%[/b].
+
+These held in 2018–24 and in 2025–26, and on each of NQ, ES and RTY, to within about 4 points.
+
+[b]All gaps[/b]
+• CE 78% and fill 62% in RTH.
+• Within 5 sessions: 91% and 84%. Within 20 sessions: 96% and 92%.
+
+[b]By time of day[/b]
+• About 36% have filled by 10:00, 48% by 11:00 and 53% by 12:00.
+• An unfilled gap's odds shrink as the day goes on. For example, a 1–1.5× gap not yet filled at 10:30 went on to fill by 16:14 on 32% of days.
+
+[b]The staircase's SDs[/b] (while the gap is one of the last five):
+• beyond the open (the gap's direction): +1 SD 84%, +2 SD 71%;
+• beyond the prior close: 71% and 60%.
+
+[b]Live odds[/b]
+• From 09:30, the fill and CE odds update with:
+  – the gap's size;
+  – the time;
+  – how far price is from the fill (or the CE) now;
+  – how far it has already come back (fill only);
+  – where the open sat in the overnight range.
+• Fitted on 2018–24 and scored on 2025–26, they cut the error of the size-and-time table by about 12%.
+• [b]The overnight range:[/b] for the same size, an open at the overnight extreme on the gap's side fills less often, and one back inside the range more often. By open location (back inside / the gap's half / at the extreme):
+  – 0.5–1× gaps: 71%, 65%, 59%;
+  – 1–1.5× gaps: 59%, 49%, 45%.
+  This held in 2018–24 and in 2025–26, and on each of NQ, ES and RTY.
+• [b]After the fill[/b], the odds of −1 SD (one gap beyond the prior close) by 16:14 depend on how early it filled. For example, a 1× gap reached it 66% of the time when it filled in its first 5 minutes, and 43% when it filled after 2½ hours.
+
+[b]What did not help[/b] (tested on the same gaps, size held fixed):
+• the dollar: DXY's overnight move with or against the gap (2023–26);
+• the open beyond the prior day's high or low (it did not hold in 2025–26 on its own);
+• the prior session's direction or where it closed in its range;
+• Mondays;
+• [b]stacked staircase levels:[/b] where levels from different gaps sit within a tenth of the average gap, price held no more often than at a single level. That is why the card does not mark confluence zones.
+
+[b]After the staircase[/b]
+• A gap still unfilled after 5 sessions filled within the next 15 sessions 49% of the time.
+• One whose CE was still untouched reached it 52% of the time.
+
+
+[b]█ SETTINGS[/b]
+
+[b]View[/b] sits at the top, the same as in my other indicators:
+• card theme;
+• layout: Desktop or Mobile;
+• the FILL bar's colour: by gap direction or by progress, and the two colours;
+• text size;
+• chart text colour (the card keeps its own);
+• gap labels (last 5, all or off);
+• label date format;
+• card on/off and position.
+
+[b]RTH gaps:[/b]
+• keep last (default 10);
+• quarters until (sessions old);
+• average over;
+• normal-day colour;
+• shading (today, the last 5, all or off);
+• how far the lines run past the last bar;
+• skip tiny gaps.
+
+[b]Staircase:[/b]
+• octants for all five (off by default);
+• ±1 SD and ±2 SD;
+• SD line width, and the ±1 SD style (±2 SD are solid);
+• SD colour, or the gap's own;
+• weekday labels on the ±2 SD;
+• previous days' SDs on or off;
+• whether release days keep their staircase.
+
+[b]Today's ORG:[/b] the grid, ±0.5 SD, the CE ✓ / fill ✓ labels.
+[b]This week's ORG CEs:[/b] on or off, last week's Monday and Friday, colour and width.
+[b]RTH structure:[/b] swings and shifts, swings to keep, the flip level, yesterday's RTH high / low, colours.
+[b]Triplet:[/b] on or off, Auto (NQ1! / ES1! / RTY1!, or the micros) or your own three, and whether the sisters count in the fill odds.
+[b]Release regime:[/b] CPI, NFP, PPI, GDP, PCE and retail sales, each on or off; the two release colours; your own dates.
+
+[b]Alerts:[/b] new gap, CE, fill, ±1 SD and the RTH-only structure shift, each on or off.
+
+
+[b]█ HOW TO USE[/b]
+
+• Built for CME index futures: [b]NQ / MNQ[/b], [b]ES / MES[/b] and [b]RTY / M2K[/b] (YM works the same way).
+• Use a continuous, back-adjusted chart ([i]B-ADJ[/i]) so roll days do not show as gaps.
+• [b]ETH or RTH charts:[/b] the gaps are the same on both.
+  – On an [i]ETH[/i] chart, overnight trading counts toward the CE and the fill.
+  – On an [i]RTH[/i] chart only regular-hours trading counts, and each gap is the visible jump from one session's 16:14 candle to the next 09:30 candle.
+• Use a chart of 15 minutes or less. The gaps are read from 15-minute bars of the chart's own symbol, so each gap needs its days loaded.
+• [b]On a 1-minute ETH chart[/b], only a week or two may be loaded. Scroll left to load more, or use an RTH chart or a 3, 5 or 15-minute chart for 20+ sessions. The card's AVG row shows how many gaps are loaded.
+
+
+[b]█ DATA AND METHOD[/b]
+
+• NQ, ES and RTY front-month 1-minute data, Jan 2018 – Oct 2026.
+• 6,169 RTH gaps: each from the prior 16:14 close to the 09:30 open, on the same contract. Early closes and roll days are left out.
+• [b]Size[/b] = |gap| ÷ the mean |gap| of the previous 20 sessions. The card's size tag and odds always use this 20-session average, whatever average you choose to display.
+• [b]Fill[/b] = price trades back to the prior close. [b]CE[/b] = the gap's midpoint. [b]k SD[/b] = k gap sizes beyond the gap's top or bottom.
+• [b]The live odds:[/b] logistic models on every unfilled gap at 0, 15, 30, 45, 60, 90, 120, 180, 240, 300 and 360 minutes after the open, read between those checkpoints. Each term held pooled (p < 0.05, errors clustered by date), in 2018–24 and 2025–26, and on each symbol.
+• [b]The overnight range[/b] is read from 15-minute bars of the extended session, so it is the same on ETH and RTH charts.
+• [b]v3 refit:[/b] the fill model with the sisters already filled (0–2), and ICT's CE by 10:00 at 09:30 and 09:45; fitted on 2018–24, scored on 2025–26, refitted on all.
+• [b]RTH structure:[/b] finished RTH 1-hour bars only (swings two candles either side, shifts by a close), so nothing sees future data. The triplet reads each sister at the chart's timeframe.
+• [b]The release tests:[/b]
+  – gap size: a regression on log size, with errors clustered by date;
+  – behaviour for its size: a logistic model on size;
+  – both checked on each period and each symbol.
+• [b]On the chart:[/b]
+  – gaps come from 15-minute bars: the 16:00 bar's close is the 16:14 close, and the 09:30 bar's open is the open;
+  – each finished 15-minute bar is checked against every open gap;
+  – today's gap is checked minute by minute on the chart;
+  – only finished bars and the current bar's open are used, so nothing sees future data.
+• Release dates need updating once a year.
+
+
+[b]█ LIMITATIONS[/b]
+
+[i]These are historical frequencies, not guarantees.[/i]
+• The odds were measured on NQ, ES and RTY. Other symbols show the same tables without a test of their own.
+• For gaps before today, the CE and fill times are to the 15-minute bar.
+• Nothing here is financial advice.
+
+
+[b]█ WHY THE NAME[/b]
+
+[b]Benihime[/b], the [i]Crimson Princess[/i], is Kisuke Urahara's zanpakutō. Her Bankai, [i]Kannonbiraki Benihime Aratame[/i], rebuilds whatever its power touches.
+v2 did that to the gaps: it took each one apart into octants and steps and laid the whole set out at once. v3 does it to the session. It takes the RTH pieces out of the 24-hour tape, stitches the week back together at each gap's CE, and rebuilds the structure from the regular session alone: ICT's jigsaw, reassembled.
+
+
+[b]█ CREDITS[/b]
+
+• ICT concepts ([i]Michael J. Huddleston[/i]): the RTH or opening range gap, consequent encroachment, gap quarters, and mapping opening gaps forward in price, as with the NWOG. v3 lecture content (2026): "Chain of Custody of Price" and "… with RTH ORG", "NQ High Of Day Short Review", "NQ Futures Weekly Range Market Wizardry", "NQ Futures Price Action Commentary".
+• The opening-range grid and the sister labels follow my Zabimaru.
+• The layout follows my OpenGaps · NWOG / NDOG, a Pine v6 rework of [i]fadizeidan[/i]'s ICT NWOG/NDOG.
+• Release dates come from the BLS, BEA and Census release archives, and ALFRED (Federal Reserve Bank of St. Louis). The CPI and NFP calendars are shared with Gran Rey Cero and Desgarrón.
+• Written from scratch; open source under MPL 2.0.
