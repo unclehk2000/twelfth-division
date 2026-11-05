@@ -1,0 +1,69 @@
+TITLE (paste into the Title field)
+Rinnegan: ICT Dealing Ranges (Sweep → Expansion) & DR / IDR Defining Ranges with Tested Odds, STD Lines, EQ, Premium & Discount
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Rinnegan[/b] draws ICT dealing ranges the way most traders mark them, from the swing that swept liquidity (100) to the next swing the other way (0). It tracks each one live and puts the tested odds on the card: what a range's levels actually do, next to what the popular rules say they do.
+• [b]Ranges[/b] on short-term (ST, three-candle) and intermediate-term (IT) swings of your chart, bullish and bearish.
+• [b]Levels:[/b] 0, 100, EQ (50%) and the quarters, with the 100 half shaded (discount or premium).
+• [b]Live states:[/b] EQ touched, 0 broken before or after EQ, 100 taken.
+• [b]Defining ranges (DR / IDR):[/b] the RDR, ODR and ADR hours, the first 5-minute close outside the DR, and STD lines in half-IDR steps, each named with how often it was reached.
+• [b]A card[/b] with each live range's odds of 0 trading first, each live session's tested rates, and the base rates of the popular rules beside their chance rates.
+• The numbers come from NQ, ES and RTY 1-minute data, 2018 – Oct 2026, built into 5-, 15- and 60-minute candles: 277,031 ST and 63,441 IT ranges.
+
+[i]A map of each range and its true odds. It does not call direction.[/i]
+
+[b]█ THE NAME[/b]
+The Rinnegan (輪廻眼, "Samsara Eye") is the third of Naruto's three great eyes, beside the Sharingan and the Byakugan. [i]Rinne[/i] is the cycle of death and rebirth, and a dealing range lives that cycle: each one is born at a sweep, ends at 0 or at 100, and the next sweep starts another. The Rinnegan sees what the other eyes can't. This one sees through the stories told about a range to what its levels actually do.
+
+[b]█ WHAT IT DRAWS[/b]
+• [b]A bullish range[/b] forms when a swing low that took the swing low before it (a sweep of sell-side liquidity) is followed by a confirmed swing high. 100 is the low that swept, and 0 the highest high of the leg. [b]A bearish range[/b] is the mirror.
+  – [b]ST:[/b] a three-candle swing. [b]IT:[/b] an ST swing beyond the ST swings either side of it.
+  – One range per sweep swing, at least 0.25 ATR wide (ATR = the mean high − low of the 14 candles before). The last 2 of each layer and side stay on the chart.
+• [b]Levels:[/b] 0 solid, 100 dashed, EQ dotted, the quarters faint, and the 100 half shaded.
+• [b]States[/b] from the candle after the range forms: [i]EQ touched[/i] · [i]✓ 0 before EQ[/i] (direct) · [i]✓ 0 after EQ[/i] (the "completion") · [i]✗ 100 taken[/i] · [i]both on one candle[/i] · [i]retired[/i] (neither end traded within 120 candles, adjustable). Finished ranges fade and stop at the candle that ended them.
+• [b]Live labels:[/b] [i]IT ▲ 0 first 55% · EQ ✓[/i].
+
+[b]█ DEFINING RANGES · DR / IDR[/b]
+• [b]The hours:[/b] RDR 09:30–10:30 (lines to 16:00), ODR 03:00–04:00 (to 08:30), ADR 19:30–20:30 (to 02:00) ET.
+• [b]DR:[/b] the hour's wick high and low, live as the hour forms. [b]IDR:[/b] the high and low of its 5-minute bodies, with its mid and a box.
+• [b]Confirmation:[/b] the first 5-minute close outside the DR after the hour, ▲ / ▼.
+• [b]STD lines:[/b] half-IDR steps beyond the IDR on the confirmed side, each with the share of 2025–26 sessions that reached it by the session end ([i]+1.0 · 42%[/i] on the RDR).
+• Charts of 1–30 minutes that divide 30. Above 5 minutes the IDR uses the chart's candles, as the original script does.
+
+[b]█ CARD[/b]
+• [b]Live ranges[/b] (newest first, up to 4): layer and side, a gauge of where price sits from 100 to 0, the chance 0 trades first, and the width in ATR. Hover for every level and every tested rate.
+• [b]TESTED[/b] (ST · IT, chance beside each):
+  – 0 before EQ: 29% · 29% (30 · 30);
+  – 0 after EQ: 37% · 41% (37 · 43);
+  – no FVG reaching the 100 half: 100 taken 66% · 62% (65 · 60);
+  – both ends traded, range under 1 ATR: 81% (82);
+  – the DR side race: 49–52% (50);
+  – live odds = position, within 3 points.
+• [b]Each live session:[/b] forming / waiting / confirmed with its time. [i]opp ✗[/i] if the DR's other side has traded, [i]IDR ✓[/i] if price came back into the IDR, the furthest STD reached, and the share of 2025–26 sessions whose other side traded by the end, beside the chance rate.
+• [b]Mobile layout:[/b] the live ranges only, narrow.
+
+[b]█ ALERTS[/b]
+Create one alert with "Any alert() function call". It covers range formed (off by default), EQ touched (off), 0 broken, 100 taken, DR confirmed, and the DR's other side traded (off).
+
+[b]█ WHAT THE TESTS SHOWED[/b]
+Fished on 2018–24, scored once on 2025 – Oct 2026. [b]Chance[/b] is the same price paths with each candle's direction flipped at random: volatility kept, direction removed (4 replicates). Errors are clustered by day.
+• [b]"After 50%, it completes at 0":[/b] once EQ is touched, 0 broke before 100 was taken 36.9% of the time on ST ranges and 40.6% on IT, against 37.2% and 42.5% by chance. Price sits nearer 100 by then, so 100 usually goes first, and that is geometry.
+• [b]Direct:[/b] 0 broke before EQ was touched 29.5% (ST) and 29.4% (IT), against 29.5% and 30.0%.
+• [b]"No imbalance in discount, 100 fails":[/b] true as a count. 100 was taken after EQ 65.7% of the time with no FVG in the 100 half, against 55.6% with one (ST). The flipped paths give 65.1% and 56.3%: the gap comes from the shape of the leg, not from the imbalance.
+• [b]"Consolidation gets both sides swept":[/b] true as a count. Ranges under 1 ATR had both ends traded within 60 candles 80.8% of the time and ranges over 4 ATR 34.0%, against 81.9% and 35.0% by chance. Distance decides it.
+• [b]What held: the live odds.[/b] The end that trades first follows where price sits in the range. At each tenth from 100 to 0, 0 went first (ST, 2025–26) 8, 15, 25, 35, 44, 54, 64, 74, 84 and 92% of the time; IT 4, 11, 21, 32, 42, 53, 64, 75, 87 and 94%. That scores a Brier of 0.199 (ST) and 0.189 (IT) against 0.248 for a flat rate, and fitting those tenths instead does no better.
+• [b]DR / IDR[/b] (about 6,000 confirmed sessions of each kind, 1,200 in 2025–26). From the confirmation to the session end, 2025–26: the other DR side traded RDR 17.4%, ODR 35.2%, ADR 28.7% (chance 19.3, 36.5, 30.5%); back into the IDR 80.2, 83.4, 80.9% (82.4, 85.0, 82.7); +1 STD 42, 60, 60% (42, 64, 60); +2 STD 12, 28, 25% (15, 32, 27).
+• [b]"The other side holds 80%":[/b] true of the RDR (83%), but it is the distance. With the confirmed side and the DR's other side put at the same distance from the confirmation close, the confirmed side got there first 51.6% ± 3.2 (RDR), 48.8% ± 2.3 (ODR) and 49.8% ± 2.7 (ADR) of the time. A confirmation is a map of distances, not a direction call.
+• The same check on the CPI dealing range (08:30–09:00) gave the same answer: after the window, the side that went first matched price's position within −2.6 ± 2.8 points over 100 CPI days.
+
+[b]█ NOTES[/b]
+• Built and tested on 5- to 60-minute charts. It runs on any timeframe, but other timeframes are untested.
+• The odds are for which end trades first, not for how far price runs after.
+• Overlapping ranges are normal: a bearish range's 100 is often a bullish range's 0.
+
+[b]█ CREDITS[/b]
+Dealing ranges, premium / discount and swing terms are taught by ICT (Michael J. Huddleston). The range rules tested come from "ICT Dealing Range Pro" by fadi, and the defining ranges from "DR/IDR" by TheMas7er and bmistiaen; studied, no code used. Written from scratch. Not affiliated with or endorsed by either.
+
+[i]For education. Past behaviour does not promise future results.[/i]

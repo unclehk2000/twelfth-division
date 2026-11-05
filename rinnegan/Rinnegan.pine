@@ -1,0 +1,677 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+//@version=6
+// Rinnegan · dealing ranges with their tested odds. A dealing range here is the leg from a swing that swept the swing before
+// it (100) to the next swing the other way (0), drawn on short-term (ST: three-candle) and intermediate-term (IT: a swing
+// that beats the swing either side) swings of the chart timeframe. Each range is tracked live: its EQ (50%) touched or not,
+// then 0 broken (complete), 100 taken (failed) or 0 broken before EQ (direct). The card gives the live odds of each end
+// trading first and the tested base rates. The tests (NQ + ES + RTY 1-minute 2018 – Oct 2026 built into 5, 15 and 60-minute
+// candles; 277,031 ST and 63,441 IT ranges; fished on 2018–24, scored on 2025–26 against the same paths with each candle's
+// direction flipped at random) found that the end that trades first follows where price sits in the range, within 3 points
+// at every tenth of it. The popular rules ("50% then 0 completes it", "no imbalance in discount: 100 fails", "a tight range
+// gets both sides taken") describe the counts truly, but chance produces the same counts: they come from the range's shape.
+// v1.1 adds defining ranges (DR / IDR): the RDR (09:30–10:30), ODR (03:00–04:00) and ADR (19:30–20:30) hours, their wick
+// range (DR) and 5-minute body range (IDR), the first 5-minute close outside the DR, and the STD lines in half-IDR steps, each
+// with its tested rate to the session's end (about 6,000 sessions of each, 2018–26). The confirmed side wins a race to an equal
+// distance 49–52% of the time: a confirmation is a map of distances, not a direction call.
+// Concepts: dealing ranges, premium / discount and swing terms are ICT's (Michael J. Huddleston). The range rules tested are
+// from "ICT Dealing Range Pro" by fadi; the defining ranges from "DR/IDR" by TheMas7er and bmistiaen. Studied, nothing copied.
+// Not affiliated with or endorsed by any of them.
+indicator("Rinnegan · Dealing Ranges with Tested Odds", "Rinnegan", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100, max_bars_back = 500, behind_chart = false)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI  = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, tooltip = "The card. Auto follows the chart background.", display = display.none)
+lblSzI  = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+showCrd = input.bool(true, "Card", group = gV, inline = "cd", display = display.none)
+crdPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", display = display.none)
+layI    = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: the live ranges and the tested rows. Mobile: the live ranges only, narrow, for a phone. Every row keeps its full explanation in its tooltip.", display = display.none)
+
+gR = "Dealing ranges"
+stOn  = input.bool(true, "Short-term swings (ST)", group = gR, inline = "ly", tooltip = "ST: a three-candle swing (the middle high above both neighbours, or low below). IT: an ST swing above (or below) the ST swings either side of it. A range forms when a swing that swept the swing before it is followed by a confirmed swing the other way.", display = display.none)
+itOn  = input.bool(true, "Intermediate-term (IT)", group = gR, inline = "ly", display = display.none)
+sideI = input.string("Both", "Sides", options = ["Both", "Bullish only", "Bearish only"], group = gR, tooltip = "Bullish: a swing low that took the low before it, up to the next swing high (100 at the low, 0 at the high). Bearish: the mirror.", display = display.none)
+keepN = input.int(2, "Ranges kept, each layer and side", minval = 1, maxval = 6, group = gR, tooltip = "Finished ranges stay faded until newer ones push them out.", display = display.none)
+minW  = input.float(0.25, "Minimum width (× ATR)", minval = 0.0, step = 0.25, group = gR, tooltip = "ATR here is the mean high − low of the 14 candles before. The tests used 0.25.", display = display.none)
+expN  = input.int(120, "Retire unresolved after (candles)", minval = 20, maxval = 480, group = gR, tooltip = "A range neither end has traded by then is faded and dropped from the card. The odds were measured up to 120 candles.", display = display.none)
+
+gL = "Levels"
+qOn    = input.bool(true, "Quarters (25 / 75)", group = gL, inline = "q", display = display.none)
+shOn   = input.bool(true, "Shade the 100 half", group = gL, inline = "q", tooltip = "Discount for a bullish range, premium for a bearish one: the half between EQ and 100.", display = display.none)
+lbOn   = input.bool(true, "Labels with live odds", group = gL, display = display.none)
+extN   = input.int(8, "Extend right (candles)", minval = 0, maxval = 60, group = gL, display = display.none)
+cBu    = input.color(#26a69a, "Bullish", group = gL, inline = "c", display = display.none)
+cBe    = input.color(#ef5350, "Bearish", group = gL, inline = "c", display = display.none)
+cEq    = input.color(#787b86, "EQ", group = gL, inline = "c", display = display.none)
+lnW    = input.int(1, "Width", options = [1, 2, 3], group = gL, inline = "c", display = display.none)
+
+gD = "Defining ranges · DR / IDR"
+drOn  = input.bool(true, "DR / IDR sessions", group = gD, tooltip = "Each session's first hour is its defining range: DR = the hour's wick high and low, IDR = the high and low of its 5-minute candle bodies. After the hour, the first 5-minute close outside the DR confirms a side. Charts of 1–30 minutes that divide 30; above 5 minutes the IDR uses the chart's candles, as the original script does (tested on 5-minute bodies).", display = display.none)
+rdrOn = input.bool(true, "RDR 09:30–10:30", group = gD, inline = "s", display = display.none)
+odrOn = input.bool(true, "ODR 03:00–04:00", group = gD, inline = "s", display = display.none)
+adrOn = input.bool(true, "ADR 19:30–20:30", group = gD, inline = "s", tooltip = "Lines run to 16:00 (RDR), 08:30 (ODR) and 02:00 (ADR) ET.", display = display.none)
+idrBx = input.bool(true, "IDR box", group = gD, inline = "b", display = display.none)
+idrMd = input.bool(true, "IDR mid", group = gD, inline = "b", display = display.none)
+stdN  = input.int(4, "STD lines after the confirmation", minval = 0, maxval = 10, group = gD, tooltip = "Half-IDR steps beyond the IDR on the confirmed side (4 = up to 2.0), each named with the share of 2025–26 sessions that reached it from the confirmation to the session's end.", display = display.none)
+keepD = input.int(2, "Sessions kept, each", minval = 1, maxval = 6, group = gD, display = display.none)
+cDR   = input.color(#5d6476, "DR", group = gD, inline = "c", display = display.none)
+cIDR  = input.color(#e65100, "IDR", group = gD, inline = "c", display = display.none)
+cSTD  = input.color(#9598a1, "STD", group = gD, inline = "c", display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alF = input.bool(false, "Range formed", group = gA, inline = "a1", display = display.none)
+alE = input.bool(false, "EQ touched", group = gA, inline = "a1", display = display.none)
+alC = input.bool(true, "0 broken", group = gA, inline = "a2", display = display.none)
+alI = input.bool(true, "100 taken", group = gA, inline = "a2", display = display.none)
+alD = input.bool(true, "DR confirmed", group = gA, inline = "a3", display = display.none)
+alO = input.bool(false, "DR's other side traded", group = gA, inline = "a3", display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Colours and helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+cTxt   = isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = isDark ? #8a93a6 : #5d6476
+cHdr   = #7e57c2
+lumOf(color c) => 0.299 * color.r(c) + 0.587 * color.g(c) + 0.114 * color.b(c)
+hdrTx(color c) => lumOf(c) > 165 ? #131722 : #ffffff
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+fade(color c, float add) => color.new(c, math.min(100.0, color.t(c) + add))
+px(float v) => str.tostring(v, format.mintick)
+pc0(float p) => na(p) ? "—" : str.tostring(math.round(p)) + "%"
+clamp01(float v) => math.max(0.0, math.min(1.0, v))
+gauge(float f, int n) =>
+    int k = na(f) ? 0 : int(math.round(clamp01(f) * n))
+    str.repeat("█", k) + str.repeat("░", n - k)
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+hhmm(int t) => str.format_time(t, timeframe.isintraday ? "MM/dd HH:mm" : "yyyy-MM-dd", TZ)
+
+// ═══════════════════════════════════════════════════════════════ Tested base rates (2025–26 score era; chance = flipped paths)
+// ST: direct 29.5 (29.5) · EQ touched 70.4 · after EQ 0 first 36.9 (37.2) · no discount FVG: 100 first 65.7 (65.1), with 55.6 (56.3)
+// IT: direct 29.4 (30.0) · EQ touched 70.3 · after EQ 0 first 40.6 (42.5) · no discount FVG: 100 first 62.1 (60.1), with 58.1 (56.2)
+// both ends traded within the horizon (ST 60, IT 120 candles), by width: <1 ATR 80.8 (81.9) · 1–2 73.9 (73.9) · 2–4 58.5 (59.5) · 4+ 34.0 (35.0) ST;
+// IT 1–2 71.1 (76.2) · 2–4 61.4 (62.4) · 4+ 41.1 (42.8)
+// live odds of 0 first by position (tenths, 0 = at 100): ST 7.6 14.7 24.5 35.0 44.0 53.7 64.0 74.3 84.2 92.2; IT 4.0 10.9 20.6 32.1 41.6 52.9 64.1 75.1 86.7 94.3
+bothOf(int lay, float w) =>
+    lay == 0 ? (w < 1 ? 80.8 : w < 2 ? 73.9 : w < 4 ? 58.5 : 34.0) : (w < 2 ? 71.1 : w < 4 ? 61.4 : 41.1)
+bothCh(int lay, float w) =>
+    lay == 0 ? (w < 1 ? 81.9 : w < 2 ? 73.9 : w < 4 ? 59.5 : 35.0) : (w < 2 ? 76.2 : w < 4 ? 62.4 : 42.8)
+
+// ═══════════════════════════════════════════════════════════════ Swings
+type Sw
+    array<float> p
+    array<int>   i
+
+newSw() => Sw.new(array.new<float>(), array.new<int>())
+
+method add(Sw s, float p, int i) =>
+    s.p.push(p)
+    s.i.push(i)
+    if s.p.size() > 60
+        s.p.shift()
+        s.i.shift()
+
+// the latest swing before index hi, and the swing before that: [price, index, previous price]
+method before(Sw s, int hi) =>
+    int q = s.i.size() - 1
+    while q >= 0 and s.i.get(q) >= hi
+        q -= 1
+    float pq = na
+    int   iq = na
+    float pr = na
+    if q >= 1
+        pq := s.p.get(q)
+        iq := s.i.get(q)
+        pr := s.p.get(q - 1)
+    [pq, iq, pr]
+
+var Sw sH = newSw()
+var Sw sL = newSw()
+var Sw iH = newSw()
+var Sw iL = newSw()
+
+float atr = ta.sma(high - low, 14)[1]
+bool  newSTH = bar_index > 2 and high[1] > high[2] and high[1] > high
+bool  newSTL = bar_index > 2 and low[1] < low[2] and low[1] < low
+bool  newITH = false
+bool  newITL = false
+int   itHi = na
+int   itLo = na
+if newSTL
+    sL.add(low[1], bar_index - 1)
+    int n = sL.p.size()
+    if n >= 3 and sL.p.get(n - 2) < sL.p.get(n - 3) and sL.p.get(n - 2) < sL.p.get(n - 1)
+        iL.add(sL.p.get(n - 2), sL.i.get(n - 2))
+        newITL := true
+        itLo := sL.i.get(n - 2)
+if newSTH
+    sH.add(high[1], bar_index - 1)
+    int n = sH.p.size()
+    if n >= 3 and sH.p.get(n - 2) > sH.p.get(n - 3) and sH.p.get(n - 2) > sH.p.get(n - 1)
+        iH.add(sH.p.get(n - 2), sH.i.get(n - 2))
+        newITH := true
+        itHi := sH.i.get(n - 2)
+
+// ═══════════════════════════════════════════════════════════════ Ranges
+// st: 0 live, 1 EQ touched, 2 complete (0 after EQ), 3 direct (0 before EQ), 4 failed (100 taken), 5 both on one candle, 6 retired
+type DR
+    int   dir
+    int   lay
+    float z
+    float h
+    float eq
+    int   tS
+    int   bc
+    int   tc
+    bool  fvg
+    float w
+    int   st = 0
+    int   tE
+    line  l0
+    line  l1
+    line  lE
+    line  q1
+    line  q3
+    box   bx
+    label lb
+
+var array<DR> R = array.new<DR>()
+var int uBu0 = na
+var int uBu1 = na
+var int uBe0 = na
+var int uBe1 = na
+
+layNm(int lay) => lay == 0 ? "ST" : "IT"
+dirCol(DR d) => d.dir == 1 ? cBu : cBe
+posIn(DR d, float p) => clamp01((p - d.h) / (d.z - d.h))
+stTx(DR d) =>
+    switch d.st
+        0 => "live"
+        1 => "EQ touched"
+        2 => "✓ 0 after EQ"
+        3 => "✓ 0 before EQ"
+        4 => "✗ 100 taken"
+        5 => "both on one candle"
+        => "retired"
+
+tipOf(DR d) =>
+    float b = bothOf(d.lay, d.w)
+    string s = layNm(d.lay) + (d.dir == 1 ? " bullish" : " bearish") + " dealing range · " + stTx(d)
+    s += "\n100 " + px(d.h) + " (the swing that swept, " + hhmm(d.tS) + ") · EQ " + px(d.eq) + " · 0 " + px(d.z)
+    s += "\nWidth " + str.tostring(d.w, "#.0") + " × ATR · formed " + hhmm(d.tc)
+    s += "\nLive odds: the end nearer price trades first about as often as its distance says (0 first ≈ how far price sits from 100). Tested within 3 points at every tenth of the range, 2025–26."
+    s += "\nAfter EQ is touched, 0 first: " + (d.lay == 0 ? "36.9% (chance 37.2%)" : "40.6% (chance 42.5%)") + ". 0 before EQ: " + (d.lay == 0 ? "29.5% (29.5%)" : "29.4% (30.0%)") + "."
+    s += "\nImbalance in the 100 half: " + (d.fvg ? "yes. 100 taken after EQ " + (d.lay == 0 ? "55.6% (chance 56.3%)" : "58.1% (56.2%)") : "none. 100 taken after EQ " + (d.lay == 0 ? "65.7% (chance 65.1%)" : "62.1% (60.1%)")) + ": the gap comes from the range's shape, not the imbalance."
+    s += "\nBoth ends traded within " + (d.lay == 0 ? "60" : "120") + " candles at this width: " + str.tostring(b, "#.0") + "% (chance " + str.tostring(bothCh(d.lay, d.w), "#.0") + "%)."
+    s
+
+method draw(DR d) =>
+    color c  = dirCol(d)
+    int   x1 = d.tS
+    d.l0 := line.new(x1, d.z, time, d.z, xloc = xloc.bar_time, color = c, width = lnW)
+    d.l1 := line.new(x1, d.h, time, d.h, xloc = xloc.bar_time, color = c, width = lnW, style = line.style_dashed)
+    d.lE := line.new(x1, d.eq, time, d.eq, xloc = xloc.bar_time, color = cEq, style = line.style_dotted)
+    if qOn
+        d.q1 := line.new(x1, d.h + 0.25 * (d.z - d.h), time, d.h + 0.25 * (d.z - d.h), xloc = xloc.bar_time, color = fade(cEq, 55), style = line.style_dotted)
+        d.q3 := line.new(x1, d.h + 0.75 * (d.z - d.h), time, d.h + 0.75 * (d.z - d.h), xloc = xloc.bar_time, color = fade(cEq, 55), style = line.style_dotted)
+    if shOn
+        d.bx := box.new(x1, math.max(d.eq, d.h), time, math.min(d.eq, d.h), xloc = xloc.bar_time, border_color = #00000000, bgcolor = color.new(c, 92))
+    if lbOn
+        d.lb := label.new(time, d.z, "", xloc = xloc.bar_time, style = d.dir == 1 ? label.style_label_lower_left : label.style_label_upper_left, color = #00000000, textcolor = c, size = tSz)
+
+method kill(DR d) =>
+    d.l0.delete()
+    d.l1.delete()
+    d.lE.delete()
+    d.q1.delete()
+    d.q3.delete()
+    d.bx.delete()
+    d.lb.delete()
+
+method setX(DR d, int x2) =>
+    d.l0.set_x2(x2)
+    d.l1.set_x2(x2)
+    d.lE.set_x2(x2)
+    d.q1.set_x2(x2)
+    d.q3.set_x2(x2)
+    d.bx.set_right(x2)
+    d.lb.set_x(x2)
+
+method freeze(DR d) =>
+    d.tE := time
+    d.setX(time)
+    color c = fade(dirCol(d), 55)
+    d.l0.set_color(c)
+    d.l1.set_color(c)
+    d.lE.set_color(fade(cEq, 45))
+    d.q1.set_color(fade(cEq, 75))
+    d.q3.set_color(fade(cEq, 75))
+    d.bx.set_bgcolor(color.new(dirCol(d), 96))
+    d.lb.set_textcolor(c)
+    d.lb.set_text(layNm(d.lay) + " " + (d.dir == 1 ? "▲" : "▼") + " " + stTx(d))
+    d.lb.set_tooltip(tipOf(d))
+
+// a new range on a swing confirmed at hi (bull: a swing high; bear: a swing low)
+mkDR(int dir, int lay, int hi) =>
+    DR  out = na
+    int ux  = na
+    Sw prior = dir == 1 ? (lay == 0 ? sL : iL) : (lay == 0 ? sH : iH)
+    [p, ix, p2] = prior.before(hi)
+    int used = dir == 1 ? (lay == 0 ? uBu0 : uBu1) : (lay == 0 ? uBe0 : uBe1)
+    bool sweep = not na(p) and (dir == 1 ? p < p2 : p > p2)
+    if sweep and ix != nz(used, -1) and atr > 0 and bar_index - ix <= 400
+        int n = bar_index - ix
+        float top = high
+        float bot = low
+        for k = 0 to n
+            top := math.max(top, high[k])
+            bot := math.min(bot, low[k])
+        bool clean = dir == 1 ? bot >= p : top <= p
+        if clean
+            ux := ix
+            float w = (top - bot) / atr
+            if w >= minW
+                float z = dir == 1 ? top : bot
+                float h = dir == 1 ? bot : top
+                float m = 0.5 * (top + bot)
+                bool fv = false
+                if n >= 2
+                    for k = 0 to n - 2
+                        if dir == 1 ? (low[k] > high[k + 2] and high[k + 2] < m) : (high[k] < low[k + 2] and low[k + 2] > m)
+                            fv := true
+                            break
+                out := DR.new(dir, lay, z, h, m, time[n], bar_index, time, fv, w)
+    [out, ux]
+
+// ── step the live ranges (from the candle after each formed)
+string evMsg = ""
+for d in R
+    if d.st <= 1 and bar_index > d.bc
+        bool hit0 = d.dir == 1 ? high > d.z : low < d.z
+        bool hit1 = d.dir == 1 ? low < d.h : high > d.h
+        bool hitE = d.dir == 1 ? low <= d.eq : high >= d.eq
+        int  was  = d.st
+        if d.st == 0
+            if hit0 and hitE
+                d.st := 5
+            else if hit0
+                d.st := 3
+            else if hitE
+                d.st := hit1 ? 4 : 1
+        else
+            if hit0 and hit1
+                d.st := 5
+            else if hit0
+                d.st := 2
+            else if hit1
+                d.st := 4
+        if d.st <= 1 and bar_index - d.bc >= expN
+            d.st := 6
+        if d.st != was
+            string nm = layNm(d.lay) + (d.dir == 1 ? " ▲" : " ▼") + " range " + px(d.h) + " → " + px(d.z)
+            if d.st == 1 and alE
+                evMsg += nm + ": EQ " + px(d.eq) + " touched. "
+            if (d.st == 2 or d.st == 3) and alC
+                evMsg += nm + ": 0 broken (" + (d.st == 2 ? "after" : "before") + " EQ). "
+            if d.st == 4 and alI
+                evMsg += nm + ": 100 taken. "
+            if d.st >= 2
+                d.freeze()
+        if d.st <= 1
+            d.setX(time)
+
+// ── new ranges
+addDR(DR d) =>
+    if not na(d)
+        d.draw()
+        R.push(d)
+        // keep the newest keepN of this layer and side
+        int cnt = 0
+        for k = R.size() - 1 to 0
+            DR e = R.get(k)
+            if e.lay == d.lay and e.dir == d.dir
+                cnt += 1
+                if cnt > keepN
+                    e.kill()
+                    R.remove(k)
+bool doBu = sideI != "Bearish only"
+bool doBe = sideI != "Bullish only"
+if stOn and doBu and newSTH
+    [d, ux] = mkDR(1, 0, bar_index - 1)
+    if not na(ux)
+        uBu0 := ux
+    addDR(d)
+    if not na(d) and alF
+        evMsg += "ST ▲ range formed: 100 " + px(d.h) + ", 0 " + px(d.z) + ". "
+if stOn and doBe and newSTL
+    [d, ux] = mkDR(-1, 0, bar_index - 1)
+    if not na(ux)
+        uBe0 := ux
+    addDR(d)
+    if not na(d) and alF
+        evMsg += "ST ▼ range formed: 100 " + px(d.h) + ", 0 " + px(d.z) + ". "
+if itOn and doBu and newITH
+    [d, ux] = mkDR(1, 1, itHi)
+    if not na(ux)
+        uBu1 := ux
+    addDR(d)
+    if not na(d) and alF
+        evMsg += "IT ▲ range formed: 100 " + px(d.h) + ", 0 " + px(d.z) + ". "
+if itOn and doBe and newITL
+    [d, ux] = mkDR(-1, 1, itLo)
+    if not na(ux)
+        uBe1 := ux
+    addDR(d)
+    if not na(d) and alF
+        evMsg += "IT ▼ range formed: 100 " + px(d.h) + ", 0 " + px(d.z) + ". "
+
+// ═══════════════════════════════════════════════════════════════ Defining ranges (DR / IDR)
+// Tested on NQ + ES + RTY 1-minute, 2018 – Oct 2026; rates are 2025–26 (the score era), from the confirmation to the session end.
+// sessions: 0 RDR, 1 ODR, 2 ADR · minutes after 18:00 ET: start, end of the hour, end of the lines
+var array<int>    S0  = array.from(930, 540, 90)
+var array<int>    S1  = array.from(990, 600, 150)
+var array<int>    S2  = array.from(1320, 870, 480)
+var array<string> SN  = array.from("RDR", "ODR", "ADR")
+// reach of each half-IDR step beyond the IDR on the confirmed side (0.5 … 5.0), real and chance (flipped paths)
+var array<float> STDR = array.from(72.1, 42.4, 22.3, 11.7, 6.8, 4.1, 3.3, 2.4, 1.8, 1.3, 84.2, 60.2, 41.4, 28.0, 21.3, 15.3, 12.0, 9.1, 7.1, 5.1, 83.4, 59.9, 39.7, 25.0, 16.9, 10.8, 7.0, 4.9, 4.2, 2.7)
+var array<float> STDC = array.from(73.6, 42.3, 24.9, 14.6, 8.8, 5.4, 3.6, 2.5, 1.7, 1.3, 84.7, 63.5, 45.0, 31.8, 23.2, 17.1, 12.5, 9.4, 6.9, 5.1, 84.0, 60.3, 40.2, 26.7, 17.3, 11.8, 7.7, 5.4, 4.0, 2.8)
+var array<float> OPPR = array.from(17.4, 35.2, 28.7)
+var array<float> OPPC = array.from(19.3, 36.5, 30.5)
+var array<float> IDRR = array.from(80.2, 83.4, 80.9)
+var array<float> IDRC = array.from(82.4, 85.0, 82.7)
+var array<float> CNFR = array.from(92.4, 96.3, 94.8)
+var array<float> MIDR = array.from(79.4, 70.8, 73.7)
+var array<float> MIDC = array.from(77.5, 70.1, 72.4)
+var array<string> RACE = array.from("51.6% ± 3.2", "48.8% ± 2.3", "49.8% ± 2.7")
+
+type DD
+    int   s
+    int   tA
+    int   tX
+    float dH
+    float dL
+    float iH
+    float iL
+    float o5
+    int   st = 1
+    int   dir = 0
+    int   tC
+    bool  oT = false
+    bool  bk = false
+    float ext = 0.0
+    line  lH
+    line  lL
+    line  iHl
+    line  iLl
+    line  iMl
+    box   bx
+    label nm
+    label cf
+    array<line>  sd
+    array<label> sl
+
+var array<DD> DS = array.new<DD>()
+int  tfMin  = int(timeframe.in_seconds() / 60)
+bool drAct  = drOn and timeframe.isintraday and tfMin >= 1 and tfMin <= 30 and 30 % tfMin == 0
+bool al5    = tfMin <= 5 and 5 % tfMin == 0
+int  relM   = ((hour(time, TZ) * 60 + minute(time, TZ)) - 1080 + 1440) % 1440
+bool b5s    = al5 ? relM % 5 == 0 : true
+bool b5e    = al5 ? (relM + tfMin) % 5 == 0 : true
+sOn(int s) => s == 0 ? rdrOn : s == 1 ? odrOn : adrOn
+lastOf(int s) =>
+    DD out = na
+    if DS.size() > 0
+        for k = DS.size() - 1 to 0
+            if DS.get(k).s == s
+                out := DS.get(k)
+                break
+    out
+stdTx(int k) => str.tostring(int(k / 2)) + (k % 2 == 0 ? ".0" : ".5")
+ddTip(DD d) =>
+    int s = d.s
+    string t = SN.get(s) + " defining range · DR " + px(d.dL) + " – " + px(d.dH) + " · IDR " + px(d.iL) + " – " + px(d.iH)
+    t += "\nAfter the hour, a 5-minute close outside the DR came in " + str.tostring(CNFR.get(s), "#.0") + "% of 2025–26 sessions."
+    t += "\nFrom the confirmation to the session end (2025–26): the other DR side traded " + str.tostring(OPPR.get(s), "#.0") + "% (chance " + str.tostring(OPPC.get(s), "#.0") + "%), back into the IDR " + str.tostring(IDRR.get(s), "#.0") + "% (" + str.tostring(IDRC.get(s), "#.0") + "%), the last close beyond the IDR mid the confirmed way " + str.tostring(MIDR.get(s), "#.0") + "% (" + str.tostring(MIDC.get(s), "#.0") + "%)."
+    t += "\nSTD reach (half-IDR steps beyond the IDR, confirmed side): +0.5 " + str.tostring(STDR.get(s * 10), "#") + "% · +1.0 " + str.tostring(STDR.get(s * 10 + 1), "#") + "% · +1.5 " + str.tostring(STDR.get(s * 10 + 2), "#") + "% · +2.0 " + str.tostring(STDR.get(s * 10 + 3), "#") + "% · +3.0 " + str.tostring(STDR.get(s * 10 + 5), "#") + "%; chance about the same."
+    t += "\nThe confirmed side won a race to an equal distance " + RACE.get(s) + " of the time: the confirmation is a map of distances, not a direction call. Chance = the same paths with each 1-minute candle's direction flipped at random."
+    t
+
+method drDraw(DD d) =>
+    d.lH := line.new(d.tA, d.dH, time, d.dH, xloc = xloc.bar_time, color = cDR, width = 1)
+    d.lL := line.new(d.tA, d.dL, time, d.dL, xloc = xloc.bar_time, color = cDR, width = 1)
+    d.nm := label.new(d.tA, d.dH, SN.get(d.s), xloc = xloc.bar_time, style = label.style_label_lower_left, color = #00000000, textcolor = cDR, size = tSz)
+
+// the DR follows the hour live; the IDR appears with the first finished 5-minute body
+method drY(DD d) =>
+    d.lH.set_y1(d.dH)
+    d.lH.set_y2(d.dH)
+    d.lL.set_y1(d.dL)
+    d.lL.set_y2(d.dL)
+    d.nm.set_y(d.dH)
+    if not na(d.iH)
+        float md = 0.5 * (d.iH + d.iL)
+        if na(d.iHl)
+            d.iHl := line.new(d.tA, d.iH, time, d.iH, xloc = xloc.bar_time, color = cIDR, style = line.style_dashed, width = 1)
+            d.iLl := line.new(d.tA, d.iL, time, d.iL, xloc = xloc.bar_time, color = cIDR, style = line.style_dashed, width = 1)
+            if idrMd
+                d.iMl := line.new(d.tA, md, time, md, xloc = xloc.bar_time, color = fade(cIDR, 40), style = line.style_dotted)
+            if idrBx
+                d.bx := box.new(d.tA, d.iH, time, d.iL, xloc = xloc.bar_time, border_color = #00000000, bgcolor = color.new(cIDR, 90))
+        d.iHl.set_y1(d.iH)
+        d.iHl.set_y2(d.iH)
+        d.iLl.set_y1(d.iL)
+        d.iLl.set_y2(d.iL)
+        d.iMl.set_y1(md)
+        d.iMl.set_y2(md)
+        d.bx.set_top(d.iH)
+        d.bx.set_bottom(d.iL)
+
+method drX(DD d, int x2) =>
+    d.lH.set_x2(x2)
+    d.lL.set_x2(x2)
+    d.iHl.set_x2(x2)
+    d.iLl.set_x2(x2)
+    d.iMl.set_x2(x2)
+    d.bx.set_right(x2)
+    if not na(d.sd)
+        for k = 0 to d.sd.size() - 1
+            if d.sd.size() == 0
+                break
+            d.sd.get(k).set_x2(x2)
+            d.sl.get(k).set_x(x2)
+
+method drKill(DD d) =>
+    d.lH.delete()
+    d.lL.delete()
+    d.iHl.delete()
+    d.iLl.delete()
+    d.iMl.delete()
+    d.bx.delete()
+    d.nm.delete()
+    d.cf.delete()
+    if not na(d.sd)
+        for k = 0 to d.sd.size() - 1
+            if d.sd.size() == 0
+                break
+            d.sd.get(k).delete()
+            d.sl.get(k).delete()
+
+method drEnd(DD d) =>
+    d.st := 4
+    d.drX(d.tX)
+    d.lH.set_color(fade(cDR, 50))
+    d.lL.set_color(fade(cDR, 50))
+    d.iHl.set_color(fade(cIDR, 50))
+    d.iLl.set_color(fade(cIDR, 50))
+    d.bx.set_bgcolor(color.new(cIDR, 96))
+    d.nm.set_textcolor(fade(cDR, 40))
+    d.nm.set_tooltip(ddTip(d))
+
+if drAct
+    for s = 0 to 2
+        if sOn(s)
+            int  s0  = S0.get(s)
+            int  s1  = S1.get(s)
+            int  s2  = S2.get(s)
+            bool inW = relM >= s0 and relM < s1
+            bool inX = relM >= s1 and relM < s2
+            int  tSt = time - (relM - s0) * 60000
+            DD   cur = lastOf(s)
+            // end of the previous session
+            if not na(cur) and cur.st <= 3 and (time >= cur.tX or (not inW and not inX))
+                cur.drEnd()
+            // a new defining hour
+            if inW and relM - s0 < math.max(3, tfMin) and (na(cur) or cur.tA != tSt)
+                DD n = DD.new(s, tSt, tSt + (s2 - s0) * 60000, high, low, na, na, open)
+                n.drDraw()
+                DS.push(n)
+                cur := n
+                int cnt = 0
+                for k = DS.size() - 1 to 0
+                    if DS.get(k).s == s
+                        cnt += 1
+                        if cnt > keepD
+                            DS.get(k).drKill()
+                            DS.remove(k)
+            if not na(cur) and cur.st <= 3
+                if inW and cur.st == 1
+                    cur.dH := math.max(cur.dH, high)
+                    cur.dL := math.min(cur.dL, low)
+                    if b5s
+                        cur.o5 := open
+                    if b5e
+                        cur.iH := na(cur.iH) ? math.max(cur.o5, close) : math.max(cur.iH, math.max(cur.o5, close))
+                        cur.iL := na(cur.iL) ? math.min(cur.o5, close) : math.min(cur.iL, math.min(cur.o5, close))
+                    cur.drY()
+                else if inX
+                    if cur.st == 1
+                        cur.st := 2
+                        cur.nm.set_tooltip(ddTip(cur))
+                    if cur.st == 3
+                        float w = cur.iH - cur.iL
+                        if cur.dir == 1
+                            if low <= cur.dL and not cur.oT
+                                cur.oT := true
+                                if alO
+                                    evMsg += SN.get(s) + ": the DR's other side " + px(cur.dL) + " traded. "
+                            cur.bk := cur.bk or low <= cur.iH
+                            cur.ext := math.max(cur.ext, (high - cur.iH) / w)
+                        else
+                            if high >= cur.dH and not cur.oT
+                                cur.oT := true
+                                if alO
+                                    evMsg += SN.get(s) + ": the DR's other side " + px(cur.dH) + " traded. "
+                            cur.bk := cur.bk or high >= cur.iL
+                            cur.ext := math.max(cur.ext, (cur.iL - low) / w)
+                    if cur.st == 2 and b5e and cur.iH > cur.iL
+                        int dr = close > cur.dH ? 1 : close < cur.dL ? -1 : 0
+                        if dr != 0
+                            cur.st  := 3
+                            cur.dir := dr
+                            cur.tC  := time
+                            float w = cur.iH - cur.iL
+                            cur.cf := label.new(time, close, (dr == 1 ? "▲ " : "▼ ") + SN.get(s), xloc = xloc.bar_time, style = dr == 1 ? label.style_label_up : label.style_label_down, color = #00000000, textcolor = dr == 1 ? cBu : cBe, size = tSz, tooltip = ddTip(cur))
+                            cur.sd := array.new<line>()
+                            cur.sl := array.new<label>()
+                            if stdN > 0
+                                for k = 1 to stdN
+                                    float lv = dr == 1 ? cur.iH + 0.5 * k * w : cur.iL - 0.5 * k * w
+                                    cur.sd.push(line.new(time, lv, time, lv, xloc = xloc.bar_time, color = cSTD, style = line.style_dotted))
+                                    float rr = k <= 10 ? STDR.get(s * 10 + k - 1) : na
+                                    cur.sl.push(label.new(time, lv, (dr == 1 ? "+" : "−") + stdTx(k) + " · " + pc0(rr), xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = cSTD, size = size.tiny, tooltip = "Reached from the confirmation to the session end in " + str.tostring(rr, "#.0") + "% of 2025–26 " + SN.get(s) + " sessions (chance " + str.tostring(k <= 10 ? STDC.get(s * 10 + k - 1) : na, "#.0") + "%)."))
+                            if alD
+                                evMsg += SN.get(s) + " confirmed " + (dr == 1 ? "▲ above " + px(cur.dH) : "▼ below " + px(cur.dL)) + ": the other side traded by the session end in " + str.tostring(OPPR.get(s), "#") + "% of 2025–26 sessions (chance " + str.tostring(OPPC.get(s), "#") + "%). "
+                if inW or inX
+                    cur.drX(time)
+
+if evMsg != ""
+    alert("Rinnegan · " + syminfo.ticker + " · " + evMsg, alert.freq_once_per_bar_close)
+
+// ═══════════════════════════════════════════════════════════════ Labels and card (last bar)
+var table TC = na
+cRow(int r, string k, string g, color gc, string v, string w, string tip, color vc) =>
+    TC.cell(0, r, k, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(1, r, g, text_color = gc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(2, r, v, text_color = vc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(3, r, w, text_color = cSub, text_size = tSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+
+if barstate.islast
+    int xr = time + extN * timeframe.in_seconds() * 1000
+    for d in DS
+        if d.st <= 3
+            d.drX(d.tX)
+            d.nm.set_tooltip(ddTip(d))
+    for d in R
+        if d.st <= 1
+            d.setX(xr)
+            float p = posIn(d, close)
+            d.lb.set_text(layNm(d.lay) + " " + (d.dir == 1 ? "▲" : "▼") + " 0 first " + pc0(100 * p) + (d.st == 1 ? " · EQ ✓" : ""))
+            d.lb.set_tooltip(tipOf(d))
+    if showCrd
+        bool mob = layI == "Mobile"
+        if na(TC)
+            TC := table.new(posOf(crdPos), 4, 22, border_width = 0, frame_width = 1, frame_color = cHdr)
+        TC.clear(0, 0, 3, 21)
+        TC.cell(0, 0, "RINNEGAN", text_color = hdrTx(cHdr), bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+        TC.cell(1, 0, mob ? "" : "DEALING RANGES", text_color = hdrTx(cHdr), bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+        TC.cell(2, 0, mob ? "0 first" : "0 first · now", text_color = hdrTx(cHdr), bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace)
+        TC.cell(3, 0, timeframe.period, text_color = hdrTx(cHdr), bgcolor = cHdr, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace)
+        int r = 1
+        int shown = 0
+        for k = R.size() - 1 to 0
+            if R.size() == 0
+                break
+            DR d = R.get(k)
+            if d.st <= 1 and shown < (mob ? 2 : 4)
+                float p = posIn(d, close)
+                string key = layNm(d.lay) + (d.dir == 1 ? " ▲" : " ▼") + (d.st == 1 ? " EQ✓" : "")
+                cRow(r, key, gauge(p, mob ? 6 : 10), dirCol(d), pc0(100 * p), str.tostring(d.w, "#.0") + "×ATR", tipOf(d), cTxt)
+                r += 1
+                shown += 1
+        if shown == 0
+            cRow(r, "no live range", "", cSub, "", "", "A range is drawn once a swing that swept the swing before it is followed by a confirmed swing the other way.", cSub)
+            r += 1
+        if drAct
+            for s = 0 to 2
+                DD d = sOn(s) ? lastOf(s) : na
+                if not na(d) and d.st <= 3
+                    string nm = SN.get(s)
+                    string pts = str.tostring(d.dH - d.dL, "#,##0.##")
+                    if d.st == 1
+                        cRow(r, nm + " forming", "DR " + pts, cDR, "", "", ddTip(d), cTxt)
+                    else if d.st == 2
+                        cRow(r, nm + " waiting", "DR " + pts, cDR, "confirm " + str.tostring(CNFR.get(s), "#") + "%", "", ddTip(d), cTxt)
+                    else
+                        string gl = "opp " + (d.oT ? "✗" : "·") + " IDR " + (d.bk ? "✓" : "·") + " +" + str.tostring(math.floor(d.ext * 2) / 2, "#.0")
+                        cRow(r, nm + (d.dir == 1 ? " ▲ " : " ▼ ") + str.format_time(d.tC, "HH:mm", TZ), gl, d.dir == 1 ? cBu : cBe, "opp " + str.tostring(OPPR.get(s), "#") + "%", str.tostring(OPPC.get(s), "#"), ddTip(d), cTxt)
+                    r += 1
+        if not mob
+            TC.cell(0, r, "TESTED", text_color = cHdr, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace)
+            TC.cell(1, r, "ST · IT", text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace)
+            TC.cell(2, r, "", bgcolor = cBody)
+            TC.cell(3, r, "chance", text_color = cSub, text_size = tSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = font.family_monospace)
+            r += 1
+            string src = "\nNQ + ES + RTY 1-minute built into 5, 15 and 60-minute candles; scored on 2025 – Oct 2026 (60,235 ST and 13,720 IT ranges). Chance = the same price paths with each candle's direction flipped at random (volatility kept, direction removed)."
+            cRow(r, "0 before EQ", "", cSub, "29% · 29%", "30 · 30", "0 broken before price came back to EQ: ST 29.5%, IT 29.4%. Chance: 29.5%, 30.0%." + src, cTxt)
+            r += 1
+            cRow(r, "0 after EQ", "", cSub, "37% · 41%", "37 · 43", "Once EQ is touched, 0 broken before 100 is taken (the 'completion'): ST 36.9%, IT 40.6%. Chance: 37.2%, 42.5%. Price is below EQ by then, nearer 100, so 100 goes first more often: that is the geometry, not a failure of the range." + src, cTxt)
+            r += 1
+            cRow(r, "no FVG in 100½", "", cSub, "66% · 62%", "65 · 60", "No fair value gap reaching the 100 half inside the leg: 100 taken after EQ ST 65.7%, IT 62.1% (with one: 55.6%, 58.1%). Chance: 65.1% and 60.1% (with one: 56.3%, 56.2%). True as a count, but the flipped paths give the same gap: legs with an imbalance in that half are shaped differently." + src, cTxt)
+            r += 1
+            cRow(r, "both ends <1 ATR", "", cSub, "81% · —", "82", "Both ends traded within 60 (ST) / 120 (IT) candles: tight ranges under 1 ATR 80.8% (chance 81.9%); 1–2 ATR 73.9% (73.9%); 2–4 58.5% (59.5%); 4+ 34.0% (35.0%). IT ranges are rarely under 1 ATR. Distance, not consolidation, decides it." + src, cTxt)
+            r += 1
+            if drAct
+                cRow(r, "DR side race", "", cSub, "49–52%", "50", "After a DR confirmation, the confirmed side against the DR's other side at the same distance: which trades first by the session end. RDR 51.6% ± 3.2, ODR 48.8% ± 2.3, ADR 49.8% ± 2.7 (2025–26, NQ + ES + RTY), a coin toss: the confirmation does not pick a direction. 'The other side holds about 80%' is the distance: a full DR width away with a few hours left.", cTxt)
+                r += 1
+            cRow(r, "live odds", "", cSub, "= position", "±3", "The live 0-first odds on the card are where price sits in the range: 0 first at each tenth (from 100 to 0), ST 2025–26: 8 · 15 · 25 · 35 · 44 · 54 · 64 · 74 · 84 · 92%; IT: 4 · 11 · 21 · 32 · 42 · 53 · 64 · 75 · 87 · 94%. Brier 0.199 (ST) and 0.189 (IT) against 0.248 for a flat base rate; fitting those tenths instead does no better." + src, cTxt)
