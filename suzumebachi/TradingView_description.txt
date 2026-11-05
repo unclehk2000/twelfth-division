@@ -1,0 +1,41 @@
+TITLE (paste into the Title field)
+Suzumebachi: Market Structure Break Odds — MSS & BOS Scenarios (Liquidity Raid, FVG, Premium/Discount) Tested on ES, YM, NQ, RTY
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Suzumebachi[/b] draws market structure at the sensitivity you choose and labels every break of structure, MSS or BOS, with its scenario and its tested odds. The test asks whether price reaches 1R in the break's direction before it returns to the leg extreme. Under any driftless price that is 50%, whatever the volatility, so it is a coin-flip test volatility cannot fake.
+• [b]Trained on ES and YM[/b] 2018–24; checked on 2025 – Oct 2026 and on NQ and RTY, never trained on. 739,504 breaks at six settings.
+• [b]Every scenario that passed is a break that fails[/b]: a sell BOS chasing the top of the prior day's range returns to its extreme first 54–56% of the time, 56% overnight; a weak MSS 51–52%.
+• [b]The textbook MSS[/b] (liquidity raid + FVG + normal stop) is a coin flip: 50.5%.
+
+[i]It rates breaks. It does not call direction on its own.[/i]
+
+[b]█ THE NAME[/b]
+Suzumebachi (雀蜂, "Hornet") is Soi Fon's zanpakutō in Bleach. Its power, Nigeki Kessatsu ("death in two steps"), needs two stings in the same spot: the first leaves a mark, the second kills. ICT's market structure shift asks for two strikes as well: a raid on liquidity, then a displacement. Suzumebachi tests both. A break with neither fails more often than it works; a break with both is a coin flip.
+
+[b]█ WHAT IT SHOWS[/b]
+• [b]Structure[/b] at sensitivity 2 (internal), 3, 5 or 8 (swing).
+• [b]Every break[/b]: MSS (solid) or BOS (dashed) from the broken swing. The tooltip gives:
+  – the raid: first trade through PWH/PWL, PDH/PDL, Asia or London high/low, a new day extreme, the prior swing, or none;
+  – an FVG in the break leg; the stop in ATR (under 1.5 is tight);
+  – its place in the prior day's range and against the midnight open.
+• [b]Breaks that passed[/b] are gold ([i]BOS ▼ · fails 56%[/i]), with dotted lines to the leg extreme and to 1R until one is touched (✓).
+• [b]Card:[/b] the last break, its scenario, odds and levels; the setups that passed at this setting with their 2025–26 figures; the textbook MSS for comparison. Mobile shows the last break.
+• [b]Alert:[/b] a break in a setup that passed. Odds on 5-minute (sensitivity 2/3/5/8) and 15-minute (2/3) charts.
+
+[b]█ WHAT THE TESTS SHOWED[/b]
+• [b]Breaks alone are coin flips[/b]: MSS 49.4–50.6%, BOS 49.0–49.6% at the six settings.
+• [b]641 single-context tests[/b]: 165 significant on ES + YM 2018–24, 8 held in 2025–26 (about 4 by chance); all 8 were breaks that fail. Of 101 scenario cells, 17 passed the suite's rule (p < 0.05 clustered by day, same sign in 2018–24 and 2025–26 and on each market), all on the failing side.
+• [b]Sell BOS chasing the prior day's top quarter[/b] (closing in the top quarter or above PDH, before 00:00 or below the midnight open): back to the extreme first [b]54.4–55.6%[/b] at all six settings (2025–26: 53.3–57.0%).
+  – 20:00–05:00: [b]55.9%[/b] (Asia 57.6%, London 55.6%); NY lunch 57.9%.
+  – +4.5 ± 1.2 points beyond other sell BOS overnight. The buy-side mirror: 49.8%.
+• [b]Weak MSS[/b] (no raid; no FVG or a tight stop): [b]51.3–52.2%[/b] on 5-minute sensitivity 2–5 (2025–26: 51.8–53.1%).
+  – Weak sell MSS 00:00–02:00 53.8%, NY PM 53.8%; buy side 50.9%. No effect at 8 or on 15 minutes.
+• [b]Textbook MSS[/b] (raid + FVG + normal stop): 50.5%. With a fresh PDH/PDL raid 49.5%; with ES/YM SMT 50.5%.
+• [b]Costs[/b]: +0.035R to +0.055R gross per trade; net of 2 ticks round trip about −0.03R to −0.06R (break-even only with stops of 32+ ticks). A filter for judging breaks, not a system.
+
+[b]█ CREDITS[/b]
+Market structure shifts, breaks of structure, liquidity raids, displacement, fair value gaps, premium and discount, the midnight open and SMT are taught by ICT (Michael J. Huddleston). The tests and code are built from scratch. Not affiliated with or endorsed by ICT.
+
+[i]For education. Past behaviour does not promise future results.[/i]
