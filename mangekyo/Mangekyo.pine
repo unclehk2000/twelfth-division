@@ -2,78 +2,98 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © Unclehk2000
 //
-// Mangekyō (万華鏡 · "Kaleidoscope")
-// The Sharingan's next stage. Where Sharingan reads the quarter's look back, Mangekyō reads the daily candles inside it:
-// the higher-timeframe fair value gaps, volume imbalances and suspension blocks ICT grades from the daily chart.
-// • Daily gaps from the last 20 / 40 / 60 trading days, or from this week and last week only (ICT trades inside last week's
-//   FVG), the most local ones above and below price; the one price is in graded in octants across the chart, with prices.
-// • When price trades inside one, the candles that made it are drawn right of price, PO3-style.
-// • Anchored as ICT draws them: an FVG from its first candle, a suspension block from the suspended candle; bodies read as the
-//   chart's SET setting (or the settlement, the last trade, or the wider of the two, as ICT toggles SET for the widest imbalance).
-// • Inversion FVGs kept after a close beyond, and the wick CEs of the last daily swing candle, as on ICT's daily chart.
-// • Daily candles from the chart, the front-month contract, the continuous 1! or the back-adjusted 1!.
-// • The card: each gap's size, status, tested reach odds (by Friday and in 20 days) and hold odds, and the week's
-//   premium and discount draw.
-// Tested on NQ, ES, RTY daily 2010–26 and YM 2017–26 against the same candles with no gap; the numbers are in the tooltips.
+// Mangekyō (万華鏡 · "Kaleidoscope") with its Eternal form (永遠の万華鏡) in one script: one switch between the daily gaps and the weekly ones.
+// • Daily (Mangekyō) or weekly (Eternal Mangekyō) fair value gaps, volume imbalances and suspension blocks from the look back
+//   (20 / 40 / 60 days or 12 / 26 / 52 weeks; daily also this week + last week), the most local above and below price, the one price
+//   is in graded in octants across the chart with prices, inversion FVGs, and the wick CEs of the last swing candle.
+// • PO3: the gap's candles right of price and the candle forming now, live from the chart's own bars (no lag), fully personalisable.
+// • A compact card: each gap's range, a ✓ / ✕ status and its tested odds; caution rows only when something is live.
+// Tested on NQ, ES, RTY 2010–26 and YM 2017–26 against the same candles with no gap; the numbers are in the tooltips.
 // Fair value gap, volume imbalance, suspension block, consequent encroachment, octant grading and PO3 are taught by ICT
-// (Michael J. Huddleston). Not affiliated with or endorsed by ICT. Quarterly look backs live in Sharingan, the week's own
-// range in Getsuga, opening gaps (NWOG / NDOG) in OpenGaps and RTH gaps in Benihime.
+// (Michael J. Huddleston). Not affiliated with or endorsed by ICT. The card's compact ✓ / ✕ layout was inspired by El3mentss's
+// DOL table in his GXV HTF Profiler rework (no code used). Quarterly look backs live in Sharingan, opening gaps in OpenGaps.
 
-// behind_chart = false: the card, gaps and labels draw in front of the candles (Pine v6 defaults overlay visuals to behind the chart)
-indicator("Mangekyō", "Mangekyō", overlay = true, behind_chart = false, max_lines_count = 500, max_labels_count = 300, max_boxes_count = 120)
+// behind_chart = false: the card, gaps and labels draw in front of the candles
+indicator("Mangekyō", "Mangekyō", overlay = true, behind_chart = false, max_lines_count = 500, max_labels_count = 300, max_boxes_count = 150)
 
 TZ  = "America/New_York"
 DAY = 86400000
 
 // ═══════════════════════════════════════════════════════════════ Inputs
 gV = "View"
+eyeI   = input.string("Daily · Mangekyō", "Timeframe", options = ["Daily · Mangekyō", "Weekly · Eternal Mangekyō"], group = gV, tooltip = "Daily: the daily gaps (Mangekyō). Weekly: the weekly gaps (Eternal Mangekyō). Everything follows the switch: the look back, the PO3 candles, the countdown, the card and its tested odds.", display = display.none)
 themeI = input.string("Auto", "Theme", options = ["Auto", "Dark", "Light"], group = gV, tooltip = "Auto follows the chart background.", display = display.none)
 crdSzI = input.string("Small", "Card text", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
-layI   = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Mobile folds the card to the nearest gap above and below, the week and today.", display = display.none)
+layI   = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Mobile: the nearest gap above and below and the live caution only, without the range column.", display = display.none)
 crdPos = input.string("Bottom left", "Card position", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, display = display.none)
+txtM   = input.string("Auto (theme)", "Text colour", options = ["Auto (theme)", "Custom"], group = gV, inline = "tx", tooltip = "Auto: white text on a dark chart, black on a light one. Custom: your colours for the labels on the chart (grade prices, PO3 times and tags, countdown) and for the card's text, for a chart background the auto choice reads wrongly. The card's background follows Theme.", display = display.none)
+txtCh  = input.color(#131722, "chart", group = gV, inline = "tx", active = txtM == "Custom", display = display.none)
+txtCd  = input.color(#131722, "card", group = gV, inline = "tx", active = txtM == "Custom", display = display.none)
+bool isW = eyeI == "Weekly · Eternal Mangekyō"
 
-gD = "Daily data"
-srcI = input.string("Chart symbol", "Daily candles from", options = ["Chart symbol", "Front-month contract", "Continuous 1!", "Continuous 1!, back-adjusted"], group = gD, tooltip = "Chart symbol: the daily candles of what is on the chart, with its own settings.\nFront-month contract: e.g. NQZ2026, as ICT charts it. Before the roll its candles were the deferred month's: thin (NQ 2010–24: 0.1% of the front month's volume 20–40 days out). Over the 60 days before each contract became front, its own chart showed every gap the front month showed plus 18% more on NQ, 5% ES, 93% RTY, 12% YM.\nContinuous 1!: unadjusted, it jumps at each roll by the carry. In 2022–26 the jump was 0.44–0.69 ATR (median; NQ 0.58), more than a typical daily gap is wide (0.28 ATR), so gaps from before the last roll sit at the old contract's prices.\nContinuous 1!, back-adjusted: the front month's candles with the roll jumps removed, so old gaps sit at today's contract prices. On an unadjusted chart the left end of an old gap will not line up with its candles.", display = display.none)
-setI = input.string("As the chart (SET setting)", "Body close", options = ["As the chart (SET setting)", "Widest of the two (ICT)", "Settlement (SET on)", "Last trade (SET off)"], group = gD, tooltip = "A daily body ends at the settlement (TradingView's 'Use settlement as close on daily interval', SET) or at the last trade at 17:00 ET. Wicks are the same either way, so wick gaps (FVGs) do not change; volume imbalances and suspension blocks do.\nAs the chart: the bodies your chart shows, so every zone lines up with the candles.\nWidest of the two: each imbalance is read with whichever setting makes it wider, as ICT toggles SET to find the widest; a zone read with the other close is drawn with a dashed border, since it will not line up with the bodies on screen.\nTested 2018–26: last trade and settlement differ by 0.04 ATR on a typical day and by more than 0.1 ATR on 12–18% of days; the candle's colour flips on 3–5%. SET on gives 5–21% more volume imbalances and 10–57% more suspension blocks; only 44–50% of imbalances exist under both. Neither setting's imbalances held more often than the same candles without one.", display = display.none)
+gD = "Data"
+srcI = input.string("Chart symbol", "Candles from", options = ["Chart symbol", "Front-month contract", "Continuous 1!", "Continuous 1!, back-adjusted"], group = gD, tooltip = "Chart symbol: the daily / weekly candles of what is on the chart.\nFront-month contract: e.g. NQZ2026, as ICT charts it; candles before the roll are the deferred month's and thin.\nContinuous 1!: unadjusted, it jumps at each roll by the carry (2022–26 median 0.58 daily ATR on NQ), so gaps from before the last roll sit at the old contract's prices.\nContinuous 1!, back-adjusted: the roll jumps removed, so old gaps sit at today's contract prices.", display = display.none)
+setI = input.string("As the chart (SET setting)", "Body close", options = ["As the chart (SET setting)", "Widest of the two (ICT)", "Settlement (SET on)", "Last trade (SET off)"], group = gD, tooltip = "A body ends at the settlement (TradingView's 'Use settlement as close', SET) or at the last trade at 17:00 ET. Wicks are the same either way, so FVGs do not change; volume imbalances and suspension blocks do.\nWidest of the two: each imbalance read with whichever close makes it wider, as ICT toggles SET; a zone read with the other close has a dashed border.\nTested 2018–26 (daily): neither setting's imbalances held more often than the same candles without one.", display = display.none)
 
 gG = "Gaps"
-scI    = input.string("Look back (20 / 40 / 60 days)", "Gaps from", options = ["Look back (20 / 40 / 60 days)", "This week + last week", "Last week", "This week"], group = gG, tooltip = "Look back: every gap from the last 20, 40 or 60 trading days, the IPDA look backs.\nThe week settings keep only the gaps formed this week (today's forming FVG included) and / or last week, as ICT trades inside the previous week's FVG with its octants. A gap belongs to the week its last candle closed in. If price is in none of them, the nearest one is graded.", display = display.none)
-lbI    = input.string("60", "Look back (trading days)", options = ["20", "40", "60"], group = gG, tooltip = "Gaps formed in the last 20, 40 or 60 trading days, the IPDA look backs (Sharingan draws the quarter itself).", active = scI == "Look back (20 / 40 / 60 days)", display = display.none)
-nEach  = input.int(2, "Most local, each side", minval = 1, maxval = 8, group = gG, tooltip = "The nearest live gaps above and below price. Gaps price is inside are always drawn.", display = display.none)
+scI    = input.string("Look back", "Gaps from", options = ["Look back", "This week + last week", "Last week", "This week"], group = gG, tooltip = "Daily only. Look back: every gap from the last 20, 40 or 60 trading days. The week settings keep only the daily gaps formed this week and / or last week, as ICT trades inside the previous week's FVG; if price is in none, the nearest is graded.", active = not isW, display = display.none)
+lbD    = input.string("60", "Look back (days)", options = ["20", "40", "60"], group = gG, inline = "lb", active = not isW, display = display.none)
+lbW    = input.string("52", "(weeks)", options = ["12", "26", "52"], group = gG, inline = "lb", tooltip = "Daily: the IPDA look backs of 20, 40 or 60 trading days. Weekly: 12, 26 or 52 weeks (a quarter, half a year, a year).", active = isW, display = display.none)
+nEach  = input.int(2, "Most local, each side", minval = 1, maxval = 8, group = gG, tooltip = "The nearest live gaps above and below price drawn on the chart. Gaps price is inside are always drawn.", display = display.none)
+mitI   = input.string("Closed beyond (ICT)", "Mitigated when", options = ["Closed beyond (ICT)", "Far edge traded", "CE traded", "Touched"], group = gG, tooltip = "When a gap stops being drawn as live. Closed beyond (ICT): until a close beyond the far edge, when an FVG turns inversion. The others hide it once its far edge, CE or near edge has traded (the forming candle's range counts). The tested odds do not change with this choice.", display = display.none)
+tdef   = input.bool(true, "Tested filters for the timeframe", group = gG, tooltip = "On: the size filters the odds were tested with. Daily: FVG ≥ 0.25 ATR with a middle candle ≥ 0.5 ATR, suspension block ≥ 0.25, imbalance ≥ 0.10. Weekly: FVG ≥ 0.10 with ≥ 0.25, suspension block ≥ 0.10, imbalance ≥ 0.05. Off: your own below.", display = display.none)
 useF   = input.bool(true, "FVG", group = gG, inline = "k1", display = display.none)
-minF   = input.float(0.25, "≥ ATR", minval = 0.0, step = 0.05, group = gG, inline = "k1", tooltip = "Three candles whose wicks leave a gap: BISI (bullish, candle 3's low above candle 1's high) or SIBI (bearish). Width in daily ATR(14) at formation.\n2010–26, four markets: 54–60 a year per market, median 0.28 ATR; 70% are back within 5 days, 84% within 20.", active = useF, display = display.none)
-dispF  = input.float(0.5, "Displacement: candle 2 body ≥ ATR", minval = 0.0, step = 0.25, group = gG, tooltip = "Keeps the FVGs whose middle candle moved this far in the gap's direction. A filter for the major ones, not an edge: at the same width, displacement did not change how often a gap held.", active = useF, display = display.none)
+minFu  = input.float(0.25, "≥ ATR", minval = 0.0, step = 0.05, group = gG, inline = "k1", active = useF and not tdef, display = display.none)
+dispFu = input.float(0.5, "middle candle ≥ ATR", minval = 0.0, step = 0.25, group = gG, inline = "k1", tooltip = "Three candles whose wicks leave a gap: BISI (bullish) or SIBI (bearish), width in ATR(14) at formation; the middle candle's body must move this far in the gap's direction (a filter for the major ones, not an edge).", active = useF and not tdef, display = display.none)
 useS   = input.bool(true, "Suspension block", group = gG, inline = "k2", display = display.none)
-minS   = input.float(0.25, "≥ ATR", minval = 0.0, step = 0.05, group = gG, inline = "k2", tooltip = "A candle with a volume imbalance on both sides, as ICT defines it: the zone runs from the body before to the body after. 15–21 a year per market, median 0.55 ATR.", active = useS, display = display.none)
+minSu  = input.float(0.25, "≥ ATR", minval = 0.0, step = 0.05, group = gG, inline = "k2", tooltip = "A candle with a volume imbalance on both sides, as ICT defines it: the zone runs from the body before to the body after.", active = useS and not tdef, display = display.none)
 useVI  = input.bool(true, "Volume imbalance", group = gG, inline = "k3", display = display.none)
-minVI  = input.float(0.10, "≥ ATR", minval = 0.0, step = 0.05, group = gG, inline = "k3", tooltip = "Two candles whose bodies do not meet. 66–73 a year per market, median 0.05 ATR, so the size filter matters.", active = useVI, display = display.none)
-showInv = input.bool(true, "Inversion FVGs", group = gG, tooltip = "An FVG closed beyond on the daily chart flips: ICT trades it as an inversion FVG from the other side. Kept, in their own colour, through the look back, until a daily close beyond its other edge. Suspension blocks and imbalances end at a close beyond.\nTested: inverted FVGs were retested within 20 days 88.5% of the time vs 89.6% for the same candles without a gap, held the touch day 43.5% vs 44.4%, and 10 days 25.8% vs 24.4%: drawn, not scored.", display = display.none)
-mergeOv = input.bool(true, "Merge overlapping gaps", group = gG, tooltip = "Where two drawn gaps on the same side (support or resistance) overlap by half or more of the smaller one, one is drawn: a live gap before an inversion FVG, an FVG before a suspension block before an imbalance, else the wider.", display = display.none)
-hideDef = input.bool(true, "Hide gaps from the deferred month", group = gG, tooltip = "Front-month contract only: gaps whose middle candle traded under 10% of the contract's recent daily volume, i.e. before it became the front month.", active = srcI == "Front-month contract", display = display.none)
+minVIu = input.float(0.10, "≥ ATR", minval = 0.0, step = 0.05, group = gG, inline = "k3", tooltip = "Two candles whose bodies do not meet.", active = useVI and not tdef, display = display.none)
+showInv = input.bool(true, "Inversion FVGs", group = gG, tooltip = "An FVG closed beyond flips: ICT trades it as an inversion FVG from the other side. Kept in its own colour until a close beyond its other edge. Drawn, not scored (tested: no edge over the same candles without a gap).", display = display.none)
+mergeOv = input.bool(true, "Merge overlapping gaps", group = gG, tooltip = "Where two drawn gaps on the same side overlap by half or more of the smaller one, one is drawn: a live gap before an inversion FVG, an FVG before a suspension block before an imbalance, else the wider.", display = display.none)
+hideDef = input.bool(true, "Hide gaps from the deferred month", group = gG, tooltip = "Front-month contract only: gaps whose middle candle traded under 10% of the contract's recent volume, i.e. before it became the front month.", active = srcI == "Front-month contract", display = display.none)
 
 gR = "Drawing"
-gradeI = input.string("CE", "Grade", options = ["CE", "Quadrants", "Octants"], group = gR, tooltip = "Lines across every drawn gap. The gap price is inside is always graded in octants with prices.\nTested: the touch day's wick stopped across the zone about as a same-size band without a gap does; within 1/16 of CE 12.5% vs 11.3%.", display = display.none)
-extB   = input.int(0, "Extend right (bars, 0 = auto)", minval = 0, maxval = 400, group = gR, tooltip = "How far past the last bar the gaps and their grades run, labels at the end. Auto: 14 bars on a daily chart; intraday 110 (1–2 minute), 70 (3–5 minute), 40 (longer), so they run past the PO3 candles.", display = display.none)
-wickI  = input.string("Last daily swing", "Daily wick CE", options = ["Last daily swing", "Yesterday", "Off"], group = gR, tooltip = "The midpoint of a daily candle's premium wick (high to the body top), of its discount wick (body bottom to the low) and the midpoint between the two, run right, as ICT grades the wicks of the day that turned price.\nLast daily swing: the newest daily high or low with a higher (lower) candle on each side; or yesterday, while it is a pending swing: a lower low (higher high) than the day before that today has not traded past, as ICT grades Friday's candle over the weekend. Yesterday: the last completed day.\nICT's reading, drawn; not tested here.", display = display.none)
+gradeI = input.string("CE", "Grade", options = ["CE", "Quadrants", "Octants"], group = gR, tooltip = "Lines across every drawn gap. The gap price is inside is always graded in octants with prices, as ICT grades it on the 1-minute chart.", display = display.none)
+extB   = input.int(0, "Extend right (bars, 0 = auto)", minval = 0, maxval = 400, group = gR, tooltip = "Auto: 6 bars on a weekly chart, 14 daily; intraday 110 (1–2 minute), 70 (3–5 minute), 40 (longer), so the gaps run past the PO3 candles.", display = display.none)
+wickI  = input.string("Last swing candle", "Wick CE", options = ["Last swing candle", "Last candle", "Off"], group = gR, tooltip = "The midpoints of the premium wick (high to body top) and discount wick (body bottom to low) of the last daily / weekly swing candle, or of the last completed candle, and the midpoint between them, as ICT grades the candle that turned price. Drawn, not tested.", display = display.none)
 cWick  = input.color(#7e57c2, "Wick CE", group = gR, inline = "c3", active = wickI != "Off", display = display.none)
-cCE    = input.color(#089981, "CE of the graded gap", group = gR, inline = "c4", tooltip = "The gap price is in (or, with a week setting, the nearest one) is graded across the chart in solid lines at every eighth, its CE in this colour, prices at the right end, as ICT grades it on the 1-minute chart.", display = display.none)
+cInv   = input.color(#ff9800, "Inversion", group = gR, inline = "c3", active = showInv, display = display.none)
 cBull  = input.color(#26a69a, "BISI", group = gR, inline = "c1", display = display.none)
 cBear  = input.color(#ef5350, "SIBI", group = gR, inline = "c1", display = display.none)
 cSBc   = input.color(#42a5f5, "Suspension", group = gR, inline = "c2", display = display.none)
 cVIc   = input.color(#9575cd, "Imbalance", group = gR, inline = "c2", display = display.none)
-cInv   = input.color(#ff9800, "Inversion FVG", group = gR, inline = "c3", active = showInv, display = display.none)
-boxTr  = input.int(84, "Fill transparency", minval = 0, maxval = 100, group = gR, display = display.none)
+cCE    = input.color(#089981, "CE of the graded gap", group = gR, inline = "c4", display = display.none)
+boxTr  = input.int(84, "Fill transparency", minval = 0, maxval = 100, group = gR, inline = "c4", display = display.none)
 
-gP = "PO3 · the gap's candles right of price"
-po3I   = input.string("When price is inside a gap", "Show", options = ["When price is inside a gap", "Always (nearest gap)", "Off"], group = gP, tooltip = "The two or three daily candles that made the gap, drawn right of price with the gap shaded and graded, and where price is now.", display = display.none)
-pOff   = input.int(0, "Offset from chart (bars, 0 = auto)", minval = 0, maxval = 400, group = gP, tooltip = "Auto: 3 bars on a daily chart; intraday 25 (1–2 minute), 15 (3–5 minute), 10 (longer).", active = po3I != "Off", display = display.none)
-pW     = input.int(0, "Candle width (bars, 0 = auto)", minval = 0, maxval = 20, group = gP, tooltip = "Auto: 2 bars on a daily chart; intraday 16 (1–2 minute), 10 (3–5 minute), 5 (longer).", active = po3I != "Off", display = display.none)
-pSp    = input.int(0, "Spacing (0 = auto)", minval = 0, maxval = 20, group = gP, tooltip = "Auto: 1 bar on a daily chart; intraday 8 (1–2 minute), 5 (3–5 minute), 3 (longer).", active = po3I != "Off", display = display.none)
-pCol   = input.color(#787b86, "Candle colour", group = gP, active = po3I != "Off", display = display.none)
+gP = "PO3 · candles right of price"
+po3I   = input.string("When price is inside a gap", "Show", options = ["When price is inside a gap", "Always (nearest gap)", "Off"], group = gP, tooltip = "The two or three candles that made the gap, and the candle forming now, drawn right of price with the gap shaded.", display = display.none)
+pOffI  = input.int(12, "Offset (bars right of price)", minval = 1, maxval = 300, group = gP, tooltip = "Where the first PO3 candle sits. The gap lines and their labels run past the candles automatically.", active = po3I != "Off", display = display.none)
+pWI    = input.int(0, "Width", minval = 0, maxval = 30, inline = "pw", group = gP, active = po3I != "Off", display = display.none)
+pGI    = input.int(0, "gap", minval = 0, maxval = 30, inline = "pw", group = gP, tooltip = "Each candle's width and the gap between candles, in chart bars. 0 = auto: 6 and 3 on 1–2 minute charts, 4 and 2 up to 5 minutes, 2 and 2 above.", active = po3I != "Off", display = display.none)
+pStyI  = input.string("Model (gap colours)", "Colours", options = ["Model (gap colours)", "ICT (green / black)", "Custom"], group = gP, tooltip = "Model: the gap colours (BISI up, SIBI down), see-through bodies. ICT: green up bodies, black down bodies, black borders and wicks, as on ICT's charts (white instead of black on a dark chart). Custom: the six colours below, up then down. The same candle system as Hadō 99.", active = po3I != "Off", display = display.none)
+bool pCu  = pStyI == "Custom"
+bool pIct = pStyI == "ICT (green / black)"
+pBdU   = input.color(#a5d6a7, "Body", inline = "pb", group = gP, active = po3I != "Off" and pCu, display = display.none)
+pBdD   = input.color(#2e2e2e, "", inline = "pb", group = gP, active = po3I != "Off" and pCu, display = display.none)
+pBrU   = input.color(#2e2e2e, "Border", inline = "pr", group = gP, active = po3I != "Off" and pCu, display = display.none)
+pBrD   = input.color(#2e2e2e, "", inline = "pr", group = gP, active = po3I != "Off" and pCu, display = display.none)
+pWkU   = input.color(#2e2e2e, "Wick", inline = "pk", group = gP, active = po3I != "Off" and pCu, display = display.none)
+pWkD   = input.color(#2e2e2e, "", inline = "pk", group = gP, active = po3I != "Off" and pCu, display = display.none)
+pWkW   = input.int(1, "Wick width", minval = 1, maxval = 4, group = gP, active = po3I != "Off", display = display.none)
+pTagI  = input.bool(true, "C1–C3 tags", inline = "pt", group = gP, tooltip = "Tags: the gap's candles C1, C2, C3 (C1, C2 for an imbalance), under them for a bullish gap and over them for a bearish one. Times: each candle's day (week) under it. Countdown: the timeframe and the time left in the forming candle, over the candles.", active = po3I != "Off", display = display.none)
+datesOn = input.bool(true, "Times", inline = "pt", group = gP, active = po3I != "Off", display = display.none)
+cdOn   = input.bool(true, "Countdown", inline = "pt", group = gP, active = po3I != "Off", display = display.none)
+liveOn = input.bool(true, "Forming candle", inline = "pl", group = gP, active = po3I != "Off", display = display.none)
+pLivI  = input.bool(true, "dashed", inline = "pl", group = gP, tooltip = "The candle forming now, built from the chart's own bars and moved on every tick (no lag). Dashed: it gets a dashed border.", active = po3I != "Off" and liveOn, display = display.none)
+shadeOn = input.bool(true, "Shade the gap", inline = "p2", group = gP, active = po3I != "Off", display = display.none)
+ceOn    = input.bool(true, "CE line", inline = "p2", group = gP, active = po3I != "Off", display = display.none)
 
 gC = "Card"
-showCrd = input.bool(true, "Card", group = gC, display = display.none)
-showP   = input.bool(true, "Tested odds", group = gC, tooltip = "Reach: the chance the gap's near edge trades by Friday and within 20 trading days, from its distance at the last close in daily ATR(14). Fit on NQ, ES, RTY, YM daily 2010–26 on the nearest live gap above and below. Walk-forward 2014–26 (each year fit on the years before), 5 days: above 6→5%, 21→22%, 41→36%, 60→57%, 81→79%, 95→94%; below 6→10%, 21→22%, 40→41%, 60→61%, 80→82%, 95→95%. Single years ran 0.85–1.20× the average.\nHolds: the chance the first touch day does not trade through the far edge, then that it is not closed beyond within 10 trading days, from the gap's width. FVG: 0.25 ATR wide 48% · 29%, 0.5 ATR 71% · 35%, 1 ATR 87% · 42%. Locked test 2025–26 (fit on 2010–24), touch day: 11→14%, 37→41%, 59→57%, 79→82%.", active = showCrd, display = display.none)
+showCrd = input.bool(true, "Card", group = gC, inline = "cd", display = display.none)
+cRows   = input.int(2, "rows each side", minval = 1, maxval = 4, group = gC, inline = "cd", active = showCrd, display = display.none)
+showOd  = input.bool(true, "Odds column", group = gC, inline = "co", tooltip = "Untouched gaps: the tested chance the near edge trades (daily: by Friday · in 20 days; weekly: in 4 · 12 weeks), from its distance. Touched for the first time today / this week: the chance that touch holds the far edge, from its width. Tooltips carry the tests.", active = showCrd, display = display.none)
+showWn  = input.bool(true, "Caution rows", group = gC, inline = "co", tooltip = "Only when live: price inside a gap (with the tested hold if the candle closes there), an FVG forming, and (daily) the week's premium / discount draw.", active = showCrd, display = display.none)
 
 gN = "Alerts (create one alert with 'Any alert() function call')"
 alIn = input.bool(true, "Price enters a gap", group = gN, inline = "a1", display = display.none)
@@ -81,18 +101,28 @@ alCE = input.bool(true, "CE traded", group = gN, inline = "a1", display = displa
 alX  = input.bool(true, "Closed beyond", group = gN, inline = "a2", display = display.none)
 alNw = input.bool(false, "New gap", group = gN, inline = "a2", display = display.none)
 
-int  LB  = str.tonumber(lbI) == 20 ? 20 : str.tonumber(lbI) == 40 ? 40 : 60
-int  scM = scI == "This week + last week" ? 1 : scI == "Last week" ? 2 : scI == "This week" ? 3 : 0
-bool mob = layI == "Mobile"
+// the switch: one set of rules, two timeframes
+string HTF  = isW ? "W" : "D"
+string U    = isW ? "W" : "D"
+string nowW = isW ? "this week" : "today"
+int  LB     = isW ? (lbW == "12" ? 12 : lbW == "26" ? 26 : 52) : (lbD == "20" ? 20 : lbD == "40" ? 40 : 60)
+int  maxAge = isW ? 52 : 60
+int  scM    = isW ? 0 : scI == "This week + last week" ? 1 : scI == "Last week" ? 2 : scI == "This week" ? 3 : 0
+int  mitM   = mitI == "Touched" ? 1 : mitI == "CE traded" ? 2 : mitI == "Far edge traded" ? 3 : 0
+float minF  = tdef ? (isW ? 0.10 : 0.25) : minFu
+float dispF = tdef ? (isW ? 0.25 : 0.5) : dispFu
+float minS  = tdef ? (isW ? 0.10 : 0.25) : minSu
+float minVI = tdef ? (isW ? 0.05 : 0.10) : minVIu
+bool mob  = layI == "Mobile"
 int  setM = setI == "Settlement (SET on)" ? 0 : setI == "Last trade (SET off)" ? 1 : setI == "Widest of the two (ICT)" ? 2 : 3
-bool isD  = timeframe.isdaily
-// auto sizes by timeframe: a 1-minute chart shows ~600–1,200 bars, so the PO3 candles and the run past price scale with it
+bool isD  = isW ? (timeframe.isdaily or timeframe.isweekly) : timeframe.isdaily
 int  tfS  = timeframe.in_seconds()
 int  tfK  = isD ? 0 : tfS <= 120 ? 3 : tfS <= 300 ? 2 : 1
-int  xB   = extB > 0 ? extB : tfK == 0 ? 14 : tfK == 3 ? 110 : tfK == 2 ? 70 : 40
-int  pO   = pOff > 0 ? pOff : tfK == 0 ? 3 : tfK == 3 ? 25 : tfK == 2 ? 15 : 10
-int  pWd  = pW > 0 ? pW : tfK == 0 ? 2 : tfK == 3 ? 16 : tfK == 2 ? 10 : 5
-int  pS   = pSp > 0 ? pSp : tfK == 0 ? 1 : tfK == 3 ? 8 : tfK == 2 ? 5 : 3
+// PO3 sizes as Hadō 99: width and gap auto by timeframe; the gap lines run past the candles (up to 3 gap candles + the forming one)
+int  pO   = pOffI
+int  pWd  = pWI > 0 ? pWI : tfS <= 120 ? 6 : tfS <= 300 ? 4 : 2
+int  pS   = pGI > 0 ? pGI : tfS <= 120 ? 3 : 2
+int  xB   = extB > 0 ? extB : math.max(timeframe.isweekly ? 6 : tfK == 0 ? 14 : tfK == 3 ? 110 : tfK == 2 ? 70 : 40, po3I != "Off" ? pO + 4 * (pWd + pS) + 4 : 0)
 
 // ═══════════════════════════════════════════════════════════════ Palette, helpers
 float bgLum = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
@@ -114,7 +144,6 @@ posOf(string s) =>
         "Bottom left"   => position.bottom_left
         "Bottom center" => position.bottom_center
         => position.bottom_right
-dmy(int t) => str.format_time(t + 6 * 3600000, "dd MMM", TZ)
 decOf(float m) =>
     int nd = 8
     for k = 0 to 8
@@ -134,24 +163,39 @@ nCdf(float x) =>
     float p = 1.0 - 0.3989422804 * math.exp(-0.5 * z * z) * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))))
     x >= 0 ? p : 1.0 - p
 lgs(float z) => 1.0 / (1.0 + math.exp(-z))
-// tested reach odds: p = logistic(a + b·logit(2Φ(−d / (κ·√h)))), d = distance in ATR(14) at the last close, h = trading days
+dmy(int t) => str.format_time(t + 6 * 3600000, isW ? "dd MMM yy" : "dd MMM", TZ)
+cAmb = #f9a825
+fgAuto = bgLum < 128 ? #d1d4dc : #131722
+// text colours: chart labels and card text, auto by theme or the user's own
+bool  txC   = txtM == "Custom"
+color cChT  = txC ? txtCh : fgAuto
+color cChS  = txC ? color.new(txtCh, 25) : (bgLum < 128 ? #8a93a6 : #5d6476)
+color cTxK  = txC ? txtCd : cTx
+color cSubK = txC ? color.new(txtCd, 25) : cSub
+color cMuK  = txC ? color.new(txtCd, 50) : cMu
+// the PO3 candle colours (Hadō 99's system): part 0 body · 1 border · 2 wick
+pCol(bool up, int part) =>
+    color mc = up ? cBull : cBear
+    part == 0 ? (pCu ? (up ? pBdU : pBdD) : pIct ? (up ? #a5d6a7 : fgAuto) : color.new(mc, 70)) : part == 1 ? (pCu ? (up ? pBrU : pBrD) : pIct ? fgAuto : color.new(mc, 30)) : (pCu ? (up ? pWkU : pWkD) : pIct ? fgAuto : color.new(mc, 30))
+// tested reach odds: p = logistic(a + b·logit(2Φ(−d / (κ·√h)))), d = distance in ATR(14) at the last close, h = days / weeks
 reachP(float d, float h, bool above) =>
-    float k = above ? 0.625 : 1.05
-    float a = above ? 0.2108 : -1.0257
-    float b = above ? 0.9973 : 1.0638
+    float k = isW ? (above ? 1.0 : 2.1) : (above ? 0.625 : 1.05)
+    float a = isW ? (above ? -0.5945 : -2.823) : (above ? 0.2108 : -1.0257)
+    float b = isW ? (above ? 1.4802 : 1.4882) : (above ? 0.9973 : 1.0638)
     float q = math.min(math.max(2.0 * nCdf(-(d / math.sqrt(math.max(h, 0.25))) / k), 0.00001), 0.99999)
     lgs(a + b * math.log(q / (1.0 - q)))
-// tested hold odds from the width w (ATR): the first touch day does not trade through the far edge · not closed beyond within 10 days
+// tested hold odds from the width w (ATR): the first touch day / week does not trade through the far edge · not closed beyond in 10 days / 4 weeks
 pTouch(int kind, float w) =>
     float lw = math.log(math.max(w, 0.01))
-    kind == 0 ? lgs(1.9063 + 1.4383 * lw) : kind == 1 ? lgs(1.8216 + 1.5525 * lw) : lgs(1.1063 + 1.0892 * lw)
+    isW ? (kind == 0 ? lgs(2.129 + 1.6756 * lw) : kind == 1 ? lgs(1.959 + 1.516 * lw) : lgs(1.3113 + 1.3707 * lw)) : (kind == 0 ? lgs(1.9063 + 1.4383 * lw) : kind == 1 ? lgs(1.8216 + 1.5525 * lw) : lgs(1.1063 + 1.0892 * lw))
 p10(int kind, float w) =>
     float lw = math.log(math.max(w, 0.01))
-    kind == 0 ? lgs(-0.3164 + 0.4153 * lw) : kind == 1 ? lgs(-0.0963 + 0.6071 * lw) : lgs(-0.8334 + 0.2189 * lw)
-// survives the next 10 trading days after the touch day, by where the touch day closed: back outside · near half · far half
-pBody(int kind, int zoneHalf) =>
-    kind == 0 ? (zoneHalf == 0 ? 0.439 : zoneHalf == 1 ? 0.342 : 0.161) : kind == 1 ? (zoneHalf == 0 ? 0.508 : zoneHalf == 1 ? 0.448 : 0.198) : (zoneHalf == 0 ? 0.324 : zoneHalf == 1 ? 0.241 : 0.159)
+    isW ? (kind == 0 ? lgs(0.7745 + 0.975 * lw) : kind == 1 ? lgs(0.3655 + 0.8608 * lw) : lgs(-0.8947 - 0.0258 * lw)) : (kind == 0 ? lgs(-0.3164 + 0.4153 * lw) : kind == 1 ? lgs(-0.0963 + 0.6071 * lw) : lgs(-0.8334 + 0.2189 * lw))
+// survives the next 10 days / 4 weeks after the touch candle, by where it closed: back outside · near half · far half
+pBody(int kind, int zh) =>
+    isW ? (kind == 0 ? (zh == 0 ? 0.612 : zh == 1 ? 0.506 : 0.293) : kind == 1 ? (zh == 0 ? 0.563 : zh == 1 ? 0.567 : 0.176) : (zh == 0 ? 0.484 : zh == 1 ? 0.538 : 0.526)) : (kind == 0 ? (zh == 0 ? 0.439 : zh == 1 ? 0.342 : 0.161) : kind == 1 ? (zh == 0 ? 0.508 : zh == 1 ? 0.448 : 0.198) : (zh == 0 ? 0.324 : zh == 1 ? 0.241 : 0.159))
 
+// CME equity-index holidays, for counting the trading days left this week
 // CME equity-index holidays (as Kyōka Suigetsu / Sharingan), for counting the trading days left this week
 dowOf(int y, int m, int d) => dayofweek(timestamp("UTC", y, m, d, 0, 0), "UTC")
 nthDow(int y, int m, int wd, int n) =>
@@ -194,7 +238,7 @@ daysToFri(int td) =>
         t += DAY
     math.max(n, 1)
 
-// ═══════════════════════════════════════════════════════════════ The daily data
+// ═══════════════════════════════════════════════════════════════ The daily / weekly data
 bool isFut  = syminfo.type == "futures"
 bool isCont = str.contains(syminfo.ticker, "!")
 string cont = isFut and syminfo.root != "" ? syminfo.prefix + ":" + syminfo.root + "1!" : syminfo.tickerid
@@ -210,19 +254,19 @@ string tkC = srcI == "Continuous 1!, back-adjusted" ? ticker.modify(base, backad
 string tkA = setM == 3 ? tkC : setM == 1 ? tkL : tkS
 
 type Gap
-    int   t1           // time of the first candle (daily bar time = its 18:00 ET session start)
+    int   t1           // time of the first candle (bar time = its 18:00 ET session start)
     int   t2           // time of the middle candle (the second of two for an imbalance)
     int   t0           // time of the last candle, the day it formed
     int   kind         // 0 FVG · 1 suspension block · 2 volume imbalance
     int   dir          // 1 bullish (BISI), -1 bearish (SIBI)
     float top
     float bot
-    float atr          // ATR(14) at formation
+    float atr          // ATR(14) at formation (daily or weekly)
     float disp         // the middle candle's body in ATR, in the gap's direction
-    float rv           // the middle candle's volume / the 20 days before
+    float rv           // the middle candle's volume / the 20 candles before
     float v2           // the middle candle's volume
     bool  brk          // the move closed beyond the last swing (3 bars each side) in its direction
-    int   age = 0      // trading days since it formed
+    int   age = 0      // candles (days or weeks) since it formed
     int   tT           // first touch of the near edge
     int   tM           // CE traded
     int   tF           // far edge traded (wick through)
@@ -244,10 +288,8 @@ type Gap
     float l3
     float c3
 
-// ═══════════════════════════════════════════════════════════════ Daily engine (runs on the daily series)
-// Completed days only ([1] and older), so it reads the same on any chart timeframe and never repaints.
-// A gap is a copy of this bar's candle template (three candles [3] [2] [1], or two [2] [1] for an imbalance) with its zone set.
-// Candle 2 in the template is the middle candle (FVG, suspension block) or the gapping candle (imbalance).
+// ═══════════════════════════════════════════════════════════════ Engine (runs on the daily or weekly series)
+// Completed candles only ([1] and older), so it reads the same on any chart timeframe and never repaints.
 addGap(array<Gap> gs, Gap tpl, int kind, int dir, float top, float bot, float rv, bool brk, int srcId) =>
     Gap g = tpl.copy()
     g.kind := kind
@@ -276,13 +318,13 @@ engine(int srcId) =>
         if low[4] == ll7
             slP := low[4]
     if bar_index > 25 and not na(a1) and a1 > 0
-        // 1. drop what has left the longest look back, and gaps closed beyond before the newest completed day
+        // 1. drop what has left the longest look back, and gaps closed beyond before the newest completed candle
         if gs.size() > 0
             for i = gs.size() - 1 to 0
                 Gap g = gs.get(i)
-                if g.age >= 60 or (not na(g.tX) and (g.kind != 0 or not showInv)) or not na(g.tY)
+                if g.age >= maxAge or (not na(g.tX) and (g.kind != 0 or not showInv)) or not na(g.tY)
                     gs.remove(i)
-        // 2. the newest completed day against every gap formed before it
+        // 2. the newest completed candle against every gap formed before it
         for g in gs
             g.age += 1
             if na(g.tX)
@@ -311,7 +353,7 @@ engine(int srcId) =>
                         g.tX := time[1]
             else if na(g.tY) and ((g.dir == 1 and close[1] > g.top) or (g.dir == -1 and close[1] < g.bot))
                 g.tY := time[1]
-        // 3. new gaps formed by the newest completed day
+        // 3. new gaps formed by the newest completed candle
         float bt1 = math.max(open[1], close[1])
         float bb1 = math.min(open[1], close[1])
         float bt2 = math.max(open[2], close[2])
@@ -343,8 +385,8 @@ engine(int srcId) =>
             gs.shift()
     gs
 
-// the last daily swing candle (a lower low, or higher high, than the completed candle on each side) and yesterday, for the wick CEs
-swingDay() =>
+// the last swing candle (a lower low, or higher high, than the completed candle on each side) and yesterday, for the wick CEs
+swingBar() =>
     var float sO = na
     var float sH = na
     var float sL = na
@@ -364,21 +406,25 @@ swingDay() =>
     // yesterday as a pending swing: a lower low (higher high) than the day before, not yet confirmed by today
     int pD = low[1] < low[2] and not (high[1] > high[2]) ? 1 : high[1] > high[2] and not (low[1] < low[2]) ? -1 : 0
     [sO, sH, sL, sC, sT, sD, pD]
-array<Gap> gS = request.security(tkA, "D", engine(0), lookahead = barmerge.lookahead_on, calc_bars_count = 600)
-array<Gap> gL = request.security(tkL, "D", engine(1), lookahead = barmerge.lookahead_on, calc_bars_count = 600)
-[atr, lastC, vMed, lastT, lastO, pH2, pL2, pT2, yH, yL] = request.security(tkA, "D", [ta.atr(14)[1], close[1], ta.median(volume, 20)[1], time[1], open[1], high[2], low[2], time[2], high[1], low[1]], lookahead = barmerge.lookahead_on, calc_bars_count = 600)
-[wsO, wsH, wsL, wsC, wsT, wsD, wpD] = request.security(tkA, "D", swingDay(), lookahead = barmerge.lookahead_on, calc_bars_count = 600)
+array<Gap> gS = request.security(tkA, HTF, engine(0), lookahead = barmerge.lookahead_on, calc_bars_count = 700)
+array<Gap> gL = request.security(tkL, HTF, engine(1), lookahead = barmerge.lookahead_on, calc_bars_count = 700)
+[atr, lastC, vMed, lastT, lastO, pH2, pL2, pT2, yH, yL] = request.security(tkA, HTF, [ta.atr(14)[1], close[1], ta.median(volume, 20)[1], time[1], open[1], high[2], low[2], time[2], high[1], low[1]], lookahead = barmerge.lookahead_on, calc_bars_count = 700)
+[wsO, wsH, wsL, wsC, wsT, wsD, wpD] = request.security(tkA, HTF, swingBar(), lookahead = barmerge.lookahead_on, calc_bars_count = 700)
 
-// ═══════════════════════════════════════════════════════════════ Today, on the chart
-bool tfOK = timeframe.isintraday or timeframe.isdaily
+// ═══════════════════════════════════════════════════════════════ The candle forming now, from the chart's own bars (no lag)
+bool tfOK = timeframe.isintraday or timeframe.isdaily or (isW and timeframe.isweekly)
+bool chW  = timeframe.change("W")
+bool chD  = time_tradingday != time_tradingday[1]
+bool newTD = isW ? chW : chD
 var float tdH = na
 var float tdL = na
 var float tdO = na
-bool newTD = time_tradingday != time_tradingday[1]
-if newTD
+var int   tdT = na
+if newTD or na(tdO)
     tdO := open
     tdH := high
     tdL := low
+    tdT := time
 else
     tdH := math.max(tdH, high)
     tdL := math.min(tdL, low)
@@ -409,7 +455,6 @@ pick() =>
 inv(Gap g) => not na(g.tX)
 role(Gap g) => inv(g) ? -g.dir : g.dir
 // ICT names a gap by its displacement candle: the middle candle (the gapping candle of an imbalance)
-dayNm(int t) => str.format_time(t + 6 * 3600000, "EEE dd MMM", TZ)
 baseNm(Gap g) => g.kind == 0 ? (g.dir == 1 ? "▲ BISI" : "▼ SIBI") : g.kind == 1 ? (g.dir == 1 ? "▲ SB" : "▼ SB") : (g.dir == 1 ? "▲ VI" : "▼ VI")
 kindNm(Gap g) => inv(g) ? (g.dir == 1 ? "▼ IFVG" : "▲ IFVG") : baseNm(g)
 colOf(Gap g) => inv(g) ? cInv : g.kind == 1 ? cSBc : g.kind == 2 ? cVIc : g.dir == 1 ? cBull : cBear
@@ -423,6 +468,8 @@ nearEdge(Gap g) => role(g) == 1 ? g.top : g.bot
 // where a price sits in the gap: 0 = near edge, 1 = far edge
 inZ(Gap g, float p) => g.top > g.bot ? (role(g) == 1 ? (g.top - p) / (g.top - g.bot) : (p - g.bot) / (g.top - g.bot)) : na
 insideNow(Gap g) => close <= g.top and close >= g.bot
+dayNm(int t) => isW ? "wk " + str.format_time(t + 6 * 3600000, "dd MMM yy", TZ) : str.format_time(t + 6 * 3600000, "EEE dd MMM", TZ)
+shortNm(int t) => str.format_time(t + 6 * 3600000, isW or time - t >= 7 * DAY ? "dd MMM" : "EEE dd", TZ)
 statusOf(Gap g) =>
     string s = ""
     float dpT = todayIn(g) ? inZ(g, role(g) == 1 ? tdL : tdH) : na
@@ -435,15 +482,17 @@ statusOf(Gap g) =>
     else if not tch
         s := "untouched"
     else if dpA >= 1.0
-        s := "traded through" + (na(g.tT) ? " today" : "")
+        s := "traded through" + (na(g.tT) ? " " + nowW : "")
     else if dpA >= 0.5
-        s := "past CE" + (na(g.tT) ? " today" : "")
+        s := "past CE" + (na(g.tT) ? " " + nowW : "")
     else
-        s := (na(g.tT) ? "touched today" : "touched " + dmy(g.tT))
+        s := na(g.tT) ? "touched " + nowW : "touched " + (isW ? "wk " : "") + dmy(g.tT)
     s
+// ✓ / ✕ status glyph for the card: ✕ intact · ✓ reached · ◐ inside · ↺ inverted
+glyphOf(Gap g) => inv(g) ? "↺" : insideNow(g) ? "◐" : (not na(g.tT) or todayIn(g)) ? "✓" : "✕"
+glyphC(Gap g) => inv(g) ? cInv : insideNow(g) ? cAmb : (not na(g.tT) or todayIn(g)) ? cBear : cBull
 
-// the FVG today's candle is forming (candle 1 = the day before yesterday, candle 2 = yesterday); the engine takes it in at the
-// next session's open, once the day is complete, so over a weekend Friday's gap shows here as formed
+// the FVG the forming candle is making (candle 1 = two candles back, candle 2 = the last completed one)
 int   fmDir = 0
 float fmTop = na
 float fmBot = na
@@ -459,25 +508,35 @@ if useF and not na(atr) and atr > 0 and not na(pH2)
 
 int  dayNow = time_tradingday
 int  dLeft  = daysToFri(timestamp("UTC", year(dayNow, "UTC"), month(dayNow, "UTC"), dayofmonth(dayNow, "UTC"), 0, 0))
-// this week's Monday (UTC midnight): a gap touched before it is not this week's draw
 int  wkStart = timestamp("UTC", year(dayNow, "UTC"), month(dayNow, "UTC"), dayofmonth(dayNow, "UTC"), 0, 0) - ((dayofweek(dayNow, "UTC") + 5) % 7) * DAY
-// the Monday (UTC midnight) of the trading week a daily bar belongs to (bar time = its 18:00 ET session start)
 monOf(int t) =>
     int d = t + 6 * 3600000
     int m = timestamp("UTC", year(d, TZ), month(d, TZ), dayofmonth(d, TZ), 0, 0)
     m - ((dayofweek(m, "UTC") + 5) % 7) * DAY
-// 0 = formed this week, 1 = last week, 2 = before
 wkAgo(Gap g) =>
     int w = monOf(g.t0)
     w >= wkStart ? 0 : w >= wkStart - 7 * DAY ? 1 : 2
 inScope(Gap g) => scM == 0 ? g.age <= LB : scM == 1 ? wkAgo(g) <= 1 : scM == 2 ? wkAgo(g) == 1 : wkAgo(g) == 0
-wkTag(Gap g) => wkAgo(g) == 0 ? " · this week" : wkAgo(g) == 1 ? " · last week" : ""
+wkTag(Gap g) => isW ? "" : wkAgo(g) == 0 ? " · this week" : wkAgo(g) == 1 ? " · last week" : ""
+// mitigation (display only): the forming candle's range counts
+mitig(Gap g) =>
+    bool tch = not na(g.tT) or todayIn(g)
+    bool ceT = not na(g.tM) or (role(g) == 1 ? tdL <= (g.top + g.bot) / 2.0 : tdH >= (g.top + g.bot) / 2.0)
+    bool far = not na(g.tF) or (role(g) == 1 ? tdL <= g.bot : tdH >= g.top)
+    not inv(g) and (mitM == 1 ? tch : mitM == 2 ? ceT : mitM == 3 ? far : false)
+// reach and hold for the card
+reachTx(Gap g, bool above, bool both) =>
+    float d = na(atr) or atr <= 0 ? na : above ? (g.bot - lastC) / atr : (lastC - g.top) / atr
+    float h1 = isW ? 4.0 : dLeft
+    float h2 = isW ? 12.0 : 20.0
+    na(d) ? "—" : d <= 0 ? "100%" : pc0(reachP(d, h1, above)) + (both ? " · " + pc0(reachP(d, h2, above)) : "")
 
-// ═══════════════════════════════════════════════════════════════ Drawing (rebuilt on the last bar)
+// ═══════════════════════════════════════════════════════════════ Drawing
+// Two layers. Static (gaps, grades, wick CEs, the gap's PO3 candles): rebuilt only when what is on show changes or a new chart bar
+// prints. Live (the forming candle, the price line, the countdown, the forming FVG): kept and moved with setters on every tick.
 var array<line>  dl = array.new<line>()
 var array<label> db = array.new<label>()
 var array<box>   dx = array.new<box>()
-// the wick CEs (premium, discount, midway) and whether the graded gap's labels have taken them
 var array<float> wkP = array.new<float>(3, na)
 var array<bool>  wkU = array.new<bool>(3, false)
 clearAll() =>
@@ -488,8 +547,6 @@ clearAll() =>
     while dx.size() > 0
         box.delete(dx.pop())
 lvlLab(float fr, float y) => str.tostring(fr, "0.###") + " (" + px(y) + ")"
-// grade lines across a gap that is not the graded one: lvl 1 = CE · 2 = quadrants · 3 = octants
-// (0 = the near edge and 1 = the far edge of the gap as it formed, prices rounded to the tick, as ICT labels them)
 grades(int x1, int x2, Gap g, int lvl) =>
     int   step = lvl == 3 ? 1 : lvl == 2 ? 2 : 4
     color c = colOf(g)
@@ -497,9 +554,6 @@ grades(int x1, int x2, Gap g, int lvl) =>
         if k % step == 0
             float y = math.round_to_mintick(g.bot + (g.top - g.bot) * k / 8.0)
             dl.push(line.new(x1, y, x2, y, xloc = xloc.bar_time, color = color.new(c, k == 4 ? 10 : 55), style = k == 4 ? line.style_dashed : line.style_dotted, width = 1))
-// the graded gap, as ICT grades it on the 1-minute chart: a solid line at every eighth across the chart (edges and quadrants
-// stronger), CE in its own colour and width, each line's fraction and price at the right end. On a daily chart the eighths of a
-// narrow gap sit a few pixels apart, so there only the edges, CE and (from 0.75 ATR wide) the quadrants, or (from 1.5) all, are labelled
 gradeF(int x1, int x2, Gap g, string nmT, string tip) =>
     float wA = (g.top - g.bot) / nz(atr, g.atr)
     int   lv = not isD or wA >= 1.5 ? 3 : wA >= 0.75 ? 2 : 1
@@ -507,27 +561,25 @@ gradeF(int x1, int x2, Gap g, string nmT, string tip) =>
         float y  = math.round_to_mintick(g.bot + (g.top - g.bot) * k / 8.0)
         bool  ce = k == 4
         int   tr = k == 0 or k == 8 ? 25 : k % 2 == 0 ? 40 : 58
-        color lc = ce ? cCE : color.new(cTx, tr)
+        color lc = ce ? cCE : color.new(cChT, tr)
         dl.push(line.new(x1, y, x2, y, xloc = xloc.bar_time, color = lc, style = line.style_solid, width = ce ? 2 : 1))
         float fr = g.dir == 1 ? (8 - k) / 8.0 : k / 8.0
         string tx = lvlLab(fr, y) + (k == 8 and nmT != "" ? "   " + nmT : "")
         if k % 8 == 0 or ce or lv == 3 or (lv == 2 and k % 2 == 0)
-            // a wick CE within a sixteenth of the gap of this line would print over its label: it joins this label instead
             for j = 0 to 2
                 float w = wkP.get(j)
                 if not na(w) and not wkU.get(j) and math.abs(w - y) <= (g.top - g.bot) / 16.0
                     wkU.set(j, true)
                     tx += " · wick CE " + px(w)
-            db.push(label.new(x2, y, tx, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = ce ? cCE : k == 8 and nmT != "" ? colOf(g) : color.new(cTx, tr - 20), size = isD ? size.tiny : size.small, tooltip = k == 8 ? tip : "", text_formatting = k == 8 and nmT != "" ? text.format_bold : text.format_none))
+            db.push(label.new(x2, y, tx, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = ce ? cCE : k == 8 and nmT != "" ? colOf(g) : color.new(cChT, tr - 20), size = isD ? size.tiny : size.small, tooltip = k == 8 ? tip : "", text_formatting = k == 8 and nmT != "" ? text.format_bold : text.format_none))
 drawGap(Gap g, int xEnd, bool focus) =>
     color c   = colOf(g)
     bool  alt = setM == 2 and g.src == 1
     int   tr  = focus ? math.max(boxTr - 10, 0) : boxTr
     int   x1  = anchorT(g)
     dx.push(box.new(x1, g.top, xEnd, g.bot, xloc = xloc.bar_time, bgcolor = color.new(c, tr), border_color = color.new(c, 45), border_width = 1, border_style = alt ? line.style_dashed : line.style_solid))
-    string nm = "D " + kindNm(g) + " · " + dayNm(g.t2) + wkTag(g) + (alt ? " · last trade" : "")
-    string tip = kindNm(g) + " · " + f2((g.top - g.bot) / g.atr) + " ATR wide\n" + baseNm(g) + ", displacement candle " + dayNm(g.t2) + " (" + str.tostring(g.nc) + " candles, " + dmy(g.t1) + " – " + dmy(g.t0) + ")\n" + px(g.bot) + " – " + px(g.top) + " · CE " + px(math.round_to_mintick((g.top + g.bot) / 2.0)) + "\nwidth " + f2((g.top - g.bot) / g.atr) + " ATR · middle candle " + f2(g.disp) + " ATR, volume " + (na(g.rv) ? "—" : str.tostring(g.rv, "0.0") + "×") + (g.brk ? " · broke structure" : "") + "\n" + statusOf(g) + (alt ? "\nread with the last-trade close (SET off), so its edge may not meet the bodies on a SET chart" : "")
-    // the graded gap carries its octant labels at the right end; its name goes on its first candle (daily) or on the top line
+    string nm = U + " " + kindNm(g) + " · " + dayNm(g.t2) + wkTag(g) + (alt ? " · last trade" : "")
+    string tip = kindNm(g) + " · " + f2((g.top - g.bot) / g.atr) + " ATR wide\n" + baseNm(g) + ", displacement candle " + dayNm(g.t2) + " (" + str.tostring(g.nc) + " candles, " + dmy(g.t1) + " – " + dmy(g.t0) + ")\n" + px(g.bot) + " – " + px(g.top) + " · CE " + px(math.round_to_mintick((g.top + g.bot) / 2.0)) + "\nmiddle candle " + f2(g.disp) + " ATR, volume " + (na(g.rv) ? "—" : str.tostring(g.rv, "0.0") + "×") + (g.brk ? " · broke structure" : "") + "\n" + statusOf(g) + (alt ? "\nread with the last-trade close (SET off)" : "")
     if focus
         gradeF(x1, xEnd, g, isD ? "" : nm, tip)
         if isD
@@ -535,48 +587,83 @@ drawGap(Gap g, int xEnd, bool focus) =>
     else
         grades(x1, xEnd, g, gradeI == "Octants" ? 3 : gradeI == "Quadrants" ? 2 : 1)
         db.push(label.new(isD ? x1 : xEnd, role(g) == 1 ? g.top : g.bot, nm, xloc = xloc.bar_time, style = role(g) == 1 ? label.style_label_lower_left : label.style_label_upper_left, color = #00000000, textcolor = c, size = size.tiny, tooltip = tip))
-// the gap's candles right of price (PO3 style): the formation candles, the gap shaded and graded, a line at the price now
-drawC(float o, float h, float l, float c, int x1, int x2, int t) =>
+// one PO3 candle (static), as Hadō 99 draws them: the wicks stop at the body, its time under it, the tag under (bullish gap) or over (bearish)
+drawC(float o, float h, float l, float c, int x1, int x2, int t, string tag, bool tagDn, color tagC) =>
+    bool  up = c >= o
     float bt = math.max(o, c)
     float bb = math.min(o, c)
-    int   xm = int(math.round((x1 + x2) / 2))
-    dx.push(box.new(x1, bt, x2, bb, xloc = xloc.bar_index, bgcolor = color.new(pCol, c >= o ? 85 : 30), border_color = pCol, border_width = 1))
+    int   xm = x1 + int((x2 - x1) / 2)
     if h > bt
-        dl.push(line.new(xm, bt, xm, h, xloc = xloc.bar_index, color = pCol))
+        dl.push(line.new(xm, h, xm, bt, xloc = xloc.bar_index, color = pCol(up, 2), width = pWkW))
     if l < bb
-        dl.push(line.new(xm, bb, xm, l, xloc = xloc.bar_index, color = pCol))
-    db.push(label.new(xm, l, str.format_time(t + 6 * 3600000, "EEE dd", TZ), xloc = xloc.bar_index, style = label.style_label_up, color = #00000000, textcolor = cSub, size = size.tiny))
-po3(Gap g) =>
+        dl.push(line.new(xm, bb, xm, l, xloc = xloc.bar_index, color = pCol(up, 2), width = pWkW))
+    dx.push(box.new(x1, bt, x2, bb == bt ? bb - syminfo.mintick : bb, xloc = xloc.bar_index, bgcolor = pCol(up, 0), border_color = pCol(up, 1), border_width = 1))
+    string stp = datesOn ? str.format_time(t + 6 * 3600000, isW ? "dd MMM" : "EEE dd", TZ) : ""
+    string dn  = tagDn and tag != "" ? (stp != "" ? stp + "\n" : "") + tag : stp
+    if dn != ""
+        db.push(label.new(xm, l, dn, xloc = xloc.bar_index, style = label.style_label_up, color = #00000000, textcolor = tagDn and tag != "" ? tagC : cChS, size = size.tiny))
+    if not tagDn and tag != ""
+        db.push(label.new(xm, h, tag, xloc = xloc.bar_index, style = label.style_label_down, color = #00000000, textcolor = tagC, size = size.tiny))
+// the gap's candles (static part of PO3); returns the live candle's x, the candles' top and the group's middle x
+po3S(Gap g) =>
     int step = pWd + pS
     int x = bar_index + pO
-    int xE = x + g.nc * step
+    int nLive = liveOn ? 1 : 0
+    int xE = x + (g.nc + nLive) * step - pS
     color c = colOf(g)
-    dx.push(box.new(x - 1, g.top, xE, g.bot, xloc = xloc.bar_index, bgcolor = color.new(c, 80), border_color = color.new(c, 40)))
-    drawC(g.o1, g.h1, g.l1, g.c1, x, x + pWd, g.t1)
+    bool  tDn = g.dir == 1
+    if shadeOn
+        dx.push(box.new(x - 1, g.top, xE + 1, g.bot, xloc = xloc.bar_index, bgcolor = color.new(c, 82), border_color = color.new(c, 45)))
+    if ceOn
+        float ce = math.round_to_mintick((g.top + g.bot) / 2.0)
+        dl.push(line.new(x - 1, ce, xE + 1, ce, xloc = xloc.bar_index, color = color.new(cCE, 20), style = line.style_dashed))
+    drawC(g.o1, g.h1, g.l1, g.c1, x, x + pWd, g.t1, pTagI ? "C1" : "", tDn, c)
     if g.nc == 3
-        drawC(g.o2, g.h2, g.l2, g.c2, x + step, x + step + pWd, g.t2)
-        drawC(g.o3, g.h3, g.l3, g.c3, x + 2 * step, x + 2 * step + pWd, g.t0)
+        drawC(g.o2, g.h2, g.l2, g.c2, x + step, x + step + pWd, g.t2, pTagI ? "C2" : "", tDn, c)
+        drawC(g.o3, g.h3, g.l3, g.c3, x + 2 * step, x + 2 * step + pWd, g.t0, pTagI ? "C3" : "", tDn, c)
     else
-        drawC(g.o2, g.h2, g.l2, g.c2, x + step, x + step + pWd, g.t0)
-    dl.push(line.new(x - 1, close, xE, close, xloc = xloc.bar_index, color = cTx, style = line.style_dotted, width = 1))
+        drawC(g.o2, g.h2, g.l2, g.c2, x + step, x + step + pWd, g.t0, pTagI ? "C2" : "", tDn, c)
+    float top = math.max(g.top, math.max(g.h1, math.max(g.h2, g.nc == 3 ? g.h3 : g.h2)))
+    [x + g.nc * step, top, int((x + xE) / 2)]
+// live objects: created once, then moved with setters
+var box   lvB = na
+var line  lvU = na
+var line  lvD = na
+var line  lvP = na
+var label lvT = na
+var label lvC = na
+var float po3Top = na
+var int   po3Mid = na
+var box   fmB = na
+var line  fmC = na
+var label fmL = na
+cdTx() =>
+    int tc = time_close(HTF)
+    int nowT = barstate.isrealtime ? timenow : time_close
+    int ms = na(tc) ? 0 : math.max(tc - nowT, 0)
+    int dd = int(ms / DAY)
+    int hh = int((ms % DAY) / 3600000)
+    int mm = int((ms % 3600000) / 60000)
+    U + " · " + (dd > 0 ? str.tostring(dd) + "d " : "") + str.tostring(hh, "00") + "h " + str.tostring(mm, "00") + "m"
 
-// the gaps on show this bar, sorted for the chart and the card
-var array<Gap> shA = array.new<Gap>()    // above, nearest first
-var array<Gap> shB = array.new<Gap>()    // below, nearest first
-var array<Gap> shI = array.new<Gap>()    // price inside
+// what is on show, and the key that says whether the static layer must be rebuilt
+var array<Gap> shA = array.new<Gap>()
+var array<Gap> shB = array.new<Gap>()
+var array<Gap> shI = array.new<Gap>()
+var array<Gap> allG = array.new<Gap>()
 var Gap focusG = na
-int  nHid   = 0
+var string drawKey = ""
+var int    liveX = na
+int  nHid = 0
+gkey(Gap g) => str.tostring(g.t0) + str.tostring(g.kind) + str.tostring(g.dir) + glyphOf(g) + (mitig(g) ? "m" : "")
 if barstate.islast and tfOK
-    clearAll()
     shA.clear()
     shB.clear()
     shI.clear()
     focusG := na
-    array<Gap> all = pick()
-    // FVGs before suspension blocks before imbalances, live before inverted within each, widest first: a merge keeps the first, so
-    // an inversion FVG is not hidden under a suspension block or an imbalance that overlaps it
+    allG := pick()
     array<Gap> cand = array.new<Gap>()
-    for g in all
+    for g in allG
         int at = cand.size()
         if cand.size() > 0
             for i = 0 to cand.size() - 1
@@ -589,7 +676,7 @@ if barstate.islast and tfOK
         cand.insert(at, g)
     array<Gap> keep = array.new<Gap>()
     for g in cand
-        bool ok = inScope(g) and not (hideDef and isDef(g)) and (na(g.tX) or (showInv and g.kind == 0 and na(g.tY)))
+        bool ok = inScope(g) and not (hideDef and isDef(g)) and (na(g.tX) or (showInv and g.kind == 0 and na(g.tY))) and not mitig(g)
         if ok and mergeOv and keep.size() > 0
             for k in keep
                 float ov = math.min(g.top, k.top) - math.max(g.bot, k.bot)
@@ -600,7 +687,6 @@ if barstate.islast and tfOK
             keep.push(g)
         else if hideDef and isDef(g)
             nHid += 1
-    // above / below / inside, against the price now
     for g in keep
         if g.bot > close
             int at = shA.size()
@@ -624,10 +710,16 @@ if barstate.islast and tfOK
         shA.pop()
     while shB.size() > nEach
         shB.pop()
-    int xEnd = time + xB * timeframe.in_seconds() * 1000
-    // the wick candle: the last daily swing, or yesterday. ICT grades the candle that may be turning price before the next day
-    // confirms it: yesterday's lower low (higher high) than the day before is the pending swing while today has not traded past it
-    bool  wYd = wickI == "Yesterday"
+    for g in shI
+        if na(focusG) or g.kind < focusG.kind or (g.kind == focusG.kind and g.t0 > focusG.t0)
+            focusG := g
+    if na(focusG) and (po3I == "Always (nearest gap)" or scM != 0)
+        float dA = shA.size() > 0 ? shA.first().bot - close : na
+        float dB = shB.size() > 0 ? close - shB.first().top : na
+        focusG := na(dA) and na(dB) ? na : na(dB) or (not na(dA) and dA < dB) ? shA.first() : shB.first()
+    bool showPO3 = not na(focusG) and po3I != "Off" and (po3I == "Always (nearest gap)" or shI.size() > 0)
+    // the wick candle: the last swing, or the last candle (or the last candle while it is a pending swing the forming candle has not passed)
+    bool  wYd = wickI == "Last candle"
     bool  wPd = not wYd and wpD != 0 and (wpD == 1 ? tdL >= yL : tdH <= yH)
     bool  wUy = wYd or wPd
     float wO = wUy ? lastO : wsO
@@ -637,196 +729,271 @@ if barstate.islast and tfOK
     int   wT = wUy ? lastT : wsT
     float wBt = math.max(wO, wC)
     float wBb = math.min(wO, wC)
-    wkP.fill(na)
-    wkU.fill(false)
-    if wickI != "Off" and not na(wH) and not na(wT)
-        float pw0 = math.round_to_mintick((wH + wBt) / 2.0)
-        float dw0 = math.round_to_mintick((wBb + wL) / 2.0)
-        if wH > wBt
-            wkP.set(0, pw0)
-        if wL < wBb
-            wkP.set(1, dw0)
-        if wH > wBt and wL < wBb
-            wkP.set(2, math.round_to_mintick((pw0 + dw0) / 2.0))
-    // the focus: of the gaps price is inside, an FVG (or inversion FVG) before a suspension block before an imbalance, the
-    // newest first; else (Always, or a week setting) the nearest one
-    for g in shI
-        if na(focusG) or g.kind < focusG.kind or (g.kind == focusG.kind and g.t0 > focusG.t0)
-            focusG := g
-    if na(focusG) and (po3I == "Always (nearest gap)" or scM != 0)
-        float dA = shA.size() > 0 ? shA.first().bot - close : na
-        float dB = shB.size() > 0 ? close - shB.first().top : na
-        focusG := na(dA) and na(dB) ? na : na(dB) or (not na(dA) and dA < dB) ? shA.first() : shB.first()
+    // the key: every gap on show with its status, the focus, the wick candle and the PO3 switch
+    string key = str.tostring(lastT) + "|" + str.tostring(wT) + "|" + (showPO3 ? "P" : "") + (na(focusG) ? "" : gkey(focusG))
     for g in shA
-        drawGap(g, xEnd, not na(focusG) and same(g, focusG))
+        key += "a" + gkey(g)
     for g in shB
-        drawGap(g, xEnd, not na(focusG) and same(g, focusG))
+        key += "b" + gkey(g)
     for g in shI
-        drawGap(g, xEnd, not na(focusG) and same(g, focusG))
-    if not na(focusG) and (po3I == "Always (nearest gap)" or (po3I == "When price is inside a gap" and shI.size() > 0))
-        po3(focusG)
-    // the forming FVG is this week's: hidden with "Last week"
-    if fmDir != 0 and scM != 2
-        color fc = fmDir == 1 ? cBull : cBear
-        dx.push(box.new(pT2, fmTop, xEnd, fmBot, xloc = xloc.bar_time, bgcolor = color.new(fc, 92), border_color = color.new(fc, 30), border_width = 1, border_style = line.style_dashed))
-        dl.push(line.new(pT2, math.round_to_mintick((fmTop + fmBot) / 2.0), xEnd, math.round_to_mintick((fmTop + fmBot) / 2.0), xloc = xloc.bar_time, color = color.new(fc, 40), style = line.style_dashed))
-        db.push(label.new(xEnd, fmDir == 1 ? fmTop : fmBot, "D " + (fmDir == 1 ? "▲ BISI" : "▼ SIBI") + " forming · " + dayNm(lastT) + " · " + f2((fmTop - fmBot) / atr) + " ATR", xloc = xloc.bar_time, style = fmDir == 1 ? label.style_label_lower_left : label.style_label_upper_left, color = #00000000, textcolor = fc, size = size.tiny, tooltip = "Today's candle as candle 3: " + px(fmBot) + " – " + px(fmTop) + ". It stands while today's " + (fmDir == 1 ? "low stays above " + px(fmBot) : "high stays below " + px(fmTop)) + "; it joins the list at the next session's open (over a weekend, Sunday 18:00 ET)."))
-    // the wick CEs of the last daily swing candle (or yesterday's), as ICT grades the wicks of the day that turned price; a CE
-    // that sits on a line of the graded gap is named in that line's label, so only its line is drawn here
-    if wickI != "Off"
-        if not na(wH) and not na(wT)
-            float bt = wBt
-            float bb = wBb
+        key += "i" + gkey(g)
+    if key != drawKey or barstate.isnew or not barstate.isrealtime
+        drawKey := key
+        clearAll()
+        int xEnd = time + xB * timeframe.in_seconds() * 1000
+        wkP.fill(na)
+        wkU.fill(false)
+        if wickI != "Off" and not na(wH) and not na(wT)
+            float pw0 = math.round_to_mintick((wH + wBt) / 2.0)
+            float dw0 = math.round_to_mintick((wBb + wL) / 2.0)
+            if wH > wBt
+                wkP.set(0, pw0)
+            if wL < wBb
+                wkP.set(1, dw0)
+            if wH > wBt and wL < wBb
+                wkP.set(2, math.round_to_mintick((pw0 + dw0) / 2.0))
+        for g in shA
+            drawGap(g, xEnd, not na(focusG) and same(g, focusG))
+        for g in shB
+            drawGap(g, xEnd, not na(focusG) and same(g, focusG))
+        for g in shI
+            drawGap(g, xEnd, not na(focusG) and same(g, focusG))
+        liveX := na
+        po3Top := na
+        po3Mid := na
+        if showPO3
+            [lx, tp, md] = po3S(focusG)
+            liveX := lx
+            po3Top := tp
+            po3Mid := md
+        if wickI != "Off" and not na(wH) and not na(wT)
+            string who = dayNm(wT) + (wYd ? ", the last candle" : wPd ? ", a pending swing" : ", the last swing candle")
             float pw = nz(wkP.get(0))
             float dw = nz(wkP.get(1))
             float mw = nz(wkP.get(2))
-            string who = dayNm(wT) + (wYd ? ", yesterday" : wPd ? (wpD == 1 ? ", a pending swing low (a lower low than the day before; confirmed if today holds above " + px(yL) + ")" : ", a pending swing high (a higher high than the day before; confirmed if today holds below " + px(yH) + ")") : wsD == 1 ? ", the last daily swing low" : wsD == -1 ? ", the last daily swing high" : ", the last daily swing")
-            if wH > bt
+            if wH > wBt
                 dl.push(line.new(wT, pw, xEnd, pw, xloc = xloc.bar_time, color = cWick, style = line.style_dotted))
                 if not wkU.get(0)
-                    db.push(label.new(xEnd, pw, "0.5 (" + px(pw) + ")", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = cWick, size = size.tiny, tooltip = "Premium wick CE of " + who + ": the midpoint from its high " + px(wH) + " to its body top " + px(bt) + "."))
-            if wL < bb
+                    db.push(label.new(xEnd, pw, "0.5 (" + px(pw) + ")", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = cWick, size = size.tiny, tooltip = "Premium wick CE of " + who + ": the midpoint from its high " + px(wH) + " to its body top " + px(wBt) + "."))
+            if wL < wBb
                 dl.push(line.new(wT, dw, xEnd, dw, xloc = xloc.bar_time, color = cWick, style = line.style_dotted))
                 if not wkU.get(1)
-                    db.push(label.new(xEnd, dw, "0.5 (" + px(dw) + ")", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = cWick, size = size.tiny, tooltip = "Discount wick CE of " + who + ": the midpoint from its body bottom " + px(bb) + " to its low " + px(wL) + "."))
-            if wH > bt and wL < bb
+                    db.push(label.new(xEnd, dw, "0.5 (" + px(dw) + ")", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = cWick, size = size.tiny, tooltip = "Discount wick CE of " + who + ": the midpoint from its body bottom " + px(wBb) + " to its low " + px(wL) + "."))
+            if wH > wBt and wL < wBb
                 dl.push(line.new(wT, mw, xEnd, mw, xloc = xloc.bar_time, color = color.new(cWick, 20), style = line.style_dashed))
                 if not wkU.get(2)
                     db.push(label.new(xEnd, mw, "0.5 (" + px(mw) + ")", xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = color.new(cWick, 20), size = size.tiny, tooltip = "Midway between the two wick CEs of " + who + "."))
+    // ── live layer, every tick
+    bool liveShow = not na(liveX) and liveOn
+    if liveShow
+        int x1 = liveX
+        int x2 = liveX + pWd
+        int xm = x1 + int((x2 - x1) / 2)
+        bool  up = close >= tdO
+        float bt = math.max(tdO, close)
+        float bb = math.min(tdO, close)
+        if na(lvB)
+            lvB := box.new(x1, bt, x2, bb, xloc = xloc.bar_index, border_width = 1)
+            lvU := line.new(xm, tdH, xm, bt, xloc = xloc.bar_index, width = pWkW)
+            lvD := line.new(xm, bb, xm, tdL, xloc = xloc.bar_index, width = pWkW)
+            lvT := label.new(xm, tdL, "", xloc = xloc.bar_index, style = label.style_label_up, color = #00000000, textcolor = cChS, size = size.tiny)
+        lvB.set_lefttop(x1, bt)
+        lvB.set_rightbottom(x2, bb == bt ? bb - syminfo.mintick : bb)
+        lvB.set_bgcolor(pCol(up, 0))
+        lvB.set_border_color(pCol(up, 1))
+        lvB.set_border_style(pLivI ? line.style_dashed : line.style_solid)
+        lvU.set_xy1(xm, tdH)
+        lvU.set_xy2(xm, bt)
+        lvU.set_color(tdH > bt ? pCol(up, 2) : #00000000)
+        lvD.set_xy1(xm, bb)
+        lvD.set_xy2(xm, tdL)
+        lvD.set_color(tdL < bb ? pCol(up, 2) : #00000000)
+        lvT.set_xy(xm, tdL)
+        lvT.set_text(datesOn ? str.format_time(tdT + 6 * 3600000, isW ? "dd MMM" : "EEE dd", TZ) : "")
+        lvT.set_tooltip("The " + (isW ? "week's" : "day's") + " candle forming now, built from the chart's bars: open " + px(tdO) + " · high " + px(tdH) + " · low " + px(tdL) + " · last " + px(close) + ".")
+    else if not na(lvB)
+        lvB.delete(), lvU.delete(), lvD.delete(), lvT.delete()
+        lvB := na, lvU := na, lvD := na, lvT := na
+    // the countdown over the candles, as Hadō 99
+    if not na(liveX) and cdOn
+        float yTop = liveOn ? math.max(po3Top, tdH) : po3Top
+        if na(lvC)
+            lvC := label.new(po3Mid, yTop, "", xloc = xloc.bar_index, style = label.style_label_down, color = #00000000, textcolor = cChT, size = size.tiny)
+        lvC.set_xy(po3Mid, yTop)
+        lvC.set_text(cdTx())
+        lvC.set_tooltip("The " + (isW ? "weekly" : "daily") + " candle forming now closes " + (isW ? "Friday " : "") + "17:00 ET.")
+    else if not na(lvC)
+        lvC.delete()
+        lvC := na
+    // the price line across the PO3 candles
+    if not na(liveX)
+        int xa = liveX - (focusG.nc * (pWd + pS)) - 1
+        int xb = liveX + (liveOn ? pWd + pS : 0)
+        if na(lvP)
+            lvP := line.new(xa, close, xb, close, xloc = xloc.bar_index, color = cChT, style = line.style_dotted, width = 1)
+        lvP.set_xy1(xa, close)
+        lvP.set_xy2(xb, close)
+    else if not na(lvP)
+        lvP.delete()
+        lvP := na
+    // the FVG the forming candle is making (this candle's; hidden with "Last week")
+    if fmDir != 0 and scM != 2
+        color fc = fmDir == 1 ? cBull : cBear
+        int xEndF = time + xB * timeframe.in_seconds() * 1000
+        float fce = math.round_to_mintick((fmTop + fmBot) / 2.0)
+        string ftx = U + " " + (fmDir == 1 ? "▲ BISI" : "▼ SIBI") + " forming · " + f2((fmTop - fmBot) / atr) + " ATR"
+        if na(fmB)
+            fmB := box.new(pT2, fmTop, xEndF, fmBot, xloc = xloc.bar_time, border_width = 1, border_style = line.style_dashed)
+            fmC := line.new(pT2, fce, xEndF, fce, xloc = xloc.bar_time, style = line.style_dashed)
+            fmL := label.new(xEndF, fmTop, "", xloc = xloc.bar_time, style = label.style_label_lower_left, color = #00000000, size = size.tiny)
+        fmB.set_lefttop(pT2, fmTop)
+        fmB.set_rightbottom(xEndF, fmBot)
+        fmB.set_bgcolor(color.new(fc, 92))
+        fmB.set_border_color(color.new(fc, 30))
+        fmC.set_xy1(pT2, fce)
+        fmC.set_xy2(xEndF, fce)
+        fmC.set_color(color.new(fc, 40))
+        fmL.set_xy(xEndF, fmDir == 1 ? fmTop : fmBot)
+        fmL.set_style(fmDir == 1 ? label.style_label_lower_left : label.style_label_upper_left)
+        fmL.set_text(ftx)
+        fmL.set_textcolor(fc)
+        fmL.set_tooltip("The forming candle as candle 3: " + px(fmBot) + " – " + px(fmTop) + ". It stands while its " + (fmDir == 1 ? "low stays above " + px(fmBot) : "high stays below " + px(fmTop)) + " and joins the list once the candle closes.")
+    else if not na(fmB)
+        fmB.delete(), fmC.delete(), fmL.delete()
+        fmB := na, fmC := na, fmL := na
 
-// ═══════════════════════════════════════════════════════════════ Alerts
+// ═══════════════════════════════════════════════════════════════ Alerts (reuse what the last bar computed)
 var string lastAl = ""
 if barstate.isrealtime and tfOK
-    array<Gap> al = pick()
-    for g in al
+    for g in allG
         if na(g.tX) and inScope(g)
             float ne = nearEdge(g)
             float ce = (g.top + g.bot) / 2.0
             if alIn and na(g.tT) and (g.dir == 1 ? (tdL <= ne and tdL[1] > ne) : (tdH >= ne and tdH[1] < ne))
-                alert("Mangekyō · price entered the daily " + baseNm(g) + " " + px(g.bot) + "–" + px(g.top) + " (" + dayNm(g.t2) + ")", alert.freq_once_per_bar_close)
+                alert("Mangekyō · price entered the " + (isW ? "weekly " : "daily ") + baseNm(g) + " " + px(g.bot) + "–" + px(g.top) + " (" + dayNm(g.t2) + ")", alert.freq_once_per_bar_close)
             if alCE and na(g.tM) and (g.dir == 1 ? (tdL <= ce and tdL[1] > ce) : (tdH >= ce and tdH[1] < ce))
-                alert("Mangekyō · CE " + px(ce) + " of the daily " + baseNm(g) + " (" + dayNm(g.t2) + ") traded", alert.freq_once_per_bar_close)
+                alert("Mangekyō · CE " + px(ce) + " of the " + (isW ? "weekly " : "daily ") + baseNm(g) + " (" + dayNm(g.t2) + ") traded", alert.freq_once_per_bar_close)
         if newTD and inScope(g)
             if alX and not na(g.tX) and g.tX == lastT and lastAl != "x" + str.tostring(g.t0)
                 lastAl := "x" + str.tostring(g.t0)
-                alert("Mangekyō · the daily " + baseNm(g) + " " + px(g.bot) + "–" + px(g.top) + " closed beyond" + (g.kind == 0 and showInv ? ": now an inversion FVG" : ""), alert.freq_once_per_bar)
+                alert("Mangekyō · the " + (isW ? "weekly " : "daily ") + baseNm(g) + " " + px(g.bot) + "–" + px(g.top) + " closed beyond" + (g.kind == 0 and showInv ? ": now an inversion FVG" : ""), alert.freq_once_per_bar)
             if alNw and g.t0 == lastT and g.age == 0 and lastAl != "n" + str.tostring(g.t0)
                 lastAl := "n" + str.tostring(g.t0)
-                alert("Mangekyō · new daily " + baseNm(g) + " " + px(g.bot) + "–" + px(g.top) + " · " + f2((g.top - g.bot) / g.atr) + " ATR", alert.freq_once_per_bar)
+                alert("Mangekyō · new " + (isW ? "weekly " : "daily ") + baseNm(g) + " " + px(g.bot) + "–" + px(g.top) + " · " + f2((g.top - g.bot) / g.atr) + " ATR", alert.freq_once_per_bar)
 
-// ═══════════════════════════════════════════════════════════════ Card
-var table tC = na
-if barstate.isfirst and showCrd
-    tC := table.new(posOf(crdPos), 7, 26, bgcolor = #00000000, frame_width = 0, border_color = cBd, border_width = 1, force_overlay = true)
+// ═══════════════════════════════════════════════════════════════ Card: four columns, ✓ / ✕, caution rows only when live
+var table  tC = na
+var string cardKey = ""
+string tipR = isW ? "Chance the near edge trades within 4 · within 12 weeks, from its distance at the last weekly close in weekly ATR(14). Weekly gaps were revisited a little less often than the same candles without a gap (76.5% vs 80.3% in 12 weeks), so the odds come from distance alone. Walk-forward 2014–26 at 4 weeks: Brier 0.113 (below) and 0.158 (above) vs 0.165 and 0.245 for a flat rate." : "Chance the near edge trades by Friday (" + str.tostring(dLeft) + " trading day(s) left, today included) · within 20 trading days, from its distance at the last close in daily ATR(14). Gaps were reached at the same rate as any level as far away (84% vs 86% in 20 days), so these odds come from distance. Walk-forward 2014–26 (5 days): above 6→5%, 21→22%, 41→36%, 60→57%, 81→79%, 95→94%; below 6→10%, 21→22%, 40→41%, 60→61%, 80→82%, 95→95%."
+string tipH = isW ? "First touch this week: the chance the touch week holds the far edge, from the width. Against the same weekly candles without a gap: 43.7% vs 38.9% (+4.2 ± 2.0 points; 2010–24 +3.6, 2025–26 +11.5). The suite's rule: passed." : "First touch today: the chance the touch day holds the far edge, from the width. Against the same candles without a gap: 49% vs 45% (2010–26, t 3.7; NQ, ES, RTY yes, YM no; 2010–24 and 2025–26 both)."
 tc(int c, int r, string s, color fg, color bg, string tip = "") =>
     tC.cell(c, r, s, text_color = fg, bgcolor = bg, text_size = crdSz, text_halign = text.align_left, tooltip = tip, text_font_family = font.family_monospace)
+// a gap row: name · range · ✓/✕ · odds (mobile drops the range)
 gapRow(int r, Gap g, bool above) =>
-    float w   = (g.top - g.bot) / g.atr
-    float d   = na(atr) or atr <= 0 ? na : above ? (g.bot - lastC) / atr : (lastC - g.top) / atr
-    bool  iv  = inv(g)
-    bool  hit = (not iv and not na(g.tT)) or todayIn(g)
-    float pF  = hit ? 1.0 : na(d) ? na : d <= 0 ? 1.0 : reachP(d, dLeft, above)
-    float p20 = hit ? 1.0 : na(d) ? na : d <= 0 ? 1.0 : reachP(d, 20, above)
-    string vm = (na(g.rv) ? "—" : str.tostring(g.rv, "0.0") + "×") + (g.brk ? " · BOS" : "")
-    color c = colOf(g)
-    tc(0, r, kindNm(g) + " " + dayNm(g.t2), c, cBg, baseNm(g) + " named by its displacement candle, " + dayNm(g.t2) + "; " + str.tostring(g.nc) + " candles, " + dmy(g.t1) + " – " + dmy(g.t0) + (iv ? "; closed beyond " + dmy(g.tX) + ", now an inversion FVG" : "") + (setM == 2 and g.src == 1 ? "; read with the last-trade close" : ""))
-    if mob
-        tc(1, r, px(g.bot) + "–" + px(g.top) + " · " + (hit ? "✓" : na(d) ? "—" : str.tostring(d, "0.0") + " ATR"), cTx, cBg)
-        tc(2, r, showP ? (hit ? statusOf(g) : pc0(pF) + " by Fri") : "", cTx, cBg)
-    else
-        tc(1, r, px(g.bot) + "–" + px(g.top), cTx, cBg, "CE " + px(math.round_to_mintick((g.top + g.bot) / 2.0)))
-        tc(2, r, f2(w) + " · " + (hit ? "✓" : na(d) ? "—" : str.tostring(d, "0.0")), cTx, cBg, "Width in ATR at formation · distance from the last close in daily ATR(14)")
-        tc(3, r, statusOf(g), hit ? cTx : cSub, cBg)
-        tc(4, r, showP ? (hit ? "reached" : pc0(pF) + " · " + pc0(p20)) : "", cTx, cBg)
-        tc(5, r, showP ? (iv or not na(g.tT) ? "—" : pc0(pTouch(g.kind, w)) + " · " + pc0(p10(g.kind, w))) : "", cTx, cBg, iv ? "Inversion FVG: drawn, not scored (tested: no edge over the same candles without a gap)." : not na(g.tT) ? "Already touched on " + dmy(g.tT) + "; the hold odds are for the first touch day." : "If price reaches it: the touch day holds the far edge · not closed beyond within 10 days of the first touch, from the width")
-        tc(6, r, vm, cSub, cBg, "The middle candle's volume against the 20 days before; BOS = the move closed beyond the last daily swing.\nTested at the same width: high-volume gaps held the touch day no more often (−2 points, z −0.8), and against the same candles without a gap their edge was +0.3 points (low volume +6.3). A break of structure added about 4 points (z 1.6; none on NQ or in 2025–26). Volume and structure are shown, not scored.")
-if barstate.islast and showCrd and not na(tC)
-    tC.clear(0, 0, 6, 25)
+    bool iv  = inv(g)
+    bool tch = not na(g.tT) or todayIn(g)
+    bool firstNow = na(g.tT) and todayIn(g) and not iv
+    float w = (g.top - g.bot) / g.atr
+    string od = iv ? "—" : firstNow ? "holds " + pc0(pTouch(g.kind, w)) : tch ? "—" : reachTx(g, above, not mob)
+    string odTip = iv ? "Inversion FVG: drawn, not scored." : firstNow ? tipH : tch ? "Reached " + (na(g.tT) ? nowW : dmy(g.tT)) + "." : tipR + "\nIf reached, the first touch holds the far edge " + pc0(pTouch(g.kind, w)) + " (width " + f2(w) + " ATR)."
+    int c = 0
+    tc(c, r, kindNm(g) + " " + shortNm(g.t2), colOf(g), cBg, baseNm(g) + " named by its displacement candle, " + dayNm(g.t2) + "; " + str.tostring(g.nc) + " candles, " + dmy(g.t1) + " – " + dmy(g.t0) + " · " + f2(w) + " ATR wide" + (iv ? "; closed beyond " + dmy(g.tX) + ", now an inversion FVG" : "") + "\nmiddle candle volume " + (na(g.rv) ? "—" : str.tostring(g.rv, "0.0") + "×") + (g.brk ? " · broke structure" : "") + " (shown, not scored: no edge in the tests)")
+    c += 1
+    if not mob
+        tc(c, r, px(g.bot) + "–" + px(g.top), cTxK, cBg, "CE " + px(math.round_to_mintick((g.top + g.bot) / 2.0)) + " · " + statusOf(g))
+        c += 1
+    tc(c, r, glyphOf(g), glyphC(g), cBg, statusOf(g) + "\n✕ untouched · ✓ reached · ◐ price inside · ↺ inverted")
+    c += 1
+    if showOd
+        tc(c, r, od, cTxK, cBg, odTip)
+if barstate.islast and showCrd
+    int nc = (mob ? 2 : 3) + (showOd ? 1 : 0)
+    int nA = math.min(shA.size(), mob ? 1 : cRows)
+    int nB = math.min(shB.size(), mob ? 1 : cRows)
+    int nI = mob ? 0 : math.min(shI.size(), 2)
+    // caution rows
+    bool wIn = showWn and not na(focusG) and shI.size() > 0
+    bool wFm = showWn and not mob and fmDir != 0 and scM != 2
+    bool wDr = showWn and not mob and not isW
+    string ck = str.tostring(nc) + "|" + str.tostring(nA) + "|" + str.tostring(nB) + "|" + str.tostring(nI) + (wIn ? "i" : "") + (wFm ? "f" : "") + (wDr ? "d" : "") + (tfOK and not na(atr) ? "" : "x")
+    bool newTbl = ck != cardKey or na(tC)
+    array<int> mrg = array.new<int>()
+    if newTbl
+        cardKey := ck
+        if not na(tC)
+            tC.delete()
+        tC := table.new(posOf(crdPos), nc, 18, bgcolor = #00000000, frame_width = 1, frame_color = cBd, border_color = cBd, border_width = 1, force_overlay = true)
     string live = barstate.isrealtime ? "● " : "◆ "
-    int nc = mob ? 2 : 6
+    string ttl = live + (isW ? "ETERNAL MANGEKYŌ · W" : "MANGEKYŌ · D")
     if not tfOK
-        tc(0, 0, live + "MANGEKYŌ · use a daily or intraday chart", cTx, cHd)
+        tc(0, 0, ttl + " · use " + (isW ? "a weekly, daily or intraday chart" : "a daily or intraday chart"), cTxK, cHd)
+        mrg.push(0)
     else if na(atr)
-        tc(0, 0, live + "MANGEKYŌ · needs a month of daily history", cTx, cHd)
+        tc(0, 0, ttl + " · needs more history", cTxK, cHd)
+        mrg.push(0)
     else
-        string srcT = srcI == "Front-month contract" ? "front month" : srcI == "Continuous 1!" ? "1!" : srcI == "Continuous 1!, back-adjusted" ? "1! back-adj" : "chart"
-        string setT = setM == 0 ? "SET" : setM == 1 ? "last trade" : setM == 2 ? "widest" : "chart SET"
-        string scT = scM == 0 ? str.tostring(LB) + "d look back" : scM == 1 ? "this + last week" : scM == 2 ? "last week" : "this week"
-        tc(0, 0, live + "MANGEKYŌ   " + syminfo.ticker + "   " + srcT + " · " + setT + " · " + scT, cTx, cHd, "Daily candles from " + base + ". Bodies: " + setI + "." + (nHid > 0 ? "\n" + str.tostring(nHid) + " gap(s) from the deferred month hidden." : ""))
-        tC.merge_cells(0, 0, nc, 0)
-        string noneT = scM == 0 ? "in the look back" : scM == 1 ? "this or last week" : scM == 2 ? "from last week" : "this week"
-        int r = 1
+        string srcT = srcI == "Front-month contract" ? "front" : srcI == "Continuous 1!" ? "1!" : srcI == "Continuous 1!, back-adjusted" ? "1! adj" : ""
+        string scT = scM == 0 ? str.tostring(LB) + (isW ? "w" : "d") : scM == 1 ? "this + last wk" : scM == 2 ? "last wk" : "this wk"
+        int r = 0
+        tc(0, r, ttl + "   " + syminfo.ticker + " · " + scT + (srcT != "" ? " · " + srcT : ""), cTxK, cHd, (isW ? "Weekly" : "Daily") + " candles from " + base + ". Bodies: " + setI + "." + (nHid > 0 ? "\n" + str.tostring(nHid) + " gap(s) from the deferred month hidden." : "") + "\nThe compact ✓ / ✕ layout was inspired by El3mentss's DOL table.")
+        mrg.push(r)
+        r += 1
         if not mob
-            tc(0, r, "DAILY GAP", cSub, cHd)
-            tc(1, r, "RANGE", cSub, cHd)
-            tc(2, r, "ATR · DIST", cSub, cHd, "Width in ATR at formation · distance from the last close")
-            tc(3, r, "STATUS", cSub, cHd)
-            tc(4, r, "BY FRI · 20D", cSub, cHd, "Chance the near edge trades by Friday (" + str.tostring(dLeft) + " trading day(s) left, today included) and within 20 trading days, from its distance at the last close.\nTested: gaps were reached at the same rate as any level as far away (within 20 days 84% vs 86% for the same candles without a gap), so these odds come from distance, not from the gap. Walk-forward 2014–26 (5 days): above 6→5%, 21→22%, 41→36%, 60→57%, 81→79%, 95→94%; below 6→10%, 21→22%, 40→41%, 60→61%, 80→82%, 95→95%.")
-            tc(5, r, "HOLDS · 10D", cSub, cHd, "Chance the first touch day does not trade through the far edge · that it is not closed beyond within 10 trading days of the first touch, from the width.\nAgainst the same candles without a gap: the far edge held the touch day 49% vs 45% (2010–26, t 3.7; NQ, ES, RTY yes, YM no; 2010–24 and 2025–26 both). Ten days on: 29% vs 28%, no edge.")
-            tc(6, r, "VOL · MS", cSub, cHd)
+            int c = 0
+            tc(c, r, isW ? "WEEKLY GAP" : "DAILY GAP", cSubK, cHd)
+            c += 1
+            tc(c, r, "RANGE", cSubK, cHd)
+            c += 1
+            tc(c, r, "", cSubK, cHd, "✕ untouched · ✓ reached · ◐ price inside · ↺ inverted")
+            c += 1
+            if showOd
+                tc(c, r, isW ? "4W · 12W" : "FRI · 20D", cSubK, cHd, tipR + "\nOnce touched for the first time " + nowW + ", the column shows the chance the touch holds the far edge.\n" + tipH)
             r += 1
-        // above: farthest first so the rows read top-down like the chart
-        if shA.size() > 0
-            for i = shA.size() - 1 to 0
+        // above, farthest first so the rows read top-down like the chart
+        if nA > 0
+            for i = nA - 1 to 0
                 gapRow(r, shA.get(i), true)
                 r += 1
-        else
-            tc(0, r, "ABOVE", cSub, cBg)
-            tc(1, r, "no live gap " + noneT, cMu, cBg)
-            tC.merge_cells(1, r, nc, r)
-            r += 1
-        tc(0, r, "— price " + px(close), cTx, cHd)
-        tC.merge_cells(0, r, nc, r)
+        tc(0, r, "— " + px(close), cTxK, cHd)
+        mrg.push(r)
         r += 1
-        if shI.size() > 0
-            for i = 0 to math.min(shI.size(), 3) - 1
+        if nI > 0
+            for i = 0 to nI - 1
                 gapRow(r, shI.get(i), false)
                 r += 1
-        if shB.size() > 0
-            for g in shB
-                gapRow(r, g, false)
+        if nB > 0
+            for i = 0 to nB - 1
+                gapRow(r, shB.get(i), false)
                 r += 1
-        else
-            tc(0, r, "BELOW", cSub, cBg)
-            tc(1, r, "no live gap " + noneT, cMu, cBg)
-            tC.merge_cells(1, r, nc, r)
-            r += 1
-        if fmDir != 0 and scM != 2
-            tc(0, r, (fmDir == 1 ? "▲ BISI" : "▼ SIBI") + " forming", fmDir == 1 ? cBull : cBear, cBg, "Today's candle as candle 3 of an FVG. It counts once the day is complete and joins the list at the next session's open.")
-            tc(1, r, px(fmBot) + "–" + px(fmTop) + " · " + f2((fmTop - fmBot) / atr) + " ATR · while today's " + (fmDir == 1 ? "low > " + px(fmBot) : "high < " + px(fmTop)), cTx, cBg)
-            tC.merge_cells(1, r, nc, r)
-            r += 1
-        // the week: the nearest gap above as the premium draw, below as the discount draw
-        // premium draw: the nearest resistance gap above (a SIBI, or a BISI turned inversion); discount: the nearest support below
-        Gap pA = na
-        Gap pB = na
-        for g in shA
-            if na(pA) and role(g) == -1 and (inv(g) or na(g.tT) or g.tT + 6 * 3600000 >= wkStart)
-                pA := g
-        for g in shB
-            if na(pB) and role(g) == 1 and (inv(g) or na(g.tT) or g.tT + 6 * 3600000 >= wkStart)
-                pB := g
-        float dA = na(pA) ? na : (pA.bot - lastC) / atr
-        float dB = na(pB) ? na : (lastC - pB.top) / atr
-        string wA = na(pA) ? "premium draw —" : "premium " + kindNm(pA) + " " + px(pA.bot) + ((not inv(pA) and not na(pA.tT)) or todayIn(pA) ? " ✓" : " " + pc0(dA <= 0 ? 1.0 : reachP(dA, dLeft, true)) + " by Fri")
-        string wB = na(pB) ? "discount draw —" : "discount " + kindNm(pB) + " " + px(pB.top) + ((not inv(pB) and not na(pB.tT)) or todayIn(pB) ? " ✓" : " " + pc0(dB <= 0 ? 1.0 : reachP(dB, dLeft, false)) + " by Fri")
-        tc(0, r, "WEEK", cSub, cBg, "The week's range read from the daily chart, as ICT outlines it: the nearest gap above not reached before this week is the premium draw, the nearest below the discount draw, with the chance each trades by Friday (✓ = reached this week).\nTested on weekly opens 2010–26: the nearest gap above (60-day look back) was reached by the week 66–68% of the time, below 59–61%; any level as far away after similar weeks 66–68% and 60–63%. When reached, the week's extreme stopped inside the gap 27–30% of the time, as inside a same-size band without a gap (28–30%).")
-        if mob
-            tc(1, r, wA, cBear, cBg)
-            tc(2, r, wB, cBull, cBg)
-        else
-            tc(1, r, wA, cBear, cBg)
-            tC.merge_cells(1, r, 3, r)
-            tc(4, r, wB, cBull, cBg)
-            tC.merge_cells(4, r, 6, r)
-        r += 1
-        // today inside a gap: where the body sits against CE
-        if not na(focusG) and shI.size() > 0
+        if wIn
             Gap g = focusG
             float pos = inZ(g, close)
             int   hf  = pos <= 0 ? 0 : pos <= 0.5 ? 1 : 2
             string side = hf == 0 ? "back outside" : hf == 1 ? "near half, CE held" : "past CE"
-            tc(0, r, "TODAY", cSub, cBg, "Inside the gap now. ICT: a bullish gap should keep the bodies above CE, a bearish one below.\nTested, FVGs 2010–26: when the touch day closed back outside, 44% were not closed beyond in the next 10 days; in the near half 34%; past CE 16%. The same candles without a gap: 43%, 31%, 21%. It tracks how deep price closes, at any level.")
-            tc(1, r, "in " + kindNm(g) + " " + dayNm(g.t2) + " · " + side + (inv(g) ? "" : " · if today closes here, 10 more days " + pc0(pBody(g.kind, hf))), cTx, cBg)
-            tC.merge_cells(1, r, nc, r)
+            tc(0, r, "◐ IN " + kindNm(g) + " " + shortNm(g.t2) + " · " + side + (inv(g) ? "" : " · close here → " + (isW ? "4W " : "10D ") + pc0(pBody(g.kind, hf))), cAmb, cBg, "Inside the gap now. ICT: a bullish gap should keep the bodies above CE, a bearish one below. The odds: not closed beyond in the next " + (isW ? "4 weeks" : "10 days") + " if this candle closes where price is now, by where it closes (back outside · near half · past CE). " + (isW ? "Weekly FVGs 2010–26: 61%, 51%, 29%." : "Daily FVGs 2010–26: 44%, 34%, 16%; the same candles without a gap 43%, 31%, 21%: it tracks how deep price closes, at any level."))
+            mrg.push(r)
             r += 1
+        if wFm
+            tc(0, r, "◆ FORMING " + (fmDir == 1 ? "▲ BISI " : "▼ SIBI ") + px(fmBot) + "–" + px(fmTop) + " · while " + (fmDir == 1 ? "low > " + px(fmBot) : "high < " + px(fmTop)), fmDir == 1 ? cBull : cBear, cBg, "The candle forming now as candle 3 of an FVG. It counts once the candle closes.")
+            mrg.push(r)
+            r += 1
+        if wDr
+            Gap pA = na
+            Gap pB = na
+            for g in shA
+                if na(pA) and role(g) == -1 and (inv(g) or na(g.tT) or g.tT + 6 * 3600000 >= wkStart)
+                    pA := g
+            for g in shB
+                if na(pB) and role(g) == 1 and (inv(g) or na(g.tT) or g.tT + 6 * 3600000 >= wkStart)
+                    pB := g
+            float dA = na(pA) ? na : (pA.bot - lastC) / atr
+            float dB = na(pB) ? na : (lastC - pB.top) / atr
+            string sA = na(pA) ? "▲ —" : "▲ " + px(pA.bot) + ((not inv(pA) and not na(pA.tT)) or todayIn(pA) ? " ✓" : " " + pc0(dA <= 0 ? 1.0 : reachP(dA, dLeft, true)))
+            string sB = na(pB) ? "▼ —" : "▼ " + px(pB.top) + ((not inv(pB) and not na(pB.tT)) or todayIn(pB) ? " ✓" : " " + pc0(dB <= 0 ? 1.0 : reachP(dB, dLeft, false)))
+            tc(0, r, "WEEK DRAW  " + sA + "  ·  " + sB + " by Fri", cSubK, cBg, "The week's range from the daily chart, as ICT outlines it: the nearest gap above not reached before this week (premium draw) and below (discount draw), with the chance each trades by Friday (✓ = reached this week). Tested on weekly opens 2010–26: reached 66–68% (above) and 59–61% (below), as any level as far away (66–68%, 60–63%).")
+            mrg.push(r)
+            r += 1
+    // merges, once per table (it is rebuilt only when its row layout changes)
+    if newTbl and nc > 1
+        for rr in mrg
+            tC.merge_cells(0, rr, nc - 1, rr)
