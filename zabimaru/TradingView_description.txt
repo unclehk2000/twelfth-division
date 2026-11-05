@@ -1,3 +1,7 @@
+UPDATE v1.1 (Nov 2026)
+• Drawings in front of the candles.
+• Tested and left out: the OR "reclaim" (first close back inside after the first break) reaches the other side first 20.9% of the time on 2025–26, against 20.4% for the same paths with directions flipped at random. It adds nothing, so it is not drawn.
+
 TITLE (paste into the Title field)
 Zabimaru: NY Opening Range, Octant Grid, Triplet Card & Session Opens
 

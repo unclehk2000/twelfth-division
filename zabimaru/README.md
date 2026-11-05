@@ -36,6 +36,11 @@ Files: `Zabimaru.pine` (the script), `TradingView_description.txt` (publication 
 - **The first break** after 10:00, labelled at its candle (e.g. *▲ 10:05 · ES ✓ · RTY ✓*). Each sister gets ✓ if it broke the same side within 5 minutes, or ✗ if it did not.
 - The last N sessions stay on the chart (default 3).
 
+### v1.1 (Nov 2026)
+
+- Drawings sit in front of the candles.
+- **Tested, not added: the reclaim.** The first close back inside the opening range after the first break (a failed break), before the other side trades. On NQ, ES and RTY 1-minute 2018–26 (5,754 reclaims), the other side of the OR traded before a new extreme beyond the break 20.9% of the time on 2025–26 (21.4% on 2018–24). The same paths with each bar's direction flipped at random give 20.4% (21.2%). The reclaim adds nothing to the odds its place in the range already gives, so it is not drawn.
+
 ## Session opens (Hihiō)
 
 - The **18:00 open** (the trading day's open), the **midnight open** (00:00 ET, ICT's true day open), and an optional **custom open** (08:30 by default).

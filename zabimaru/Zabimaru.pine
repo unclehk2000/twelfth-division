@@ -7,7 +7,7 @@
 // side, and the RTH gap (ORG) as one row. While the OR forms, an octant grid (quarters emphasised) follows price. The
 // session opens (Hihiō: 18:00, midnight, custom) are built in. Odds: NQ + ES + RTY 1-minute 2018–26 (about 6,400 opening ranges), every
 // term held pooled (p < 0.05, errors clustered by date), in 2018–24 and 2025–26, and on each symbol.
-indicator("Zabimaru — NY Opening Range + Session Opens", "Zabimaru", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+indicator("Zabimaru — NY Opening Range + Session Opens", "Zabimaru", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100, behind_chart = false)
 
 TZ = "America/New_York"
 
