@@ -1,0 +1,51 @@
+TITLE (paste into the Title field)
+Shinsō: ICT Draw on Liquidity with Machine-Learned Odds — PDH/PDL, PWH/PWL, PMH/PML, Asia & London Ranges, Which Side First
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Shinsō[/b] puts a number on ICT's draw on liquidity. Every pool, the previous day's, week's and month's highs and lows and the Asia and London ranges, carries the chance it trades before 16:59 today. The nearest buy-side and sell-side pools carry the odds of which goes first.
+• [b]Pools on price[/b], each named with its odds; the nearest above and below drawn thicker; taken pools faded with the time.
+• [b]A card[/b] ranking the live pools, with the buy-side-or-sell-side race on top.
+• [b]Both models are gradient-boosted trees[/b], trained on 2.3 million samples of NQ, ES and RTY 1-minute data and run inside Pine.
+
+[i]Odds that each pool is reached. It does not call direction.[/i]
+
+[b]█ THE NAME[/b]
+Shinsō (神鎗, "God Spear") is Gin Ichimaru's zanpakutō in Bleach. It extends in an instant to strike a target far away; its bankai, Kamishini no Yari, reaches thirteen kilometres. ICT teaches that price is always reaching for liquidity, its draw. Shinsō shows how far each target is in reach today, and which one the spear touches first.
+
+[b]█ WHAT IT SHOWS[/b]
+• [b]PDH / PDL, PWH / PWL, PMH / PML[/b] (solid) and the [b]Asia[/b] (20:00–00:00 ET) and [b]London[/b] (02:00–05:00) ranges (dashed, live once each session ends), each labelled [i]London H 29,279.00 · 57% today[/i].
+• The nearest buy-side and sell-side pools are drawn thicker. Taken pools fade and stop at the candle that took them (✓ 09:42), or can be hidden.
+• [b]Card:[/b]
+  – [i]FIRST[/i]: the nearest buy-side pool against the nearest sell-side pool, with the odds of each trading first;
+  – every live pool in price order, with a gauge, its odds, its price and its distance in daily ATR;
+  – pools taken today, the draw-rule test and the out-of-sample score.
+  – Mobile shows the race and the two nearest pools.
+• [b]Alert:[/b] a pool taken. Pools reset at 18:00 ET; intraday charts up to 1 hour.
+
+[b]█ HOW THE ODDS ARE MADE[/b]
+• [b]Pools:[/b] every 15 minutes, for every live untouched pool, whether it trades before 16:59. 2,326,239 samples in 2018–24 for training; 598,185 in 2025 – Oct 2026 for the one out-of-sample test.
+• [b]Inputs:[/b]
+  – a Brownian touch probability: the distance in daily ATR(14) over the square root of the volatility still to come today, from the intraday volatility profile;
+  – the pool's type and side, the time;
+  – how many pools sit between price and it, pools stacked within 0.15 ATR, how many are already taken on each side;
+  – the day's move toward it, a CPI / NFP / FOMC release still ahead, the weekday.
+• [b]Race:[/b] price's position between the nearest pool above and below (the gambler's-ruin odds), the pools' types, how many are taken on each side, the day's move and the time.
+• 50 and 40 gradient-boosted trees of depth 3, exported into the script.
+
+[b]█ WHAT THE TESTS SHOWED (2025 – Oct 2026, out of sample)[/b]
+• [b]Pools:[/b] Brier 0.088 against 0.167 for a flat rate and 0.090 for distance and time alone (gain 0.004 log-loss, 95% CI 0.002–0.007, on NQ, ES and RTY each). Calibration 2→2, 15→12, 25→23, 35→32, 45→42, 55→55, 65→65, 75→75, 85→85, 93→93%.
+• Taken by 16:59, per live pool sample: PDH / PDL 29%, PWH / PWL 11%, PMH / PML 5%, Asia 57%, London 50%.
+• [b]Race:[/b] Brier 0.166 against 0.168 for the position alone (gain 0.007, CI 0.002–0.011); the position by itself is a little too timid at the edges, and the trees fix that.
+• [b]ICT's draw reasoning[/b], measured against the distance-and-time odds:
+  – the other side already taken today −0.3 ± 0.5 points;
+  – nothing taken on the other side −1.0 ± 0.8;
+  – another pool stacked within 0.15 ATR +0.2 ± 1.3;
+  – the pool in the direction of the day's move −0.7 ± 0.7.
+  None moved the odds. Which pool is taken is mostly how far it is and how much of the day is left.
+
+[b]█ CREDITS[/b]
+Liquidity pools, buy-side and sell-side liquidity, the draw on liquidity and the killzone ranges are taught by ICT (Michael J. Huddleston). The models are built from scratch. Not affiliated with or endorsed by ICT.
+
+[i]For education. Past behaviour does not promise future results.[/i]
