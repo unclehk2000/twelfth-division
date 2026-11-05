@@ -1,0 +1,49 @@
+TITLE (paste into the Title field)
+Ryūjin Jakka: Session Range Forecasts — Asia, London, NY AM & NY PM Expected Ranges with Calibrated Bands, FOMC / CPI / NFP Effects
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Ryūjin Jakka[/b] forecasts how far each ICT killzone session will run. At the start of Asia, London, NY AM and NY PM it gives the expected high-to-low range with its 25–75% and 10–90% bands; while the session runs, those ranges are projected up from its low and down from its high.
+• [b]Four sessions[/b] shaded and labelled with their forecast and how much of it is used.
+• [b]Projections[/b]: where the session's high would sit if its low is in, at the median, 75th and 90th percentile range, and the same down from the high.
+• [b]One linear model per session[/b], fit on NQ, ES and RTY 1-minute data 2018–24 and scored once on 2025 – Oct 2026. Its bands held 47–52% and 76–80% of sessions.
+
+[i]How far each session runs. It does not call direction.[/i]
+
+[b]█ THE NAME[/b]
+Ryūjin Jakka (流刃若火, "Flowing Blade, Like Fire") is Head Captain Genryūsai Shigekuni Yamamoto's zanpakutō in Bleach, the oldest and strongest fire-type. Its heat is the measure of its power. Ryūjin Jakka measures how hot each session is likely to burn.
+
+[b]█ WHAT IT SHOWS[/b]
+• [b]Each session shaded[/b] (Asia 20:00–00:00 ET, London 02:00–05:00, NY AM 09:30–12:00, NY PM 13:30–16:00) with its label: [i]NY AM · p50 356 · 83% used[/i].
+• [b]While a session runs:[/b] the p50 (dashed), p75 and p90 (dotted) ranges from the session's low and from its high.
+• [b]Card:[/b]
+  – each session's p50 with its 25–75% band in points, a gauge of the range used against p90, and live / done (marked [i]>p90[/i] or [i]<p10[/i] when it ran outside) / its start time;
+  – sessions not yet started show a provisional forecast, fixed at their start;
+  – on release days, the tested release-day effect;
+  – daily ATR, VIX against its 20-day mean, the test score.
+  – Mobile shows the four sessions.
+• [b]Alert:[/b] a session passes its 90% range. Intraday charts up to 30 minutes.
+
+[b]█ HOW THE FORECAST IS MADE[/b]
+• [b]Target:[/b] each session's log range in daily ATR(14).
+• [b]Inputs, all known at the session's start:[/b]
+  – the same session's range yesterday and its 5- and 20-day means (a HAR model);
+  – today's range and move so far, and the session before it;
+  – daily ATR against its 60-day mean, VIX against its 20-day mean;
+  – CPI, NFP and FOMC days; the weekday.
+• [b]Model:[/b] one linear regression per session on 16,279 sessions (2018–24), with bands from its residual quantiles. Gradient-boosted trees were tried and did worse on all four sessions.
+
+[b]█ WHAT THE TESTS SHOWED (2025 – Oct 2026, out of sample, 4,058 sessions)[/b]
+• [b]R² on the log range:[/b] Asia 0.30, London 0.34, NY AM 0.29, NY PM 0.38, against 0.00–0.07 for the plain 20-day average and 0.26–0.33 for the trees.
+• [b]Bands:[/b] 25–75% held 48.8%, 49.5%, 52.2%, 46.6%; 10–90% held 76.8%, 77.4%, 80.4%, 76.2%. Close to nominal in 2025 and 2026 separately.
+• The median runs a little high in London and NY PM (56% of sessions ended below it).
+• [b]Release days[/b], beyond the rest of the model (clustered by day; same sign in both periods and on NQ, ES and RTY):
+  – [b]FOMC afternoons ran 2.5× (+149%, t 12.8; 2025–26 +164%)[/b]; NY AM −17%, London −16%, Asia −12% before the statement;
+  – before CPI and NFP, Asia and London were 7–10% quieter; NY AM on NFP days +9%.
+• Median session range: Asia 0.20, London 0.23, NY AM 0.55, NY PM 0.30 daily ATR.
+
+[b]█ CREDITS[/b]
+The killzones are taught by ICT (Michael J. Huddleston). The HAR model is Corsi's (2009). The models are built from scratch. Not affiliated with or endorsed by ICT.
+
+[i]For education. Past behaviour does not promise future results.[/i]
