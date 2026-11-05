@@ -1,3 +1,7 @@
+UPDATE v4 (Nov 2026)
+• More HTF candles: up to four extra candle sets next to the pair's (default 1H and 4H on, D and W off), each with its own timeframe and count, toggled on and off while you trade.
+• Sets ordered by timeframe, each named with its countdown; time stamps under each candle; the open and high / low lines for the pair only or for every set.
+
 TITLE (paste into the Title field)
 Hadō 99: Macro Regime (DXY / Oil) + C2 → C3 Fractal Model with HTF Candles for NQ, ES & RTY
 

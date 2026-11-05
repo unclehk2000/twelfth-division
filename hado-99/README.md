@@ -139,6 +139,12 @@ NQ, ES and RTY 1-minute data 2018–26: 248k C2s on 15-minute candles, 3,089 on 
 
 **The macro regime made no difference to any fractal odds.**
 
+## v4: more HTF candles
+
+Next to the pair's candles (15-minute on charts of 5 minutes or less, daily above), up to four more candle sets, each with its own timeframe and count: by default 1H and 4H on, daily and weekly off. Tick or untick a set while you trade: on 1 minute with the 15-minute pair, turn the 1H or 4H set on and off without touching the rest. The sets sit left to right by timeframe, a candle width plus two gaps apart, each named with its countdown over it ("1H · 32:40", "4H · 3h 32m"), times under each candle (hours, weekday names for daily, dates for weekly). They use the same colours, widths, wick width, forming-candle dash and separators as the pair's candles. The forming candle's open and the last candle's high / low lines can run for the pair only or for every set, each named by its set. A set at or below the chart's timeframe, or equal to the pair's, is skipped; candles are built from the chart's own bars, so a set shows only candles that opened inside the loaded history.
+
+![1 minute: the 15m pair with the 1H and 4H sets](images/Hado99_v4_1m_sets.png)
+
 ## Settings
 
 **View** sits at the top, the same as in my other indicators:

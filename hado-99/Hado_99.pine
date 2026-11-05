@@ -1,7 +1,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © Unclehk2000
 //@version=6
-indicator("Hadō 99 · Macro Link + Fractal", "Hadō 99", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+indicator("Hadō 99 · Macro Link + Fractal", "Hadō 99", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
 
 // Two cards. MACRO: which macro force the index is moving with today, and how hard: the dollar (DXY) and oil (CL), in three regimes
 // tested on NQ, ES and RTY daily data 2018–26 (each held pooled at p < 0.05 with errors clustered by date, in 2018–24 and
@@ -81,6 +81,27 @@ pvHLI   = input.bool(false, "Last closed candle's high / low", inline = "ph", gr
 pvHLC   = input.color(color.new(#787b86, 30), "", inline = "ph", group = g_P, active = fmPrev and pvHLI, display = display.none)
 pvSepI  = input.bool(false, "Separators on the chart", inline = "ps", group = g_P, tooltip = "A vertical line on the chart where each candle shown opened.", active = fmPrev, display = display.none)
 pvSepC  = input.color(color.new(#787b86, 55), "", inline = "ps", group = g_P, active = fmPrev and pvSepI, display = display.none)
+
+var g_X = "More HTF candles"
+// Extra candle sets next to the pair's candles, each with its own timeframe and count, ordered left to right by timeframe.
+// Tick or untick a set while you trade (e.g. on 1 minute with the 15-minute pair: 1H and 4H on, daily off). A set at or
+// below the chart's timeframe, or equal to the pair's, is skipped. Built from the chart's own bars, so a set only shows
+// candles that opened inside the loaded history.
+xs1On = input.bool(true,  "", inline = "x1", group = g_X, display = display.none)
+xs1Tf = input.timeframe("60",  "Set 1", inline = "x1", group = g_X, display = display.none)
+xs1N  = input.int(4, "candles", minval = 1, maxval = 10, inline = "x1", group = g_X, display = display.none)
+xs2On = input.bool(true,  "", inline = "x2", group = g_X, display = display.none)
+xs2Tf = input.timeframe("240", "Set 2", inline = "x2", group = g_X, display = display.none)
+xs2N  = input.int(4, "candles", minval = 1, maxval = 10, inline = "x2", group = g_X, display = display.none)
+xs3On = input.bool(false, "", inline = "x3", group = g_X, display = display.none)
+xs3Tf = input.timeframe("D",   "Set 3", inline = "x3", group = g_X, display = display.none)
+xs3N  = input.int(3, "candles", minval = 1, maxval = 10, inline = "x3", group = g_X, display = display.none)
+xs4On = input.bool(false, "", inline = "x4", group = g_X, display = display.none)
+xs4Tf = input.timeframe("W",   "Set 4", inline = "x4", group = g_X, display = display.none)
+xs4N  = input.int(3, "candles", minval = 1, maxval = 10, inline = "x4", group = g_X, display = display.none)
+xsGapI = input.int(0, "Gap between sets (bars)", minval = 0, maxval = 60, group = g_X, tooltip = "0 = auto: one candle width plus two gaps.", display = display.none)
+xsNmI  = input.bool(true, "Name and countdown over each set", group = g_X, display = display.none)
+xsLnI  = input.string("Pair only", "Open / high / low lines for", options = ["Pair only", "Every set"], group = g_X, tooltip = "Where the forming candle's open and the last closed candle's high / low lines (HTF candles settings) are drawn. Every set: each set's lines run from where they formed to that set's candles, in that set's name.", display = display.none)
 
 // ═══════════════════════════════════════════════════════════════════
 // THEME
@@ -525,91 +546,237 @@ if fmAct
                 s.pTaken := true
                 s.pDot.set_textcolor(color.gray)
 
+// ── extra candle sets: built bar by bar from the chart, starting at the first candle that opens inside the history
+xsUse(string tf, bool on) => on and timeframe.isintraday and timeframe.in_seconds(tf) > tfSec and not (fmAct and fmPrev and tf == fmTf)
+xsUpd(array<HC> a, bool isNew, int keep) =>
+    if isNew
+        a.unshift(HC.new(open, high, low, close, time, bar_index, bar_index, bar_index))
+        while a.size() > keep
+            a.pop()
+    else if a.size() > 0
+        HC c = a.first()
+        if high > c.h
+            c.h  := high
+            c.bH := bar_index
+        if low < c.l
+            c.l  := low
+            c.bL := bar_index
+        c.c := close
+tfNm(string tf) =>
+    int sc = timeframe.in_seconds(tf)
+    sc >= 2419200 ? "M" : sc >= 604800 ? "W" : sc >= 86400 ? "D" : sc >= 3600 ? str.tostring(int(sc / 3600)) + "H" : str.tostring(int(sc / 60)) + "m"
+leftS(int ms) =>
+    int sc = math.max(0, int(ms / 1000))
+    sc >= 86400 ? str.format("{0}d {1}h", int(sc / 86400), int((sc % 86400) / 3600)) : sc >= 3600 ? str.format("{0}h {1}m", int(sc / 3600), int((sc % 3600) / 60)) : str.format("{0}:{1}", int(sc / 60), str.tostring(sc % 60, "00"))
+var array<HC> xc1 = array.new<HC>()
+var array<HC> xc2 = array.new<HC>()
+var array<HC> xc3 = array.new<HC>()
+var array<HC> xc4 = array.new<HC>()
+bool xn1 = timeframe.change(xs1Tf)
+bool xn2 = timeframe.change(xs2Tf)
+bool xn3 = timeframe.change(xs3Tf)
+bool xn4 = timeframe.change(xs4Tf)
+bool xu1 = xsUse(xs1Tf, xs1On)
+bool xu2 = xsUse(xs2Tf, xs2On)
+bool xu3 = xsUse(xs3Tf, xs3On)
+bool xu4 = xsUse(xs4Tf, xs4On)
+if xu1
+    xsUpd(xc1, xn1, xs1N)
+if xu2
+    xsUpd(xc2, xn2, xs2N)
+if xu3
+    xsUpd(xc3, xn3, xs3N)
+if xu4
+    xsUpd(xc4, xn4, xs4N)
+int xl1 = timeframe.isintraday ? time_close(xs1Tf) : na
+int xl2 = timeframe.isintraday ? time_close(xs2Tf) : na
+int xl3 = timeframe.isintraday ? time_close(xs3Tf) : na
+int xl4 = timeframe.isintraday ? time_close(xs4Tf) : na
+
 // the last higher-timeframe candles, right of price (PO3 style), tagged C1–C4 for the latest setup; colours, sizes and
 // extras from the "HTF candles (PO3)" settings
 var array<box>   pvB = array.new<box>()
 var array<line>  pvL = array.new<line>()
 var array<label> pvT = array.new<label>()
-if barstate.islast and fmAct and fmPrev and hcs.size() > 0
+bool pairOn = fmAct and fmPrev and hcs.size() > 0
+drawX(array<HC> a, int nIn, int x0, string tf, int tcl, int w, int g) =>
+    int   n    = math.min(nIn, a.size())
+    if n > 0
+        bool  ict  = pvStyI == "ICT (green / black)"
+        color subC = bgLum < 128 ? #8a93a6 : #5d6476
+        int   sc   = timeframe.in_seconds(tf)
+        string nm  = tfNm(tf)
+        float top  = na
+        float bot  = na
+        for j = 0 to n - 1
+            top := na(top) ? a.get(j).h : math.max(top, a.get(j).h)
+            bot := na(bot) ? a.get(j).l : math.min(bot, a.get(j).l)
+        int xE = x0 + (n - 1) * (w + g) + w
+        for j = 0 to n - 1
+            int   m  = n - 1 - j
+            HC    h  = a.get(m)
+            bool  up = h.c >= h.o
+            int   x1 = x0 + j * (w + g)
+            int   x2 = x1 + w
+            int   xm = x1 + int(w / 2)
+            color mc = up ? fmBull : fmBear
+            color bd = pvCu ? (up ? pvBdU : pvBdD) : ict ? (up ? #a5d6a7 : fgAuto) : color.new(mc, 70)
+            color br = pvCu ? (up ? pvBrU : pvBrD) : ict ? fgAuto : color.new(mc, 30)
+            color wk = pvCu ? (up ? pvWkU : pvWkD) : ict ? fgAuto : color.new(mc, 30)
+            float bt = math.max(h.o, h.c)
+            float bb = math.min(h.o, h.c)
+            if h.h > bt
+                pvL.push(line.new(xm, h.h, xm, bt, color = wk, width = pvWkW))
+            if h.l < bb
+                pvL.push(line.new(xm, bb, xm, h.l, color = wk, width = pvWkW))
+            pvB.push(box.new(x1, bt, x2, bb, border_color = br, bgcolor = bd, border_style = m == 0 and pvLivI ? line.style_dashed : line.style_solid))
+            if pvSepI
+                pvL.push(line.new(h.b0, h.l, h.b0, h.h, extend = extend.both, color = pvSepC, style = line.style_dotted))
+            if pvStmI
+                int t6 = sc >= 86400 ? h.t0 + 6 * 3600000 : h.t0
+                pvT.push(label.new(xm, h.l, str.format_time(t6, sc >= 604800 ? "dd MMM" : sc >= 86400 ? "EEE" : "HH:mm", tz), style = label.style_label_up, color = #00000000, textcolor = subC, size = size.tiny))
+        if xsLnI == "Every set"
+            HC cur = a.get(0)
+            if pvOpnI
+                pvL.push(line.new(cur.b0, cur.o, xE, cur.o, color = pvOpnC, style = line.style_dashed))
+                pvT.push(label.new(xE, cur.o, nm + " open " + pxF(cur.o), style = label.style_label_left, color = #00000000, textcolor = pvOpnC, size = size.tiny))
+            if pvHLI and n > 1
+                HC pc = a.get(1)
+                pvL.push(line.new(pc.bH, pc.h, xE, pc.h, color = pvHLC, style = line.style_dotted))
+                pvL.push(line.new(pc.bL, pc.l, xE, pc.l, color = pvHLC, style = line.style_dotted))
+                pvT.push(label.new(xE, pc.h, nm + " H " + pxF(pc.h), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
+                pvT.push(label.new(xE, pc.l, nm + " L " + pxF(pc.l), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
+        if xsNmI
+            string lft = pvInfI ? " · " + leftS(tcl - (barstate.isrealtime ? timenow : time_close)) : ""
+            pvT.push(label.new(int((x0 + xE) / 2), top, nm + lft, style = label.style_label_down, color = #00000000, textcolor = fgAuto, size = size.tiny))
+
+if barstate.islast and (pairOn or xu1 or xu2 or xu3 or xu4)
     while pvB.size() > 0
         pvB.pop().delete()
     while pvL.size() > 0
         pvL.pop().delete()
     while pvT.size() > 0
         pvT.pop().delete()
-    int n = math.min(fmPrevN, hcs.size())
-    FS last = fss.size() > 0 ? fss.last() : na
-    int i2 = -1
-    if not na(last)
-        for [m, h] in hcs
-            if h.t0 == last.t2
-                i2 := m
-    bool  tgDn  = na(last) or last.bull                  // a bullish setup's tags go under the candles
-    color tagC  = na(last) ? fgAuto : last.bull ? fmBull : fmBear
-    color subC  = bgLum < 128 ? #8a93a6 : #5d6476
-    bool  ict   = pvStyI == "ICT (green / black)"
+    // layout: the pair's candles and the extra sets, left to right by timeframe
     int   pvW0  = pvWI > 0 ? pvWI : tfSec <= 120 ? 6 : tfSec <= 300 ? 4 : 2
     int   pvG0  = pvGI > 0 ? pvGI : tfSec <= 120 ? 3 : 2
-    int   x0    = bar_index + fmOff
-    int   xEndP = x0 + (n - 1) * (pvW0 + pvG0) + pvW0
-    float top   = na
-    float bot   = na
-    for j = 0 to n - 1
-        top := na(top) ? hcs.get(j).h : math.max(top, hcs.get(j).h)
-        bot := na(bot) ? hcs.get(j).l : math.min(bot, hcs.get(j).l)
-    for j = 0 to n - 1
-        int   m  = n - 1 - j                     // position in hcs, newest = 0
-        HC    h  = hcs.get(m)
-        bool  up = h.c >= h.o
-        int   x1 = x0 + j * (pvW0 + pvG0)
-        int   x2 = x1 + pvW0
-        int   xm = x1 + int(pvW0 / 2)
-        color mc = up ? fmBull : fmBear
-        color bd = pvCu ? (up ? pvBdU : pvBdD) : ict ? (up ? #a5d6a7 : fgAuto) : color.new(mc, 70)
-        color br = pvCu ? (up ? pvBrU : pvBrD) : ict ? fgAuto : color.new(mc, 30)
-        color wk = pvCu ? (up ? pvWkU : pvWkD) : ict ? fgAuto : color.new(mc, 30)
-        float bt = math.max(h.o, h.c)
-        float bb = math.min(h.o, h.c)
-        // the wicks stop at the body, so a see-through body shows no line inside it
-        if h.h > bt
-            pvL.push(line.new(xm, h.h, xm, bt, color = wk, width = pvWkW))
-        if h.l < bb
-            pvL.push(line.new(xm, bb, xm, h.l, color = wk, width = pvWkW))
-        pvB.push(box.new(x1, bt, x2, bb, border_color = br, bgcolor = bd, border_style = m == 0 and pvLivI ? line.style_dashed : line.style_solid))
-        if pvSepI
-            pvL.push(line.new(h.b0, h.l, h.b0, h.h, extend = extend.both, color = pvSepC, style = line.style_dotted))
-        string tag = i2 < 0 or not pvTagI ? "" : m == i2 + 1 ? "C1" : m == i2 ? "C2" : m == i2 - 1 ? "C3" : m == i2 - 2 ? "C4" : ""
-        string stp = pvStmI ? str.format_time(fmTf == "D" ? h.t0 + 6 * 3600000 : h.t0, fmTf == "D" ? "EEE dd" : "HH:mm", tz) : ""
-        // under the candle: its time, and a bullish setup's tag; over it: a bearish setup's tag
-        string dn = tgDn and tag != "" ? (stp != "" ? stp + "\n" : "") + tag : stp
-        if dn != ""
-            pvT.push(label.new(xm, h.l, dn, style = label.style_label_up, color = #00000000, textcolor = tgDn and tag != "" ? tagC : subC, size = size.tiny))
-        if not tgDn and tag != ""
-            pvT.push(label.new(xm, h.h, tag, style = label.style_label_down, color = #00000000, textcolor = tagC, size = size.tiny))
-    HC cur = hcs.get(0)
-    // the forming candle's open and the last closed candle's high / low; an open within 4% of the candles' range of the high
-    // or low shares that label, so the two never print over each other
-    bool  hlOn = pvHLI and hcs.size() > 1
-    HC    pc   = hlOn ? hcs.get(1) : na
-    float tol  = 0.04 * (top - bot)
-    bool  opH  = pvOpnI and hlOn and math.abs(cur.o - pc.h) <= tol
-    bool  opL  = pvOpnI and hlOn and not opH and math.abs(cur.o - pc.l) <= tol
-    if pvOpnI
-        pvL.push(line.new(cur.b0, cur.o, xEndP, cur.o, color = pvOpnC, style = line.style_dashed))
-        if not opH and not opL
-            pvT.push(label.new(xEndP, cur.o, "open " + pxF(cur.o), style = label.style_label_left, color = #00000000, textcolor = pvOpnC, size = size.tiny))
-    if hlOn
-        pvL.push(line.new(pc.bH, pc.h, xEndP, pc.h, color = pvHLC, style = line.style_dotted))
-        pvL.push(line.new(pc.bL, pc.l, xEndP, pc.l, color = pvHLC, style = line.style_dotted))
-        pvT.push(label.new(xEndP, pc.h, "H " + pxF(pc.h) + (opH ? " · open " + pxF(cur.o) : ""), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
-        pvT.push(label.new(xEndP, pc.l, "L " + pxF(pc.l) + (opL ? " · open " + pxF(cur.o) : ""), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
-    if pvInfI
-        int msLeft = time_close(fmTf) - (barstate.isrealtime ? timenow : time_close)
-        int secs = math.max(0, int(msLeft / 1000))
-        string lft = fmTf == "D" ? str.format("{0}h {1}m", int(secs / 3600), int((secs % 3600) / 60)) : str.format("{0}:{1}", int(secs / 60), str.tostring(secs % 60, "00"))
-        // lifted clear of a bearish setup's tags over the candles
-        float yI = top + (not tgDn and i2 >= 0 and pvTagI ? 0.08 * (top - bot) : 0.0)
-        pvT.push(label.new(int((x0 + xEndP) / 2), yI, fmNm + " · " + lft, style = label.style_label_down, color = #00000000, textcolor = fgAuto, size = size.tiny))
+    int   gapS  = xsGapI > 0 ? xsGapI : pvW0 + 2 * pvG0
+    array<int> kS = array.new<int>()
+    array<int> kK = array.new<int>()
+    array<int> kN = array.new<int>()
+    if pairOn
+        kS.push(timeframe.in_seconds(fmTf))
+        kK.push(0)
+        kN.push(math.min(fmPrevN, hcs.size()))
+    if xu1 and xc1.size() > 0
+        kS.push(timeframe.in_seconds(xs1Tf))
+        kK.push(1)
+        kN.push(math.min(xs1N, xc1.size()))
+    if xu2 and xc2.size() > 0
+        kS.push(timeframe.in_seconds(xs2Tf))
+        kK.push(2)
+        kN.push(math.min(xs2N, xc2.size()))
+    if xu3 and xc3.size() > 0
+        kS.push(timeframe.in_seconds(xs3Tf))
+        kK.push(3)
+        kN.push(math.min(xs3N, xc3.size()))
+    if xu4 and xc4.size() > 0
+        kS.push(timeframe.in_seconds(xs4Tf))
+        kK.push(4)
+        kN.push(math.min(xs4N, xc4.size()))
+    array<int> xsX = array.new<int>(5, na)
+    int cx = bar_index + fmOff
+    int nk = kS.size()
+    array<bool> used = array.new<bool>(nk, false)
+    if nk > 0
+        for r = 0 to nk - 1
+            int best = -1
+            for q = 0 to nk - 1
+                if not used.get(q) and (best < 0 or kS.get(q) < kS.get(best))
+                    best := q
+            used.set(best, true)
+            xsX.set(kK.get(best), cx)
+            cx += (kN.get(best) - 1) * (pvW0 + pvG0) + pvW0 + gapS
+    if xu1
+        drawX(xc1, xs1N, nz(xsX.get(1)), xs1Tf, xl1, pvW0, pvG0)
+    if xu2
+        drawX(xc2, xs2N, nz(xsX.get(2)), xs2Tf, xl2, pvW0, pvG0)
+    if xu3
+        drawX(xc3, xs3N, nz(xsX.get(3)), xs3Tf, xl3, pvW0, pvG0)
+    if xu4
+        drawX(xc4, xs4N, nz(xsX.get(4)), xs4Tf, xl4, pvW0, pvG0)
+    if pairOn
+        int n = math.min(fmPrevN, hcs.size())
+        FS last = fss.size() > 0 ? fss.last() : na
+        int i2 = -1
+        if not na(last)
+            for [m, h] in hcs
+                if h.t0 == last.t2
+                    i2 := m
+        bool  tgDn  = na(last) or last.bull                  // a bullish setup's tags go under the candles
+        color tagC  = na(last) ? fgAuto : last.bull ? fmBull : fmBear
+        color subC  = bgLum < 128 ? #8a93a6 : #5d6476
+        bool  ict   = pvStyI == "ICT (green / black)"
+        int   x0    = xsX.get(0)
+        int   xEndP = x0 + (n - 1) * (pvW0 + pvG0) + pvW0
+        float top   = na
+        float bot   = na
+        for j = 0 to n - 1
+            top := na(top) ? hcs.get(j).h : math.max(top, hcs.get(j).h)
+            bot := na(bot) ? hcs.get(j).l : math.min(bot, hcs.get(j).l)
+        for j = 0 to n - 1
+            int   m  = n - 1 - j                     // position in hcs, newest = 0
+            HC    h  = hcs.get(m)
+            bool  up = h.c >= h.o
+            int   x1 = x0 + j * (pvW0 + pvG0)
+            int   x2 = x1 + pvW0
+            int   xm = x1 + int(pvW0 / 2)
+            color mc = up ? fmBull : fmBear
+            color bd = pvCu ? (up ? pvBdU : pvBdD) : ict ? (up ? #a5d6a7 : fgAuto) : color.new(mc, 70)
+            color br = pvCu ? (up ? pvBrU : pvBrD) : ict ? fgAuto : color.new(mc, 30)
+            color wk = pvCu ? (up ? pvWkU : pvWkD) : ict ? fgAuto : color.new(mc, 30)
+            float bt = math.max(h.o, h.c)
+            float bb = math.min(h.o, h.c)
+            // the wicks stop at the body, so a see-through body shows no line inside it
+            if h.h > bt
+                pvL.push(line.new(xm, h.h, xm, bt, color = wk, width = pvWkW))
+            if h.l < bb
+                pvL.push(line.new(xm, bb, xm, h.l, color = wk, width = pvWkW))
+            pvB.push(box.new(x1, bt, x2, bb, border_color = br, bgcolor = bd, border_style = m == 0 and pvLivI ? line.style_dashed : line.style_solid))
+            if pvSepI
+                pvL.push(line.new(h.b0, h.l, h.b0, h.h, extend = extend.both, color = pvSepC, style = line.style_dotted))
+            string tag = i2 < 0 or not pvTagI ? "" : m == i2 + 1 ? "C1" : m == i2 ? "C2" : m == i2 - 1 ? "C3" : m == i2 - 2 ? "C4" : ""
+            string stp = pvStmI ? str.format_time(fmTf == "D" ? h.t0 + 6 * 3600000 : h.t0, fmTf == "D" ? "EEE dd" : "HH:mm", tz) : ""
+            // under the candle: its time, and a bullish setup's tag; over it: a bearish setup's tag
+            string dn = tgDn and tag != "" ? (stp != "" ? stp + "\n" : "") + tag : stp
+            if dn != ""
+                pvT.push(label.new(xm, h.l, dn, style = label.style_label_up, color = #00000000, textcolor = tgDn and tag != "" ? tagC : subC, size = size.tiny))
+            if not tgDn and tag != ""
+                pvT.push(label.new(xm, h.h, tag, style = label.style_label_down, color = #00000000, textcolor = tagC, size = size.tiny))
+        HC cur = hcs.get(0)
+        // the forming candle's open and the last closed candle's high / low; an open within 4% of the candles' range of the high
+        // or low shares that label, so the two never print over each other
+        bool  hlOn = pvHLI and hcs.size() > 1
+        HC    pc   = hlOn ? hcs.get(1) : na
+        float tol  = 0.04 * (top - bot)
+        bool  opH  = pvOpnI and hlOn and math.abs(cur.o - pc.h) <= tol
+        bool  opL  = pvOpnI and hlOn and not opH and math.abs(cur.o - pc.l) <= tol
+        if pvOpnI
+            pvL.push(line.new(cur.b0, cur.o, xEndP, cur.o, color = pvOpnC, style = line.style_dashed))
+            if not opH and not opL
+                pvT.push(label.new(xEndP, cur.o, (xsLnI == "Every set" ? fmNm + " " : "") + "open " + pxF(cur.o), style = label.style_label_left, color = #00000000, textcolor = pvOpnC, size = size.tiny))
+        if hlOn
+            pvL.push(line.new(pc.bH, pc.h, xEndP, pc.h, color = pvHLC, style = line.style_dotted))
+            pvL.push(line.new(pc.bL, pc.l, xEndP, pc.l, color = pvHLC, style = line.style_dotted))
+            pvT.push(label.new(xEndP, pc.h, (xsLnI == "Every set" ? fmNm + " " : "") + "H " + pxF(pc.h) + (opH ? " · open " + pxF(cur.o) : ""), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
+            pvT.push(label.new(xEndP, pc.l, (xsLnI == "Every set" ? fmNm + " " : "") + "L " + pxF(pc.l) + (opL ? " · open " + pxF(cur.o) : ""), style = label.style_label_left, color = #00000000, textcolor = pvHLC, size = size.tiny))
+        if pvInfI
+            int msLeft = time_close(fmTf) - (barstate.isrealtime ? timenow : time_close)
+            int secs = math.max(0, int(msLeft / 1000))
+            string lft = fmTf == "D" ? str.format("{0}h {1}m", int(secs / 3600), int((secs % 3600) / 60)) : str.format("{0}:{1}", int(secs / 60), str.tostring(secs % 60, "00"))
+            // lifted clear of a bearish setup's tags over the candles
+            float yI = top + (not tgDn and i2 >= 0 and pvTagI ? 0.08 * (top - bot) : 0.0)
+            pvT.push(label.new(int((x0 + xEndP) / 2), yI, fmNm + " · " + lft, style = label.style_label_down, color = #00000000, textcolor = fgAuto, size = size.tiny))
 
 // ═══════════════════════════════════════════════════════════════════
 // CARD
