@@ -1,8 +1,14 @@
+UPDATE v1.1 (Nov 2026)
+• 4H market structure, the week's frame: the last two shifts (MSS), the last break of structure (BOS) and the flip level, from closed 4H candles (18:00-aligned). A map, not a signal.
+• Drawings in front of the candles.
+
 TITLE (paste into the Title field)
 Getsuga: Tenshō & Jūjishō Weekly Dealing Ranges, Week Ladder & NY 15M Odds
 
 DESCRIPTION (paste everything below the line into the Description field)
 ────────────────────────────────────────────────────────────────────────
+
+[b]UPDATE · 4 Nov 2026[/b]: the day candles use Hadō 99's candle system: Session Map one-colour (default), ICT green / black or Custom colours for bodies, borders and wicks; wick width; day names, high / low prices and a countdown to today's and the week's close; the forming candles dashed; width / gap auto.
 
 [b]Getsuga[/b] anchors the week the way a fib drawn from Friday to Monday would, in two modes you can turn on or off:
 • [b]Getsuga Tenshō: 1 = Friday's Shikai mid, 0 = Monday's[/b], set at Monday 09:30. A day's [b]Shikai mid[/b] is the midpoint of its overnight range (18:00 → 09:29 ET), as in my Shikai / Bankai Session Map.

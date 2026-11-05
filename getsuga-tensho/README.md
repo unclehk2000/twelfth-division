@@ -1,5 +1,7 @@
 # Getsuga · Tenshō & Jūjishō
 
+> **Update (4 Nov 2026):** the day candles use Hadō 99's candle system: offset, width / gap (0 = auto), Colours (Session Map one-colour by default, ICT green / black, or Custom bodies, borders and wicks), wick width, day names, high / low prices, a countdown to today's and the week's close, and the forming candles dashed. The 25 / 37.5 / 50% ticks stay. ![ICT colours](images/Getsuga_Desktop_15m_ICT_candles.png)
+
 **Two weekly dealing ranges, each a fib from Friday (1) to Monday (0) in eighths with SDs, toggled on or off: Tenshō from the Shikai mids, Jūjishō from the first presented FVGs. PWH / PWL and the week open as reference lines, day candles in the Session Map's style, fixed ✓ markers, a week ladder card and a NY · 15M card with today's odds.**
 
 TradingView indicator, Pine Script v6. Open source under the Mozilla Public License 2.0. *Not yet published on TradingView.*
@@ -43,6 +45,15 @@ Files: `Getsuga.pine` (the script, both modes), `TradingView_description.txt` (p
 - This week's lines end just past the day candles, so the labels sit right of price. Or run them to Friday 17:00. Past weeks end at their Friday.
 - **Jūjishō** draws its own grid (anchors, EQ, quarters and SDs by default; eighths optional so the two grids don't crowd each other) from Friday's gap, and the two gaps themselves as small boxes where they formed. It appears when Monday's gap prints; until then the card shows Friday's CE and WAITING.
 - **Markers**: a fixed ✓ label on the bar where 1, 0.5, 0, 1.5 SD, −0.5 SD (of the range the cards read), PWH and PWL first trade this week. Drawn once, never moved.
+
+## v1.1: 4H market structure, the week's frame
+
+- 4-hour candles from 18:00 (18, 22, 02, 06, 10, 14 ET): the last two shifts (MSS, dashed, from the swing broken to the 4H close beyond it), the last break of structure with the trend (BOS, dotted) and the flip level (the swing a 4H close must clear to turn it).
+- Closed 4H candles only. Swing size 3 candles each side (2–10).
+- It is a map of the week's swings, not a call: shifts and breaks were not tested as direction signals here, and Sharingan's tests found the order-flow read null. Sharingan draws the 1-hour structure; Getsuga keeps the 4-hour one, so the two never draw the same thing.
+- Drawings now sit in front of the candles.
+
+![15m: 4H structure](images/Getsuga_v11_15m_4H_structure.png)
 
 ## Cards
 

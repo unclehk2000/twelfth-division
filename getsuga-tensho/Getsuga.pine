@@ -14,7 +14,7 @@
 // and the two gaps.
 // Odds: NQ + ES + RTY 1-minute 2018–26, 1,187 weeks (roll weeks left out), fitted on Tenshō's levels. They depend only on the
 // distance and the time left; on NQ 2018–26 (402 Jūjishō weeks) they fit the Jūjishō levels within 4 points.
-indicator("Getsuga · Tenshō & Jūjishō Weekly Dealing Ranges", "Getsuga", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+indicator("Getsuga · Tenshō & Jūjishō Weekly Dealing Ranges", "Getsuga", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100, behind_chart = false)
 
 TZ = "America/New_York"
 
@@ -100,20 +100,41 @@ woC  = input.color(#c9a227, "", group = gI, inline = "wo", display = display.non
 woW  = input.int(1, "", options = [1, 2, 3, 4], group = gI, inline = "wo", display = display.none)
 woS  = input.string("Dotted", "", options = ["Solid", "Dashed", "Dotted"], group = gI, inline = "wo", display = display.none)
 
-gD = "Day candles · Mon–Fri right of price (Session Map style)"
+gD = "Day candles · Mon–Fri right of price (as Hadō 99)"
 dcOn   = input.bool(true, "Show", group = gD, inline = "d0", tooltip = "Built from this chart's bars, one per trading day (18:00 → 17:00). Use a 15-minute chart: on 1–3 minutes the start of the week may not be loaded.", display = display.none)
 dcWk   = input.bool(true, "Week candle", group = gD, inline = "d0", display = display.none)
-dcOff  = input.int(15, "Offset from chart (bars)", minval = 1, maxval = 400, group = gD, tooltip = "The Session Map's candles also start 15 bars right of price. With both on, set this to about 80 so they sit side by side.", display = display.none)
-dcW    = input.int(4, "Candle width (bars)", minval = 1, maxval = 20, group = gD, display = display.none)
-dcSp   = input.int(6, "Spacing between candles", minval = 1, maxval = 20, group = gD, display = display.none)
-cColI  = input.color(#000001, "Candle colour", group = gD, inline = "cc", display = display.none)
-bodyTr = input.int(85, "Body transparency", minval = 0, maxval = 100, group = gD, inline = "cc", display = display.none)
-wickOn = input.bool(true, "Wicks", group = gD, inline = "w", display = display.none)
+dcOff  = input.int(15, "Offset (bars right of price)", minval = 1, maxval = 400, group = gD, tooltip = "The Session Map's candles also start 15 bars right of price. With both on, set this to about 80 so they sit side by side.", display = display.none)
+dcW    = input.int(4, "Width", minval = 0, maxval = 30, inline = "pw", group = gD, display = display.none)
+dcSp   = input.int(6, "gap", minval = 0, maxval = 30, inline = "pw", group = gD, tooltip = "Each candle's width and the gap between candles, in chart bars. 0 = auto as Hadō 99 (6 and 3 on 1–2 minute charts, 4 and 2 up to 5 minutes, 2 and 2 above). The 25 / 37.5 / 50% labels sit in the gap, so keep it at 5 or more with the ticks on.", display = display.none)
+dcStyI = input.string("Session Map (one colour)", "Colours", options = ["Session Map (one colour)", "ICT (green / black)", "Custom"], group = gD, tooltip = "Session Map: one colour with see-through bodies, as the Shikai / Bankai Session Map draws them (left at the default it follows the chart background). ICT: green up bodies, black down bodies, black borders and wicks (white instead of black on a dark chart). Custom: the six colours below, up then down. The same candle system as Hadō 99 and Mangekyō.", display = display.none)
+bool dcSM = dcStyI == "Session Map (one colour)"
+bool dcCu = dcStyI == "Custom"
+cColI  = input.color(#000001, "Candle colour", group = gD, inline = "cc", active = dcSM, display = display.none)
+bodyTr = input.int(85, "Body transparency", minval = 0, maxval = 100, group = gD, inline = "cc", active = dcSM, display = display.none)
+dcBdU  = input.color(#a5d6a7, "Body", inline = "pb", group = gD, active = dcCu, display = display.none)
+dcBdD  = input.color(#2e2e2e, "", inline = "pb", group = gD, active = dcCu, display = display.none)
+dcBrU  = input.color(#2e2e2e, "Border", inline = "pr", group = gD, active = dcCu, display = display.none)
+dcBrD  = input.color(#2e2e2e, "", inline = "pr", group = gD, active = dcCu, display = display.none)
+dcWkU  = input.color(#2e2e2e, "Wick", inline = "pk", group = gD, active = dcCu, display = display.none)
+dcWkD  = input.color(#2e2e2e, "", inline = "pk", group = gD, active = dcCu, display = display.none)
+dcWkW  = input.int(1, "Wick width", minval = 1, maxval = 4, group = gD, display = display.none)
+nmOn   = input.bool(true, "Day names", group = gD, inline = "w", tooltip = "Day names: Mon–Fri (Week) over each candle. High / low prices: at each candle's extremes. Countdown: the time left in today's candle and in the week's, over the candles.", display = display.none)
 hlOn   = input.bool(true, "High / low prices", group = gD, inline = "w", display = display.none)
+dcCdOn = input.bool(true, "Countdown", group = gD, inline = "w", display = display.none)
+wickOn = input.bool(true, "Wicks", group = gD, inline = "wl", display = display.none)
+dcLivI = input.bool(true, "Forming candle dashed", group = gD, inline = "wl", tooltip = "Today's candle and the week candle, still forming, get a dashed border.", display = display.none)
 tickOn = input.bool(true, "25 / 37.5 / 50% ticks", group = gD, inline = "w", tooltip = "Each candle's 25, 37.5 and 50% back from its last extreme, as the Session Map draws them.", display = display.none)
 c25    = input.color(color.blue, "25%", group = gD, inline = "tk", display = display.none)
 c375   = input.color(#5c6bc0, "37.5%", group = gD, inline = "tk", display = display.none)
 c50    = input.color(#ab47bc, "50%", group = gD, inline = "tk", display = display.none)
+
+gS = "Market structure · 4H, the week's frame"
+msOn  = input.bool(true, "4H swings and shifts", group = gS, tooltip = "Market structure on 4-hour candles from 18:00 (18, 22, 02, 06, 10, 14 ET), the frame the week's range is traded in: the last two shifts (MSS, dashed, from the swing broken to the 4H close beyond it), the last break of structure with the trend (BOS, dotted) and the flip level (the swing a close must clear to shift it the other way). Drawn from closed 4H candles only. A map of the week's swings, not a signal: shifts and breaks were not tested as direction calls here.", display = display.none)
+msK   = input.int(3, "Swing size (4H candles each side)", minval = 2, maxval = 10, group = gS, display = display.none)
+msBos = input.bool(true, "BOS", group = gS, inline = "mb", display = display.none)
+msFl  = input.bool(true, "Flip level", group = gS, inline = "mb", display = display.none)
+cMsU  = input.color(#26a69a, "Bullish", group = gS, inline = "mc", display = display.none)
+cMsD  = input.color(#ef5350, "Bearish", group = gS, inline = "mc", display = display.none)
 
 gA = "Alerts · create one with \"Any alert() function call\""
 alSet = input.bool(true, "Range set (Tenshō: Monday 09:30; Jūjishō: Monday's gap)", group = gA, tooltip = "Each fires once, on the bar it happens, with the numbers in the message. They follow the ranges that are on.", display = display.none)
@@ -295,6 +316,78 @@ fibCtx() =>
 tkE = ticker.modify(syminfo.tickerid, session.extended)
 [fMid, fT0, mMid, mT0, mSet, pwH, pwL, wkO, wkT0, atr15] = request.security(tkE, "15", fibCtx(), lookahead = barmerge.lookahead_on)
 awr4 = request.security(tkE, "W", ta.sma(high - low, 4)[1], lookahead = barmerge.lookahead_on)
+
+// ── 4H market structure, from closed 4H candles (lookahead on with [1] offsets)
+msStr(int k) =>
+    var int   trend = 0
+    var float shP = na
+    var int   shT = na
+    var float slP = na
+    var int   slT = na
+    var bool  shB = false
+    var bool  slB = false
+    var float m1L = na
+    var int   m1F = na
+    var int   m1A = na
+    var int   m1D = 0
+    var float m2L = na
+    var int   m2F = na
+    var int   m2A = na
+    var int   m2D = 0
+    var float bL = na
+    var int   bF = na
+    var int   bA = na
+    var int   bD = 0
+    float hh = ta.highest(high, 2 * k + 1)[1]
+    float ll = ta.lowest(low, 2 * k + 1)[1]
+    if bar_index > 2 * k + 2
+        if high[k + 1] == hh
+            shP := high[k + 1]
+            shT := time[k + 1]
+            shB := false
+        if low[k + 1] == ll
+            slP := low[k + 1]
+            slT := time[k + 1]
+            slB := false
+    if not na(slP) and trend >= 0 and close[1] < slP
+        if trend == 1
+            m2L := m1L
+            m2F := m1F
+            m2A := m1A
+            m2D := m1D
+            m1L := slP
+            m1F := slT
+            m1A := time[1]
+            m1D := -1
+        trend := -1
+        slB := true
+    else if not na(shP) and trend <= 0 and close[1] > shP
+        if trend == -1
+            m2L := m1L
+            m2F := m1F
+            m2A := m1A
+            m2D := m1D
+            m1L := shP
+            m1F := shT
+            m1A := time[1]
+            m1D := 1
+        trend := 1
+        shB := true
+    else if trend == 1 and not shB and not na(shP) and close[1] > shP
+        bL := shP
+        bF := shT
+        bA := time[1]
+        bD := 1
+        shB := true
+    else if trend == -1 and not slB and not na(slP) and close[1] < slP
+        bL := slP
+        bF := slT
+        bA := time[1]
+        bD := -1
+        slB := true
+    [trend, shP, shT, slP, slT, m1L, m1F, m1A, m1D, m2L, m2F, m2A, m2D, bL, bF, bA, bD]
+bool msAct = msOn and timeframe.isintraday and timeframe.in_seconds() < 14400
+[msT, msSH, msSHT, msSL, msSLT, ms1L, ms1F, ms1A, ms1D, ms2L, ms2F, ms2A, ms2D, msbL, msbF, msbA, msbD] = request.security(tkE, msAct ? "240" : timeframe.period, msStr(msK), lookahead = barmerge.lookahead_on)
 
 float rng = fMid - mMid                       // signed: 1 − 0
 bool  ok  = not na(fMid) and not na(mMid) and rng != 0
@@ -690,23 +783,39 @@ if jOk and jSetNow and (gridsJ.size() == 0 or gridsJ.last().key != wkT0)
     while gridsJ.size() > keepW
         killGW(gridsJ.shift())
 
-// ═══════════════════════════════════════════════════════════════ Day candles right of price (Session Map style, last bar)
+// ═══════════════════════════════════════════════════════════════ Day candles right of price (Hadō 99's candle system, last bar)
+int dcWid = dcW > 0 ? dcW : timeframe.in_seconds() <= 120 ? 6 : timeframe.in_seconds() <= 300 ? 4 : 2
+int dcGap = dcSp > 0 ? dcSp : timeframe.in_seconds() <= 120 ? 3 : 2
+dcLeft(int ms) =>
+    int m = math.max(nz(ms), 0)
+    int dd = int(m / 86400000)
+    int hh = int((m % 86400000) / 3600000)
+    int mm = int((m % 3600000) / 60000)
+    (dd > 0 ? str.tostring(dd) + "d " : "") + str.tostring(hh, "00") + "h " + str.tostring(mm, "00") + "m"
 var array<box>   cdB = array.new<box>()
 var array<line>  cdL = array.new<line>()
 var array<label> cdT = array.new<label>()
 var int dcEnd = na
-drawC(float o, float h, float l, float c, int tH, int tL, int x1, int x2, string nm) =>
+// candle colours (Hadō 99's system, with the Session Map's one colour as the default): part 0 body · 1 border · 2 wick
+dcCol(bool up, int part) =>
+    dcCu ? (part == 0 ? (up ? dcBdU : dcBdD) : part == 1 ? (up ? dcBrU : dcBrD) : (up ? dcWkU : dcWkD)) : not dcSM ? (part == 0 ? (up ? #a5d6a7 : fgAuto) : fgAuto) : (part == 0 ? color.new(cCol, bodyTr) : cCol)
+drawC(float o, float h, float l, float c, int tH, int tL, int x1, int x2, string nm, bool live) =>
+    bool  up = c >= o
     float bt = math.max(o, c)
     float bb = math.min(o, c)
-    int   xm = int(math.round((x1 + x2) / 2))
-    cdB.push(box.new(x1, bt, x2, bb, xloc = xloc.bar_index, bgcolor = color.new(cCol, bodyTr), border_color = cCol, border_width = 1))
+    int   xm = x1 + int((x2 - x1) / 2)
+    color lc = dcSM ? cCol : txtCol
+    // the wicks stop at the body, as in Hadō 99
     if wickOn and h > bt
-        cdL.push(line.new(xm, bt, xm, h, xloc = xloc.bar_index, color = cCol))
+        cdL.push(line.new(xm, h, xm, bt, xloc = xloc.bar_index, color = dcCol(up, 2), width = dcWkW))
     if wickOn and l < bb
-        cdL.push(line.new(xm, bb, xm, l, xloc = xloc.bar_index, color = cCol))
-    cdT.push(label.new(xm, h, hlOn ? nm + "\n" + px(h) : nm, xloc = xloc.bar_index, style = label.style_label_down, color = color.new(cCol, 90), textcolor = cCol, size = size.tiny, textalign = text.align_center))
+        cdL.push(line.new(xm, bb, xm, l, xloc = xloc.bar_index, color = dcCol(up, 2), width = dcWkW))
+    cdB.push(box.new(x1, bt, x2, bb == bt ? bb - syminfo.mintick : bb, xloc = xloc.bar_index, bgcolor = dcCol(up, 0), border_color = dcCol(up, 1), border_width = 1, border_style = live and dcLivI ? line.style_dashed : line.style_solid))
+    string up_ = (nmOn ? nm : "") + (nmOn and hlOn ? "\n" : "") + (hlOn ? px(h) : "")
+    if up_ != ""
+        cdT.push(label.new(xm, h, up_, xloc = xloc.bar_index, style = label.style_label_down, color = dcSM ? color.new(cCol, 90) : #00000000, textcolor = lc, size = size.tiny, textalign = text.align_center))
     if hlOn
-        cdT.push(label.new(xm, l, px(l), xloc = xloc.bar_index, style = label.style_label_up, color = #00000000, textcolor = cCol, size = size.tiny))
+        cdT.push(label.new(xm, l, px(l), xloc = xloc.bar_index, style = label.style_label_up, color = #00000000, textcolor = lc, size = size.tiny))
     if tickOn and h > l
         // 25 / 37.5 / 50% back from the last extreme: high first and low later = a down leg, measured up from the low
         bool dn = tH < tL or (tH == tL and c < o)
@@ -714,8 +823,8 @@ drawC(float o, float h, float l, float c, int tH, int tL, int x1, int x2, string
             float q  = k == 0 ? 0.25 : k == 1 ? 0.375 : 0.5
             float y  = dn ? l + q * (h - l) : h - q * (h - l)
             color cc = k == 0 ? c25 : k == 1 ? c375 : c50
-            cdL.push(line.new(x2, y, x2 + dcSp, y, xloc = xloc.bar_index, color = cc))
-            cdT.push(label.new(x2 + dcSp, y, k == 0 ? "25%" : k == 1 ? "37.5%" : "50%", xloc = xloc.bar_index, style = label.style_label_left, color = #00000000, textcolor = cc, size = size.tiny))
+            cdL.push(line.new(x2, y, x2 + dcGap, y, xloc = xloc.bar_index, color = cc))
+            cdT.push(label.new(x2 + dcGap, y, k == 0 ? "25%" : k == 1 ? "37.5%" : "50%", xloc = xloc.bar_index, style = label.style_label_left, color = #00000000, textcolor = cc, size = size.tiny))
 stretch(array<GW> gs, int x2) =>
     if gs.size() > 0 and gs.last().key == wkT0
         GW g = gs.last()
@@ -735,16 +844,25 @@ if barstate.islast
     cdT.clear()
     dcEnd := bar_index
     if dcOn and not na(wkT0)
-        int step = dcW + dcSp
+        int step = dcWid + dcGap
         int x = bar_index + dcOff
+        int x0c = x
+        float topC = na
         for i = 0 to dT.size() - 1
             int k = dT.get(i)
             if k >= wkT0 - 6 * 3600000
-                drawC(dO.get(i), dH.get(i), dL.get(i), dC.get(i), dTH.get(i), dTL.get(i), x, x + dcW, str.format_time(k + 12 * 3600000, "EEE", "UTC"))
+                drawC(dO.get(i), dH.get(i), dL.get(i), dC.get(i), dTH.get(i), dTL.get(i), x, x + dcWid, str.format_time(k + 12 * 3600000, "EEE", "UTC"), i == dT.size() - 1)
+                topC := na(topC) ? dH.get(i) : math.max(topC, dH.get(i))
                 x += step
         if dcWk and not na(wkO) and not na(wH)
-            drawC(wkO, wH, wL, close, wTH, wTL, x, x + dcW, "Week")
+            drawC(wkO, wH, wL, close, wTH, wTL, x, x + dcWid, "Week", true)
+            topC := na(topC) ? wH : math.max(topC, wH)
             x += step
+        // the countdown over the candles, as Hadō 99
+        if dcCdOn and not na(topC)
+            int nowT = barstate.isrealtime ? timenow : time_close
+            string cd = "D · " + dcLeft(time_close("D") - nowT) + (dcWk ? "  ·  W · " + dcLeft(time_close("W") - nowT) : "")
+            cdT.push(label.new(int((x0c + x - dcGap) / 2), topC, cd, xloc = xloc.bar_index, style = label.style_label_down, color = #00000000, textcolor = txtCol, size = size.tiny, tooltip = "Time left in today's candle (17:00 ET)" + (dcWk ? " and in the week's (Friday 17:00 ET)." : ".")))
         dcEnd := x
     // this week's lines end past the day candles (or past the last bar), so the labels sit right of price
     if x2Md == "Past the day candles"
@@ -980,3 +1098,33 @@ if barstate.islast and (cOk or (cardJ and not na(jF)))
             TN.cell(3, r, "ATR15", text_color = cSub, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = oTip)
             TN.cell(4, r, px(atr15), text_color = cTxt, bgcolor = cBody, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = oTip)
             r += 1
+
+// ═══ 4H market structure on the chart
+var array<line>  msLn = array.new<line>()
+var array<label> msLb = array.new<label>()
+msTag(int t, float y, string s, color c, string st, string tip) =>
+    msLb.push(label.new(t, y, s, xloc = xloc.bar_time, style = st, color = #00000000, textcolor = c, size = size.tiny, tooltip = tip))
+msShift(float lv, int tf, int ta, int d, bool last) =>
+    if not na(lv) and not na(tf) and not na(ta) and d != 0
+        color c = color.new(d == 1 ? cMsU : cMsD, last ? 0 : 45)
+        msLn.push(line.new(tf, lv, ta, lv, xloc = xloc.bar_time, color = c, style = line.style_dashed, width = 1))
+        msTag(tf, lv, d == 1 ? "4H MSS ▲" : "4H MSS ▼", c, d == 1 ? label.style_label_lower_left : label.style_label_upper_left, "4H " + (d == 1 ? "bullish" : "bearish") + " shift: the " + str.format_time(ta, "EEE HH:mm", TZ) + " 4H close cleared the " + px(lv) + " swing after structure ran the other way.")
+if barstate.islast
+    while msLn.size() > 0
+        msLn.pop().delete()
+    while msLb.size() > 0
+        msLb.pop().delete()
+    if msAct
+        int tMs = time + 8 * timeframe.in_seconds() * 1000
+        msShift(ms2L, ms2F, ms2A, ms2D, false)
+        msShift(ms1L, ms1F, ms1A, ms1D, true)
+        if msBos and not na(msbL) and not na(msbF) and not na(msbA) and msbD != 0
+            color c = color.new(msbD == 1 ? cMsU : cMsD, 35)
+            msLn.push(line.new(msbF, msbL, msbA, msbL, xloc = xloc.bar_time, color = c, style = line.style_dotted, width = 1))
+            msTag(msbA, msbL, "4H BOS", c, msbD == 1 ? label.style_label_lower_left : label.style_label_upper_left, "4H break of structure with the trend: a close beyond the " + px(msbL) + " swing.")
+        float fp = msT == -1 ? msSH : msT == 1 ? msSL : na
+        int   ft = msT == -1 ? msSHT : msT == 1 ? msSLT : na
+        if msFl and not na(fp) and not na(ft)
+            color c = color.new(msT == -1 ? cMsU : cMsD, 25)
+            msLn.push(line.new(ft, fp, tMs, fp, xloc = xloc.bar_time, color = c, style = line.style_dotted, width = 1))
+            msTag(tMs, fp, (msT == -1 ? "4H flip ▲ " : "4H flip ▼ ") + px(fp), c, label.style_label_left, "4H structure is " + (msT == -1 ? "bearish" : "bullish") + ": a 4H close " + (msT == -1 ? "above " : "below ") + px(fp) + " shifts it.")
