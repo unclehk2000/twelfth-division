@@ -1,0 +1,110 @@
+TITLE (paste into the Title field)
+Rikugan: Implied Day Range from VIX9D, Completion Bands & Next-Band Odds
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Rikugan[/b] sizes the trading day from the options market instead of the last 20 days. It reads Cboe's 9-day implied volatility (VIX9D) at the 18:00 ET open and turns it into [b]R, the session's median high-to-low range[/b], then shows how much of it the day has spent and where the rest would land.
+• [b]R = c × the prior VIX9D close ÷ 100 ÷ √252 × the 18:00 open[/b], with c = 1.54 (NQ), 1.13 (ES), 1.72 (RTY). Read once at the open and held for the session, so nothing repaints.
+• [b]Completion bands[/b] at 0.77R, 1.00R, 1.31R and 1.64R (the 25th, 50th, 75th and 90th percentiles), measured up from the session's low and down from its high.
+• The day's [b]EQ[/b], optional premium / discount, an open box, and a tag where the range first reaches 1.00R, 1.31R and 1.64R.
+• A four-row card: R, the IV / RV state, range used and the [b]odds of the next band[/b].
+• From 16:15 ET, [b]tomorrow's R[/b] over the next session.
+• Every number comes from NQ and ES 1-minute data (RTY on daily ranges), January 2018 – October 2026, fitted on 2018–24 and scored once on 2025–26.
+[i]A map of how far the day usually travels. It does not call direction: implied vol sizes the day, it does not pick its side.[/i]
+
+
+[b]█ WHAT IT DRAWS ON PRICE[/b]
+
+• [b]The open box:[/b] the 18:00 open ± half R, the day's expected size before its high and low separate.
+• [b]Completion bands[/b], each labelled with its size in % of the open:
+  – [b]↑ from the session's low:[/b] where the high would complete if the low is in;
+  – [b]↓ from the session's high:[/b] where the low would complete if the high is in;
+  – p25 0.77R (dotted), [b]p50 1.00R[/b] (solid), [b]p75 1.31R[/b] (dashed, tagged [i]ext[/i], the extension zone), p90 1.64R (dotted).
+• Bands the day has already passed are hidden, so only what is still ahead stays on the chart.
+• [b]EQ:[/b] the midpoint of the session's high and low so far. [b]Premium / discount[/b] shading is optional.
+• [b]Band tags:[/b] on the candle where the range first reaches [i]1.00R[/i], [i]1.31R[/i] and [i]1.64R[/i], with the side that made the new extreme (▲ high, ▼ low). Hover a tag for the band's size and its tested rate.
+• [b]Next session:[/b] from 16:15 ET, when VIX9D has closed, a box of ± half tomorrow's R over the next session, centred on the last price until tomorrow's 18:00 open prints.
+
+
+[b]█ CARD · FOUR ROWS[/b]
+
+The card holds what you read at a glance; every number's test sits in its tooltip.
+• [b]R:[/b] the day's median range, in % of the open and in points.
+• [b]IV / RV:[/b] VIX9D's one-session move against the last 20 sessions' realised move, and how often the session's range beat ADR20 in that state. [i]Desktop only.[/i]
+• [b]Used:[/b] the range so far against R, with a gauge that fills at 1.64R.
+• [b]Next:[/b] the next band and the odds the day reaches it by 17:00, from the band reached and the time block it was reached in.
+• VIX9D, ADR20, the bands' tested rates, the 1.31R test and tomorrow's side odds live in the tooltips and on the chart. [b]Mobile[/b] keeps R, used and next.
+
+
+[b]█ WHAT THE TESTS FOUND[/b]
+
+A result counts only when it holds in 2018–24, holds again on 2025–26 (scored once), and holds on each market.
+
+[b]VIX9D sizes the day better than ADR20.[/b]
+• Mean absolute log error fell [b]15% (NQ) and 21% (ES)[/b] in 2018–24, and [b]10% and 20%[/b] in 2025–26 (p < 0.001). RTY: 10% and 16%.
+• It still adds 6–10% over a blend of ADR20, ADR5 and today's range. [i]NQ in 2025–26: 2.5%, not significant; VIX9D prices the S&P 500, not the Nasdaq 100.[/i]
+
+[b]The bands hold.[/b]
+• 92 / 77 / 52 / 27 / 11% of sessions ended beyond 0.61 / 0.77 / 1.00 / 1.31 / 1.64R in 2018–24, and [b]92 / 77 / 50 / 26 / 11%[/b] in 2025–26.
+
+[b]ADR20 lags.[/b]
+• When options price more than the last 20 sessions delivered ([i]IV above RV[/i]), the day beat ADR20 [b]62% (NQ), 65% (ES), 61% (RTY)[/b] of the time.
+• When the last 20 sessions ran wilder ([i]RV above IV[/i]), [b]22%, 17% and 26%[/b].
+• 2025–26: 59–62% against 19–22%.
+• NQ's next range was 1.65–1.74% in every state while ADR20 swung from 2.10% to 1.42%.
+
+[b]The next band depends on the clock.[/b]
+• Once the range reaches 1.00R, it went on to 1.31R [b]84%[/b] of the time when 1.00R came before 02:00, [b]61%[/b] in 08:30–12:00 and [b]32%[/b] after 12:00.
+• These odds beat the band alone on 2025–26 (Brier 0.169 against 0.200).
+
+[b]1.31R is an extension zone, not a turn.[/b]
+• Past 1.31R the day went a further 0.25R before giving back 0.25R [b]57.2%[/b] of the time (2018–24, n 696) and [b]54.5%[/b] (2025–26, n 178): the same side in both periods, not yet significant on its own in 2025–26.
+• At 1.00R it was 55% then 48% (failed). At 1.64R it was a coin flip.
+• Sessions past 1.31R closed in the outer quarter of their range 74% / 68% of the time, against 52% / 41% for sessions under 0.77R.
+
+[b]Direction: none.[/b]
+• With VIX9D above VIX3M the next session closed up 55.8% (NQ) against 55.1% otherwise, the same as drift.
+
+
+[b]█ HOW TO USE IT[/b]
+
+• [b]Size targets and stops from R, not ADR20.[/b] After a wild stretch (RV above IV) expect the day to come in under ADR20; after a quiet one (IV above RV), over it.
+• [b]Once a session high looks in[/b], the ↓ bands show where the low completes if the day runs to that size (and the ↑ bands do the same from a low). The range ends beyond p50 about half the time and beyond p75 about one day in four.
+• [b]Treat a break of 1.31R as an extension[/b], not an exhaustion signal.
+• [b]Read the clock with the next band:[/b] the same 1.00R reached in Asia and reached after lunch carry very different odds.
+• [b]After 16:15[/b], tomorrow's R is already known: plan the next session's targets before it opens.
+
+
+[b]█ SETTINGS[/b]
+
+• [b]View:[/b] card theme, text size, card position, layout (Desktop / Mobile), text colour.
+• [b]Implied range:[/b]
+  – the implied-vol symbol (CBOE:VIX9D);
+  – the range constant c: auto by market, or custom;
+  – which completion bands to draw;
+  – the open box, EQ and premium / discount;
+  – band-crossing tags and the next-session box;
+  – colours.
+• [b]Alerts:[/b] when the range reaches 1.00R, 1.31R and 1.64R, or 1.31R only. Create one with [i]Any alert() function call[/i].
+
+
+[b]█ NOTES[/b]
+
+• Built for CME index futures on [b]extended-hours charts[/b] (the 18:00–17:00 ET session). On a regular-hours chart the session opens at 09:30, which was not tested; the card says so.
+• NQ, ES and RTY have fitted constants; micros use their parent. Any other market uses ES's constant and is marked [i]untested[/i].
+• VIX9D data on TradingView may need a Cboe data subscription.
+• Nothing here is financial advice.
+
+
+[b]█ WHY THE NAME[/b]
+
+The [b]Rikugan[/b], the [i]Six Eyes[/i], is the rarest inherited eye of the Gojo clan in [i]Jujutsu Kaisen[/i], born once in centuries. Its bearer, Satoru Gojo, sees cursed energy down to the finest detail, and that sight is what lets him run Limitless with almost no waste: he knows exactly how much he has, how much he has spent, and how far it will reach. This indicator gives the session the same sight. It reads the day's energy budget from the options market, shows how much of it is spent and where the rest would land, and wastes no line on a direction the data cannot call.
+
+
+[b]█ CREDITS[/b]
+
+• ICT concepts ([i]Michael J. Huddleston[/i]): the daily range, its completion, and premium / discount around the equilibrium.
+• VIX9D and VIX3M are Cboe's indices.
+• Rikugan and Satoru Gojo belong to Gege Akutami's [i]Jujutsu Kaisen[/i] (Shueisha); the name is homage only.
+• Not affiliated with or endorsed by ICT or Cboe. Part of the Hueco Mundo megazord. Written from scratch; open source under MPL 2.0.

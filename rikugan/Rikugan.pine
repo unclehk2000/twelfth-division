@@ -1,0 +1,280 @@
+//@version=6
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+// DISCLAIMER: in the author's own words, this indicator is a pile of shit. It is built on data points (VIX9D implied-range statistics) rather than ICT logic in context, and is kept only as a record. Do not trade from it.
+// Rikugan · implied day range. The session's expected high-to-low range read from options, not from the last 20 days: R = c ×
+// the prior VIX9D close ÷ 100 ÷ √252 × the 18:00 open, with c = 1.54 (NQ), 1.13 (ES), 1.72 (RTY). R is the median session range;
+// 0.77R, 1.31R and 1.64R are the 25th, 75th and 90th percentiles. Once the session has a high and a low, the bands are projected
+// down from the high and up from the low (where the other side completes), with the day's EQ, and the card shows how much of R
+// is used and the odds of reaching the next band from the time it was reached.
+// Tested on NQ + ES 1-minute (RTY on daily ranges) 2018 – Oct 2026, fitted on 2018–24 and scored once on 2025–26:
+// VIX9D beat ADR20 as the next session's range forecast by 10–21% (mean abs log error, p < 0.001 in both periods, NQ, ES, RTY).
+// The bands held: 92 / 77 / 52 / 27 / 11% of sessions ended beyond 0.61 / 0.77 / 1.00 / 1.31 / 1.64R in 2018–24, and
+// 92 / 77 / 50 / 26 / 11% in 2025–26. When options price more than the last 20 days delivered (IV above RV), the next range beat
+// ADR20 61–65% of the time; when the last 20 days ran wilder (RV above IV), 17–26%. ADR20 lags; VIX9D does not.
+// Past 1.31R the day extended a further 0.25R before giving back 0.25R 57.2% of the time (2018–24, n 696) and 54.5% (2025–26,
+// n 178); at 1.00R it was 55% then 48% and at 1.64R a coin flip. Nothing here calls direction.
+// ICT teaches the daily range and its completion; how far the day runs is what this reads from options.
+// Not affiliated with or endorsed by ICT or Cboe.
+indicator("Rikugan · Implied Day Range", "Rikugan", overlay = true, max_lines_count = 100, max_labels_count = 100, max_boxes_count = 10)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI  = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, display = display.none)
+lblSzI  = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+showCrd = input.bool(true, "Card", group = gV, inline = "cd", display = display.none)
+crdPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", display = display.none)
+layI    = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: R, the IV / RV state, range used and the next band; everything else sits in the tooltips and on the chart. Mobile: R, range used and the next band.", display = display.none)
+txtM    = input.string("Auto (theme)", "Text colour", options = ["Auto (theme)", "Custom"], group = gV, inline = "tx", tooltip = "Auto: white text on a dark background, black on a light one. Custom: your own colour, for backgrounds where the automatic choice clashes (the card text). Chart labels take the band and EQ colours below.", display = display.none)
+txtCd   = input.color(#131722, "card", group = gV, inline = "tx", active = txtM == "Custom", display = display.none)
+
+gR = "Implied range"
+v9Sym = input.symbol("CBOE:VIX9D", "Implied vol", group = gR, tooltip = "Cboe's 9-day S&P 500 implied volatility. The prior close is read at the 18:00 open and held for the whole session, so nothing repaints. VIX9D was the index tested; another symbol needs its own c.", display = display.none)
+cMode = input.string("Auto by market", "Range constant c", options = ["Auto by market", "Custom"], group = gR, inline = "c", display = display.none)
+cCus  = input.float(1.13, "", minval = 0.1, step = 0.01, group = gR, inline = "c", active = cMode == "Custom", tooltip = "R = c × VIX9D ÷ 100 ÷ √252 × the 18:00 open. c is the median of the session range ÷ VIX9D's one-session move, fitted on 2018–24: NQ 1.54, ES 1.13 (1-minute data), RTY 1.72 (daily ranges). Micros use their parent. Any other market (YM included) falls back to ES's 1.13 and is marked untested until fitted.", display = display.none)
+bndI  = input.string("p25 · p50 · p75 · p90", "Completion bands", options = ["p25 · p50 · p75 · p90", "p50 · p75 · p90", "p50 only"], group = gR, tooltip = "Measured up from the session's low (↑) and down from its high (↓): where the other side sits if this side is in and the day's range reaches 0.77R (p25), 1.00R (p50), 1.31R (p75, \"ext\": the extension zone) or 1.64R (p90). Labels give the band's size in % of the open. Bands the day has already passed are hidden.", display = display.none)
+boxI  = input.bool(true, "Open box (open ± half R)", group = gR, tooltip = "The median range centred on the 18:00 open: the day's expected size before its high and low separate.", display = display.none)
+eqI   = input.bool(true, "EQ of the day's range", group = gR, inline = "eq", display = display.none)
+pdI   = input.bool(false, "Premium / discount", group = gR, inline = "eq", tooltip = "EQ = the midpoint of the session's high and low so far. Premium above it, discount below.", display = display.none)
+mrkI  = input.bool(true, "Mark band crossings", group = gR, tooltip = "A tag on the candle where the day's range first reached 1.00R, 1.31R and 1.64R, with the side that made the new extreme (▲ high, ▼ low).", display = display.none)
+nxtI  = input.bool(true, "Next session after 16:15", group = gR, tooltip = "From 16:15 ET, when VIX9D has closed, tomorrow's R is known: a box of open ± half R is drawn over the next session, centred on the last price until tomorrow's 18:00 open is printed.", display = display.none)
+cBd   = input.color(#29b6f6, "Bands", group = gR, inline = "col", display = display.none)
+cEq   = input.color(#9598a1, "EQ", group = gR, inline = "col", display = display.none)
+cPrm  = input.color(color.new(#f23645, 94), "Premium", group = gR, inline = "col2", display = display.none)
+cDsc  = input.color(color.new(#089981, 94), "Discount", group = gR, inline = "col2", display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alI = input.string("1.00R · 1.31R · 1.64R", "Range reaches", options = ["1.00R · 1.31R · 1.64R", "1.31R only", "Off"], group = gA, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+bool txC = txtM == "Custom"                          // View → Text colour: Custom replaces the automatic white / black
+cTxt   = txC ? txtCd : isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = txC ? color.new(txtCd, 25) : isDark ? #8a93a6 : #5d6476
+cHdr   = #1e88e5
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+pts(float v) => na(v) ? "—" : str.tostring(v, "#,##0.##")
+pct(float v) => na(v) ? "—" : str.tostring(v, "0.00") + "%"
+clamp(float v, float a, float b) => math.max(a, math.min(b, v))
+gauge(float f, int n) =>
+    int k = na(f) ? 0 : int(math.round(clamp(f, 0, 1) * n))
+    str.repeat("█", k) + str.repeat("░", n - k)
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+relOf(int t) => ((hour(t, TZ) * 60 + minute(t, TZ)) - 1080 + 1440) % 1440      // minutes after 18:00 ET
+blkOf(int r) => r < 480 ? 0 : r < 870 ? 1 : r < 1080 ? 2 : 3
+
+// ═══════════════════════════════════════════════════════════════ Tested constants (fit 2018–24, scored 2025 – Oct 2026)
+// markets: 0 NQ, 1 ES, 2 RTY, 3 other (ES constants, untested)
+string root = syminfo.root
+int    mkt  = root == "NQ" or root == "MNQ" ? 0 : root == "ES" or root == "MES" ? 1 : root == "RTY" or root == "M2K" ? 2 : 3
+var array<float>  CA  = array.from(1.54, 1.13, 1.72, 1.13)
+var array<float>  TLO = array.from(0.80, 1.09, 0.76, 1.09)         // IV/RV thirds: below = RV above IV
+var array<float>  THI = array.from(1.03, 1.42, 0.99, 1.42)         // above = IV above RV
+var array<int>    PBG = array.from(22, 42, 62, 17, 39, 65, 26, 39, 61, 17, 39, 65)    // next range beats ADR20, % by third
+var array<int>    PLO = array.from(43, 44, 47, 41, 43, 50, 43, 46, 54, 41, 43, 50)    // next session takes today's low, %
+var array<float>  BND = array.from(0.61, 0.77, 1.00, 1.31, 1.64)
+var array<string> BNM = array.from("p10", "p25", "p50", "p75", "p90")
+var array<int>    BEY = array.from(92, 77, 52, 27, 11)                 // % of sessions that end beyond each band
+// odds of reaching the next band by 17:00, by band reached (0.61 / 0.77 / 1.00 / 1.31R) and the block it was reached in
+// (18:00–02:00, 02:00–08:30, 08:30–12:00, 12:00–17:00); NQ + ES 2018–24 (1.31R before 08:30 pooled, n 48)
+var array<int>    NXO = array.from(98, 93, 84, 57, 91, 84, 72, 42, 84, 77, 61, 32, 73, 73, 57, 30)
+var array<string> BKN = array.from("18:00–02:00", "02:00–08:30", "08:30–12:00", "12:00–17:00")
+float cK = cMode == "Custom" ? cCus : CA.get(mkt)
+bool  tested = cMode == "Auto by market" and mkt < 3
+
+// ═══════════════════════════════════════════════════════════════ Data (no repaint)
+// VIX9D: the current daily bar's close, the one before it, and the bar's date. At the 18:00 open the current VIX9D bar is the
+// day before the futures session's date (it closed at 16:15), so its close is final; a bar dated the session's own day would not be
+[vC, vC1, vT] = request.security(v9Sym, "D", [close, close[1], time_tradingday], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+float v9Done = na(vT) ? na : vT < time_tradingday ? vC : vC1           // the last VIX9D close that is final at this bar
+// the chart market's prior sessions: sd of daily % returns (20) and ADR20 = mean of (high − low) ÷ open (20)
+[rv20, adr20] = request.security(syminfo.tickerid, "D", [ta.stdev(close / close[1] - 1, 20)[1], ta.sma((high - low) / open, 20)[1]], lookahead = barmerge.lookahead_on)
+
+// ═══════════════════════════════════════════════════════════════ The session
+tipX = "Past 1.31R (p75) the day went on 0.25R further before giving back 0.25R 57.2% of the time in 2018–24 (n 696; NQ 56.8%, ES 57.5%) and 54.5% in 2025–26 (n 178): the 1.31R band is an extension zone, not a turn. At 1.00R it was 55.3% then 47.6% (failed); at 1.64R 51.0% then 52.5% (a coin flip).\nSessions that ran past 1.31R closed in the outer quarter of their range 74% (2018–24) and 68% (2025–26) of the time, against 52% and 41% for sessions under 0.77R."
+bool act  = timeframe.isintraday
+int  relM = relOf(time)
+bool newS = time_tradingday != time_tradingday[1]
+var float sO   = na
+var float sHi  = na
+var float sLo  = na
+var float R    = na
+var float v9s  = na
+var float rvS  = na
+var float adS  = na
+var int   t0   = na
+var int   lastB = -1                                                   // highest band reached (index into BND), −1 none
+var int   lastK = na                                                   // block it was reached in
+var bool  eth  = true
+var array<label> MK = array.new<label>()
+string xMsg = ""
+if act
+    if newS or na(sO)
+        sO   := open
+        sHi  := high
+        sLo  := low
+        t0   := time
+        v9s  := v9Done
+        rvS  := rv20
+        adS  := adr20
+        R    := na(v9s) ? na : cK * v9s / 100 / math.sqrt(252) * sO
+        lastB := -1
+        lastK := na
+        eth  := relM < 15                                              // an extended-hours chart opens the session at 18:00
+    else
+        sHi := math.max(sHi, high)
+        sLo := math.min(sLo, low)
+    if R > 0
+        float u = (sHi - sLo) / R
+        while lastB < 4 and u >= BND.get(lastB + 1)
+            lastB += 1
+            lastK := blkOf(relM)
+            if lastB >= 2
+                bool up = high >= sHi
+                string tg = str.tostring(BND.get(lastB), "0.00") + "R " + (up ? "▲" : "▼")
+                if mrkI
+                    MK.push(label.new(time, up ? high : low, tg, xloc = xloc.bar_time, style = up ? label.style_label_down : label.style_label_up, color = #00000000, textcolor = cBd, size = size.tiny, tooltip = "The day's range reached " + str.tostring(BND.get(lastB), "0.00") + "R (" + BNM.get(lastB) + ", " + pct(100 * BND.get(lastB) * R / sO) + ") here, the " + (up ? "high" : "low") + " making the new extreme. " + str.tostring(BEY.get(lastB)) + "% of sessions end beyond it (2018–24)." + (lastB == 3 ? "\n\n" + tipX : "")))
+                    if MK.size() > 60
+                        MK.shift().delete()
+                if alI == "1.00R · 1.31R · 1.64R" or (alI == "1.31R only" and lastB == 3)
+                    xMsg += "range reached " + str.tostring(BND.get(lastB), "0.00") + "R (" + pts(BND.get(lastB) * R) + " pts) on the " + (up ? "high" : "low") + ". "
+if xMsg != "" and barstate.isconfirmed
+    alert("Rikugan · " + syminfo.ticker + " · " + xMsg, alert.freq_once_per_bar_close)
+
+// ═══════════════════════════════════════════════════════════════ Drawing (made once, moved with setters)
+var box   bxO = na
+var box   bxP = na
+var box   bxD = na
+var line  lnE = na
+var label lbE = na
+var box   bxN = na
+var label lbN = na
+var array<line>  LU = array.new<line>()                                // bands up from the low
+var array<line>  LD = array.new<line>()                                // bands down from the high
+var array<label> TU = array.new<label>()
+var array<label> TD = array.new<label>()
+var table TC = na
+color cNone = #00000000
+bandOn(int i) => bndI == "p25 · p50 · p75 · p90" ? i >= 1 : bndI == "p50 · p75 · p90" ? i >= 2 : i == 2
+cRow(int r, string k, string v, string w, string tip) =>
+    TC.cell(0, r, k, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(1, r, v, text_color = cTxt, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(2, r, w, text_color = cSub, text_size = tSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+if barstate.islast and act and R > 0
+    int t1 = t0 + 1380 * 60000
+    float eq = (sHi + sLo) / 2
+    if na(bxO)
+        bxO := box.new(t0, sO + R / 2, t1, sO - R / 2, xloc = xloc.bar_time, bgcolor = color.new(cBd, 94), border_color = color.new(cBd, 70), border_style = line.style_dashed)
+        bxP := box.new(t0, sHi, t1, eq, xloc = xloc.bar_time, bgcolor = cPrm, border_color = cNone)
+        bxD := box.new(t0, eq, t1, sLo, xloc = xloc.bar_time, bgcolor = cDsc, border_color = cNone)
+        lnE := line.new(t0, eq, t1, eq, xloc = xloc.bar_time, color = cEq, style = line.style_dotted)
+        lbE := label.new(t1, eq, "", xloc = xloc.bar_time, style = label.style_label_left, color = cNone, textcolor = cEq, size = size.tiny)
+        for i = 0 to 4
+            LU.push(line.new(t0, sO, t1, sO, xloc = xloc.bar_time, color = cBd, width = 1))
+            LD.push(line.new(t0, sO, t1, sO, xloc = xloc.bar_time, color = cBd, width = 1))
+            TU.push(label.new(t1, sO, "", xloc = xloc.bar_time, style = label.style_label_left, color = cNone, textcolor = cBd, size = size.tiny))
+            TD.push(label.new(t1, sO, "", xloc = xloc.bar_time, style = label.style_label_left, color = cNone, textcolor = cBd, size = size.tiny))
+    bxO.set_lefttop(t0, sO + R / 2)
+    bxO.set_rightbottom(t1, sO - R / 2)
+    bxO.set_bgcolor(boxI ? color.new(cBd, 94) : cNone)
+    bxO.set_border_color(boxI ? color.new(cBd, 70) : cNone)
+    bxP.set_lefttop(t0, sHi)
+    bxP.set_rightbottom(t1, eq)
+    bxP.set_bgcolor(pdI ? cPrm : cNone)
+    bxD.set_lefttop(t0, eq)
+    bxD.set_rightbottom(t1, sLo)
+    bxD.set_bgcolor(pdI ? cDsc : cNone)
+    lnE.set_xy1(t0, eq)
+    lnE.set_xy2(t1, eq)
+    lnE.set_color(eqI ? cEq : cNone)
+    lbE.set_xy(t1, eq)
+    lbE.set_text(eqI ? "EQ " + pts(eq) : "")
+    for i = 0 to 4
+        float q  = BND.get(i)
+        float up = sLo + q * R                                         // the high, if the low is in
+        float dn = sHi - q * R                                         // the low, if the high is in
+        bool  sh = bandOn(i) and (sHi - sLo) < q * R                   // a band the day has not passed yet
+        string nm = BNM.get(i) + " · " + pct(100 * q * R / sO)
+        string tp = "If the session's %s is in, the day's range reaches " + str.tostring(q, "0.00") + "R (" + pts(q * R) + " pts, " + pct(100 * q * R / sO) + ") here. " + str.tostring(BEY.get(i)) + "% of sessions end beyond " + BNM.get(i) + " (2018–24; 2025–26 within 1 point)." + (i == 3 ? "\n\n" + tipX : "")
+        int   w  = i == 2 ? 2 : 1
+        string st = i == 2 ? line.style_solid : i == 3 ? line.style_dashed : line.style_dotted
+        LU.get(i).set_xy1(t0, up)
+        LU.get(i).set_xy2(t1, up)
+        LU.get(i).set_color(sh ? cBd : cNone)
+        LU.get(i).set_width(w)
+        LU.get(i).set_style(st)
+        LD.get(i).set_xy1(t0, dn)
+        LD.get(i).set_xy2(t1, dn)
+        LD.get(i).set_color(sh ? cBd : cNone)
+        LD.get(i).set_width(w)
+        LD.get(i).set_style(st)
+        TU.get(i).set_xy(t1, up)
+        TU.get(i).set_text(sh ? nm + " ↑" + (i == 3 ? " · ext" : "") : "")
+        TU.get(i).set_tooltip(str.replace(tp, "%s", "low"))
+        TD.get(i).set_xy(t1, dn)
+        TD.get(i).set_text(sh ? nm + " ↓" + (i == 3 ? " · ext" : "") : "")
+        TD.get(i).set_tooltip(str.replace(tp, "%s", "high"))
+    float ivrv = rvS > 0 ? v9s / 100 / math.sqrt(252) / rvS : na              // today's IV / RV state
+    int   th   = na(ivrv) ? 1 : ivrv < TLO.get(mkt) ? 0 : ivrv > THI.get(mkt) ? 2 : 1
+    // next session: tomorrow's R from today's VIX9D close, once it is final (16:15 ET)
+    bool  nxOk = nxtI and relM >= 1335 and not na(vT) and vT == time_tradingday      // today's VIX9D bar, closed at 16:15
+    float Rn   = nxOk ? cK * vC / 100 / math.sqrt(252) * close : na
+    int   n0   = t1 + 60 * 60000
+    if nxOk
+        if na(bxN)
+            bxN := box.new(n0, close + Rn / 2, n0 + 1380 * 60000, close - Rn / 2, xloc = xloc.bar_time, bgcolor = color.new(cBd, 96), border_color = color.new(cBd, 60), border_style = line.style_dotted)
+            lbN := label.new(n0, close + Rn / 2, "", xloc = xloc.bar_time, style = label.style_label_lower_left, color = cNone, textcolor = cBd, size = size.tiny)
+        bxN.set_bgcolor(color.new(cBd, 96))
+        bxN.set_border_color(color.new(cBd, 60))
+        bxN.set_lefttop(n0, close + Rn / 2)
+        bxN.set_rightbottom(n0 + 1380 * 60000, close - Rn / 2)
+        lbN.set_xy(n0, close + Rn / 2)
+        lbN.set_text("next session · R " + pct(100 * Rn / close) + " · " + pts(Rn) + " pts")
+        lbN.set_tooltip("Tomorrow's median range from today's VIX9D close (" + str.tostring(vC, "0.00") + "), centred on the last price until tomorrow's 18:00 open.\nToday's state (" + (th == 0 ? "RV > IV" : th == 2 ? "IV > RV" : "IV ≈ RV") + "): the next session took today's low " + str.tostring(PLO.get(mkt * 3 + th)) + "% of the time (2018–24). With RV above IV it was 41.6% against 48.3% with IV above RV (NQ + ES; 43.9% against 50.4% in 2025–26: same side, not significant). Today's high more often in calm states held in 2018–24 but NQ flipped in 2025–26, so it is not shown.")
+    else if not na(bxN)
+        bxN.set_bgcolor(cNone)
+        bxN.set_border_color(cNone)
+        lbN.set_text("")
+
+    // ═══════════════════════════════════════════════════════════════ Card (minimal: the rest sits in tooltips)
+    if showCrd
+        bool mob = layI == "Mobile"
+        if na(TC)
+            TC := table.new(posOf(crdPos), 3, 5, border_width = 0, frame_width = 1, frame_color = cHdr)
+        TC.clear(0, 0, 2, 4)
+        float used = (sHi - sLo) / R
+        string mName = mkt == 0 ? "NQ" : mkt == 1 ? "ES" : mkt == 2 ? "RTY" : root
+        string tipH = "Implied vol sizes the day; it does not pick its side (with VIX9D above VIX3M the next session closed up 55.8% on NQ against 55.1% otherwise, the same as drift)." + (tested ? "" : "\nThis market has no fitted c: ES's 1.13 is used, untested.") + (eth ? "" : "\nRegular-hours chart: the tests used the full 18:00–17:00 ET session; anchoring R at 09:30 was not tested.")
+        TC.cell(0, 0, "RIKUGAN", text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+        TC.cell(1, 0, mName, text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+        TC.cell(2, 0, tested and eth ? "" : tested ? "RTH" : "untested", text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_halign = text.align_right, text_font_family = font.family_monospace, tooltip = tipH)
+        string tipR = "R = c × prior VIX9D close (" + str.tostring(v9s, "0.00") + ") ÷ 100 ÷ √252 × the 18:00 open: the median session range. p25 0.77R, p75 1.31R, p90 1.64R; 92 / 77 / 52 / 27 / 11% of sessions end beyond 0.61 / 0.77 / 1.00 / 1.31 / 1.64R (2018–24; 2025–26 within 1 point).\nVIX9D beat ADR20 as the next session's range forecast by 15% (NQ) and 21% (ES) in 2018–24, 10% and 20% in 2025–26 (mean abs log error, p < 0.001); RTY 10% and 16% on daily ranges.\nADR20 today " + pct(100 * adS) + " (" + (na(adS) ? "—" : str.tostring(adS * sO / R, "0.00")) + "× R). ADR20 lags: NQ's next range was 1.65–1.74% in every IV/RV third while ADR20 went from 2.10% to 1.42%."
+        cRow(1, "R", pct(100 * R / sO), pts(R) + " pts", tipR)
+        int r = 2
+        if not mob
+            cRow(r, th == 0 ? "RV > IV" : th == 2 ? "IV > RV" : "IV ≈ RV", na(ivrv) ? "—" : str.tostring(ivrv, "0.00"), "beats ADR20 " + str.tostring(PBG.get(mkt * 3 + th)) + "%", "IV = VIX9D's one-session move, RV = sd of the last 20 daily % returns; thirds fixed on 2018–24 (" + str.tostring(TLO.get(mkt), "0.00") + " / " + str.tostring(THI.get(mkt), "0.00") + "). The session's range beat ADR20: NQ 22 / 42 / 62%, ES 17 / 39 / 65%, RTY 26 / 39 / 61% (RV > IV / IV ≈ RV / IV > RV, 2018–24); 2025–26 NQ 22 / 45 / 59%, ES 20 / 38 / 60%, RTY 19 / 36 / 62%.")
+            r += 1
+        cRow(r, "used", gauge(used / 1.64, mob ? 6 : 10), str.tostring(used, "0.00") + "R", "The session's high-to-low range so far against R (" + pts(sHi - sLo) + " pts). The gauge fills at 1.64R (p90).")
+        r += 1
+        int kIx = na(lastK) ? 0 : lastK                                  // safe indices (both ternary branches may be evaluated)
+        int bIx = math.max(0, math.min(lastB, 3))
+        string nxV = lastB < 0 ? "→ 0.61R" : lastB >= 4 ? "past p90" : "→ " + str.tostring(BND.get(bIx + 1), "0.00") + "R"
+        string nxW = lastB < 0 ? "92%" : lastB >= 4 ? "11% of days" : str.tostring(NXO.get(bIx * 4 + kIx)) + "%"
+        cRow(r, "next", nxV, nxW, "Odds the day's range reaches the next band by 17:00, from the band reached and the time block it was reached in" + (lastB >= 0 and lastB < 4 ? " (" + BKN.get(kIx) + ")" : "") + ". NQ + ES 2018–24; scored on 2025–26: Brier 0.169 against 0.200 for the band alone.\n0.61R → 0.77R: 98 / 93 / 84 / 57% (18:00–02:00 / 02:00–08:30 / 08:30–12:00 / 12:00–17:00).\n0.77R → 1.00R: 91 / 84 / 72 / 42%.\n1.00R → 1.31R: 84 / 77 / 61 / 32% (2025–26: 82 / 86 / 57 / 26%).\n1.31R → 1.64R: 73 (before 08:30) / 57 / 30%.")
+if barstate.islast and not act and showCrd
+    if na(TC)
+        TC := table.new(posOf(crdPos), 1, 1, border_width = 0, frame_width = 1, frame_color = cHdr)
+    TC.cell(0, 0, "Rikugan · use an intraday chart", text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_font_family = font.family_monospace)
