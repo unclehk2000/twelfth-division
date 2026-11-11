@@ -1,0 +1,108 @@
+TITLE (paste into the Title field)
+Katen Kyōkotsu: Implied ADR, AWR, AMR & Quarter Ladders from VIX9D / VIX3M
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Katen Kyōkotsu[/b] draws ICT's average-range ladders (ADR, AWR, AMR) for the day, week, month and quarter, but sizes them from the options market instead of past averages. Each period's ladder hangs from its open, and R comes from implied volatility read at that open.
+• [b]Each ladder:[/b] EQ = the open; R+ / R− = the open ± R/2; ¼ and ⅓ of R in from each end. Premium above EQ, discount below.
+• [b]R = c × implied vol ÷ 100 × √(days ÷ 252) × the open[/b]:
+  – VIX9D for the day (1 session), week (5) and month (21);
+  – VIX3M for the quarter (63);
+  – the last close before the period opens, held for the whole period, so nothing repaints.
+• [b]Two sizings:[/b] [i]Implied[/i] (tested, the default) or [i]Average[/i], the classic ladder from the last 20 days, 4 weeks, 3 months or 3 quarters.
+• A four-row card: each period's R in % of its open and how much of it is used.
+• Every number comes from NQ and ES 1-minute data (RTY on daily ranges), January 2018 – October 2026, fitted on 2018–24 and scored once on 2025–26.
+[i]A map of how far each period usually travels from its open. The levels are not turning points, and nothing here calls direction.[/i]
+
+
+[b]█ WHAT IT DRAWS ON PRICE[/b]
+
+• [b]Day, week, month and quarter ladders[/b], each switched on or off, with how many past periods stay on the chart (day 3, week 2, month 2, quarter 1 by default; quarter off).
+• [b]Each ladder[/b] runs from the period's open to its end:
+  – [b]+R and −R[/b] (solid; thicker for longer periods);
+  – [b]+¼ / +⅓ and −⅓ / −¼[/b] (dotted), a quarter and a third of R in from each end;
+  – [b]EQ[/b] (dashed), the open.
+• [b]Premium / discount shading[/b] between EQ and each end.
+• [b]Labels on the current periods[/b], such as [i]W +R[/i] or [i]D −⅓ ¼[/i]. The ¼ and ⅓ sit close together and share one label. Hover a label for its price and its distance from the open in %.
+• Choose [b]R · ¼ · ⅓ · EQ[/b] or just [b]R · EQ[/b].
+
+
+[b]█ CARD · ONE ROW PER PERIOD[/b]
+
+• [b]D / W / M / Q:[/b] R in % of the period's open, a gauge of the range used, and the range used in R.
+• Each row's tooltip carries its formula, its constant and its test.
+• [b]Mobile[/b] drops the gauge.
+
+
+[b]█ WHAT THE TESTS FOUND[/b]
+
+A result counts only when it holds in 2018–24, holds again on 2025–26 (scored once), and holds on each market.
+
+[b]Implied ranges beat the classic averages at every horizon.[/b] Mean absolute log error, average → implied:
+• [b]Day:[/b] 15% (NQ) and 21% (ES) better in 2018–24, 10% and 20% in 2025–26 (p < 0.001). RTY 10% and 16%.
+• [b]Week[/b], against the last 4 weeks:
+  – ES 0.379 → 0.280 (p < 0.001), then 0.335 → 0.270 (p 0.005);
+  – NQ 0.330 → 0.255 (p < 0.001), then 0.348 → 0.293 (p 0.053).
+• [b]Month[/b], against the last 3 months:
+  – ES 0.354 → 0.269 (p 0.003), then 0.420 → 0.249 (p 0.006);
+  – NQ did not pass in 2018–24 (p 0.22). [i]Treat NQ's month as untested.[/i]
+• [b]Quarter[/b], against the last 3 quarters:
+  – NQ 0.387 → 0.285 (p 0.009), then 0.645 → 0.399 (p 0.024);
+  – ES 0.446 → 0.296 (p 0.002), then 0.596 → 0.353 (p 0.001);
+  – [i]on 26 and 6–7 quarters, a small sample.[/i]
+
+[b]How the ladder plays out.[/b]
+• One side of the open ± R/2 was reached in [b]79–88%[/b] of periods, both sides in [b]4–17%[/b] (mostly 5–9%).
+• About half of periods end beyond 1 × R by construction. In 2025–26: day 47–50%, week 39–45%, month 36–65%, quarter 43–50%.
+
+[b]The levels are a map, not turning points.[/b]
+• At the first touch of R+, R−, ¼ or ⅓, price went 0.1R back toward EQ before 0.1R through it [b]35–56%[/b] of the time.
+• That covers 24 level-and-horizon tests on NQ and ES. [b]None held in both periods.[/b]
+• [i]Use the levels as places on the map, not as reasons to fade.[/i]
+
+[b]Direction: none.[/b] Implied vol sizes each period; it does not pick its side.
+
+
+[b]█ HOW TO USE IT[/b]
+
+• [b]Frame each period's travel from its open.[/b] One side of ± R/2 usually trades; both sides rarely do. Once one end has traded, the other is the less likely event.
+• [b]Nest the periods:[/b] the day inside the week, the week inside the month, the month inside the quarter. Where a day's R+ sits in the week's premium tells you how much room the higher timeframe has left.
+• [b]Prefer implied sizing.[/b] After a quiet stretch the classic averages run short, and after a wild one they run long. Switch to Average to compare with ICT's classic ladder.
+
+
+[b]█ SETTINGS[/b]
+
+• [b]View:[/b] card theme, text size, card position, layout (Desktop / Mobile), text colour.
+• [b]Ranges:[/b]
+  – sizing (Implied or Average);
+  – day, week, month and quarter on / off, with how many periods are kept;
+  – levels;
+  – premium / discount and labels;
+  – the VIX9D and VIX3M symbols.
+• [b]Colours:[/b] upper, lower, EQ, premium, discount.
+• [b]Alerts:[/b] when price reaches a period's R+ or R−. Create one with [i]Any alert() function call[/i].
+
+
+[b]█ NOTES[/b]
+
+• Built for CME index futures on intraday charts. NQ, ES and RTY have fitted constants; micros use their parent. Any other market uses ES's constants and is marked [i]untested[/i].
+• RTY's constants were fitted on daily ranges and checked for calibration only.
+• On a continuous contract, a roll inside a week, month or quarter adds its roll gap to that period's range. It is small against these ranges.
+• VIX9D and VIX3M data on TradingView may need a Cboe data subscription.
+• Pairs with Rikugan, which reads the same VIX9D for the day's completion bands. Overlap will be trimmed at the end stage.
+• Nothing here is financial advice.
+
+
+[b]█ WHY THE NAME[/b]
+
+[b]Katen Kyōkotsu[/b] is Shunsui Kyōraku's zanpakutō in [i]Bleach[/i]. Its Shikai turns a fight into a children's game: everyone in range must play by its rules ([i]Takaoni[/i], where the higher ground wins; [i]Kageoni[/i], where whoever steps on a shadow is struck). Its Bankai, [i]Katen Kyōkotsu: Karamatsu Shinjū[/i], is a tragedy played out in four acts. This indicator plays the market's four acts, the day, the week, the month and the quarter. Each runs by the rules the options market sets at its open: how far it is likely to travel, and where its high ground lies.
+
+
+[b]█ CREDITS[/b]
+
+• ICT concepts ([i]Michael J. Huddleston[/i]): average daily, weekly and monthly ranges drawn from the open, premium / discount and equilibrium.
+• The ladder layout follows the ADR / AWR / AMR style of AXR-type tools; studied, not copied.
+• VIX9D and VIX3M are Cboe's indices.
+• Katen Kyōkotsu and Shunsui Kyōraku belong to Tite Kubo's [i]Bleach[/i] (Shueisha); the name is homage only.
+• Not affiliated with or endorsed by ICT or Cboe. Part of the Hueco Mundo megazord. Written from scratch; open source under MPL 2.0.

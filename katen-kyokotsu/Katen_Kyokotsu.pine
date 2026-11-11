@@ -1,0 +1,241 @@
+//@version=6
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+// DISCLAIMER: in the author's own words, this indicator is a pile of shit. It is built on data points (VIX9D / VIX3M implied-range statistics) rather than ICT logic in context, and is kept only as a record. Do not trade from it.
+// Katen Kyōkotsu · implied cycle ranges. ICT's average-range ladders (ADR / AWR / AMR) for the day, week, month and quarter,
+// sized from options instead of past averages. Each period's ladder hangs from its open: EQ = the open, R+ / R− = the open ± R/2,
+// and ¼ and ⅓ of R in from each end, with premium above EQ and discount below. R = c × implied vol × √(days ÷ 252) × the open:
+// VIX9D for the day (1), week (5) and month (21), VIX3M for the quarter (63); the last close before the period opens, held all
+// period. c (2018–24): NQ 1.54 / 1.69 / 1.80 / 1.59, ES 1.13 / 1.24 / 1.37 / 1.13, RTY 1.72 / 1.78 / 1.75 / 1.55 (daily ranges).
+// Tested on NQ + ES 1-minute 2018 – Oct 2026, fitted on 2018–24 and scored once on 2025–26 (mean abs log error, implied against
+// the last 20 days / 4 weeks / 3 months / 3 quarters): day 15–21% better, then 10–20% (p < 0.001); week ES 26% then 20%
+// (p 0.005), NQ 22% then 16% (p 0.053); month ES 24% then 41% (p 0.006), NQ not in 2018–24 (p 0.22); quarter NQ 27% then 38%,
+// ES 33% then 41% (26 and 6–7 quarters). One side of the open ± R/2 was reached in 79–88% of periods, both in 4–17%.
+// The levels are a map, not turning points: at the first touch of each, price went 0.1R back toward EQ before 0.1R through it
+// 35–56% of the time across 24 level-and-horizon tests, and none held in both periods. Nothing here calls direction.
+// The ladder layout follows ICT's ADR / AWR / AMR as drawn by AXR-style tools; studied, nothing copied.
+// Not affiliated with or endorsed by ICT or Cboe.
+indicator("Katen Kyōkotsu · Implied Cycle Ranges", "Katen Kyōkotsu", overlay = true, max_lines_count = 500, max_labels_count = 100, max_boxes_count = 100)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI  = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, display = display.none)
+lblSzI  = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+showCrd = input.bool(true, "Card", group = gV, inline = "cd", display = display.none)
+crdPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", display = display.none)
+layI    = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: each period's R, a gauge of the range used and the range used in R. Mobile: R and the range used.", display = display.none)
+txtM    = input.string("Auto (theme)", "Text colour", options = ["Auto (theme)", "Custom"], group = gV, inline = "tx", tooltip = "Auto: white text on a dark background, black on a light one. Custom: your own colour, for backgrounds where the automatic choice clashes (the card text). Chart labels take the level colours below.", display = display.none)
+txtCd   = input.color(#131722, "card", group = gV, inline = "tx", active = txtM == "Custom", display = display.none)
+
+gR = "Ranges"
+modeI = input.string("Implied (tested)", "Sizing", options = ["Implied (tested)", "Average (classic)"], group = gR, tooltip = "Implied: R from VIX9D (day, week, month) or VIX3M (quarter), read at the period's open. Average: the classic ladder, R = the mean range of the last 20 days, 4 weeks, 3 months or 3 quarters. Implied beat the average at every horizon in 2018–24 and again in 2025–26, except NQ's month in 2018–24.", display = display.none)
+onD   = input.bool(true, "Day", group = gR, inline = "h1", display = display.none)
+keepD = input.int(3, "kept", minval = 1, maxval = 10, group = gR, inline = "h1", tooltip = "How many periods of each ladder stay on the chart, the current one included.", display = display.none)
+onW   = input.bool(true, "Week", group = gR, inline = "h2", display = display.none)
+keepW = input.int(2, "kept", minval = 1, maxval = 8, group = gR, inline = "h2", display = display.none)
+onM   = input.bool(true, "Month", group = gR, inline = "h3", display = display.none)
+keepM = input.int(2, "kept", minval = 1, maxval = 6, group = gR, inline = "h3", display = display.none)
+onQ   = input.bool(false, "Quarter", group = gR, inline = "h4", display = display.none)
+keepQ = input.int(1, "kept", minval = 1, maxval = 4, group = gR, inline = "h4", display = display.none)
+lvlI  = input.string("R · ¼ · ⅓ · EQ", "Levels", options = ["R · ¼ · ⅓ · EQ", "R · EQ"], group = gR, tooltip = "R+ / R− = the open ± R/2; ¼ and ⅓ = a quarter and a third of R in from each end (the open + R/4 and + R/6, and the mirror); EQ = the open.", display = display.none)
+pdI   = input.bool(true, "Premium / discount", group = gR, inline = "pd", display = display.none)
+lblI  = input.bool(true, "Labels", group = gR, inline = "pd", tooltip = "Shading between EQ and each end, and labels on the current periods.", display = display.none)
+v9Sym = input.symbol("CBOE:VIX9D", "Day · week · month vol", group = gR, tooltip = "Cboe's 9-day S&P 500 implied volatility, the index tested for the day, week and month.", display = display.none)
+v3Sym = input.symbol("CBOE:VIX3M", "Quarter vol", group = gR, tooltip = "Cboe's 3-month S&P 500 implied volatility, the index tested for the quarter.", display = display.none)
+
+gC = "Colours"
+cUp = input.color(#089981, "Upper", group = gC, inline = "c1", display = display.none)
+cDn = input.color(#f23645, "Lower", group = gC, inline = "c1", display = display.none)
+cEq = input.color(#787b86, "EQ", group = gC, inline = "c1", display = display.none)
+cPr = input.color(color.new(#f23645, 95), "Premium", group = gC, inline = "c2", display = display.none)
+cDs = input.color(color.new(#089981, 95), "Discount", group = gC, inline = "c2", display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alI = input.bool(true, "Price reaches a period's R+ or R−", group = gA, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+bool txC = txtM == "Custom"                          // View → Text colour: Custom replaces the automatic white / black
+cTxt   = txC ? txtCd : isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = txC ? color.new(txtCd, 25) : isDark ? #8a93a6 : #5d6476
+cHdr   = #7e57c2
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+pts(float v) => na(v) ? "—" : str.tostring(v, "#,##0.##")
+pct(float v) => na(v) ? "—" : str.tostring(v, "0.00") + "%"
+clamp(float v, float a, float b) => math.max(a, math.min(b, v))
+gauge(float f, int n) =>
+    int k = na(f) ? 0 : int(math.round(clamp(f, 0, 1) * n))
+    str.repeat("█", k) + str.repeat("░", n - k)
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+
+// ═══════════════════════════════════════════════════════════════ Tested constants (fit 2018–24, scored 2025 – Oct 2026)
+// markets: 0 NQ, 1 ES, 2 RTY, 3 other (ES constants, untested); horizons: day, week, month, quarter
+string root = syminfo.root
+int    mkt  = root == "NQ" or root == "MNQ" ? 0 : root == "ES" or root == "MES" ? 1 : root == "RTY" or root == "M2K" ? 2 : 3
+var array<float>  CK  = array.from(1.54, 1.69, 1.80, 1.59, 1.13, 1.24, 1.37, 1.13, 1.72, 1.78, 1.75, 1.55, 1.13, 1.24, 1.37, 1.13)
+var array<int>    DYS = array.from(1, 5, 21, 63)
+var array<string> HN  = array.from("D", "W", "M", "Q")
+bool imp = modeI == "Implied (tested)"
+bool all = lvlI == "R · ¼ · ⅓ · EQ"
+int  nLv = all ? 7 : 3
+
+// ═══════════════════════════════════════════════════════════════ Data (no repaint)
+// implied vol: the last close that is final at this bar (a VIX bar dated the futures session's own day is still open)
+[vC, vC1, vT] = request.security(v9Sym, "D", [close, close[1], time_tradingday], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[wC, wC1, wT] = request.security(v3Sym, "D", [close, close[1], time_tradingday], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+float v9Done = na(vT) ? na : vT < time_tradingday ? vC : vC1
+float v3Done = na(wT) ? na : wT < time_tradingday ? wC : wC1
+// classic averages of (high − low) ÷ open over the prior periods
+aD = request.security(syminfo.tickerid, "D", ta.sma((high - low) / open, 20)[1], lookahead = barmerge.lookahead_on)
+aW = request.security(syminfo.tickerid, "W", ta.sma((high - low) / open, 4)[1], lookahead = barmerge.lookahead_on)
+aM = request.security(syminfo.tickerid, "M", ta.sma((high - low) / open, 3)[1], lookahead = barmerge.lookahead_on)
+aQ = request.security(syminfo.tickerid, "3M", ta.sma((high - low) / open, 3)[1], lookahead = barmerge.lookahead_on)
+
+// ═══════════════════════════════════════════════════════════════ Periods
+int  ttd = time_tradingday
+int  yy  = year(ttd, "UTC")
+int  mm  = month(ttd, "UTC")
+int  mKey = yy * 100 + mm
+int  qKey = yy * 10 + (mm - 1) / 3
+bool act  = timeframe.isintraday
+bool newD = ttd != ttd[1]
+bool newW = timeframe.change("W")
+bool newM = mKey != mKey[1]
+bool newQ = qKey != qKey[1]
+// projected period ends (17:00 ET on the period's last day)
+int nmY = mm == 12 ? yy + 1 : yy
+int nmM = mm == 12 ? 1 : mm + 1
+int q1M = (mm - 1) / 3 * 3 + 1
+int nqY = q1M + 3 > 12 ? yy + 1 : yy
+int nqM = q1M + 3 > 12 ? q1M - 9 : q1M + 3
+endOf(int h) =>
+    h == 0 ? time + 1380 * 60000 : h == 1 ? time + (4 * 1440 + 1380) * 60000 : h == 2 ? timestamp(TZ, nmY, nmM, 1, 0, 0) - 7 * 3600000 : timestamp(TZ, nqY, nqM, 1, 0, 0) - 7 * 3600000
+rPctOf(int h) =>
+    float cc = CK.get(mkt * 4 + h)
+    float iv = h == 3 ? v3Done : v9Done
+    imp ? cc * iv / 100 * math.sqrt(DYS.get(h) / 252.0) : h == 0 ? aD : h == 1 ? aW : h == 2 ? aM : aQ
+
+// one ladder per horizon; its drawings are made once at the period's open and closed off at the next one
+ladder(int h, bool on, bool newP, int keep, int wR) =>
+    var array<line>  LN = array.new<line>()
+    var array<box>   BX = array.new<box>()
+    var array<label> LB = array.new<label>()
+    var float pO = na
+    var float pR = na
+    var float pHi = na
+    var float pLo = na
+    var bool  hU = false
+    var bool  hD = false
+    string msg = ""
+    if on and act
+        if newP or na(pO)
+            int n0 = math.max(0, LN.size() - nLv)
+            if LN.size() > 0
+                for i = n0 to LN.size() - 1
+                    LN.get(i).set_x2(time)
+            if BX.size() > 0
+                for i = math.max(0, BX.size() - 2) to BX.size() - 1
+                    BX.get(i).set_right(time)
+            while LB.size() > 0
+                LB.pop().delete()
+            float rp = rPctOf(h)
+            pO  := open
+            pHi := high
+            pLo := low
+            pR  := na(rp) ? na : rp * open
+            hU  := false
+            hD  := false
+            if pR > 0
+                int t1 = endOf(h)
+                string tg = HN.get(h)
+                float top = pO + pR / 2
+                float bot = pO - pR / 2
+                array<float>  LV = all ? array.from(top, pO + pR / 4, pO + pR / 6, pO, pO - pR / 6, pO - pR / 4, bot) : array.from(top, pO, bot)
+                array<string> LT = all ? array.from("+R", "+¼", "+⅓", "EQ", "−⅓", "−¼", "−R") : array.from("+R", "EQ", "−R")
+                for i = 0 to LV.size() - 1
+                    float v = LV.get(i)
+                    string t = LT.get(i)
+                    bool  isR = t == "+R" or t == "−R"
+                    color c = t == "EQ" ? cEq : v > pO ? cUp : cDn
+                    LN.push(line.new(time, v, t1, v, xloc = xloc.bar_time, color = isR ? c : color.new(c, 35), width = isR ? wR : 1, style = isR ? line.style_solid : t == "EQ" ? line.style_dashed : line.style_dotted))
+                    // ¼ and ⅓ sit R/12 apart, so they share one label between them; the others get their own
+                    bool frac = t == "+¼" or t == "+⅓" or t == "−⅓" or t == "−¼"
+                    if lblI and (not frac or t == "+¼" or t == "−¼")
+                        float o2 = t == "+¼" ? pO + pR / 6 : t == "−¼" ? pO - pR / 6 : v
+                        string tt = t == "+¼" ? "+¼ ⅓" : t == "−¼" ? "−⅓ ¼" : t
+                        string tp = frac ? tg + " ¼: " + pts(v) + ", ⅓: " + pts(o2) + " (" + str.tostring(100 * (v - pO) / pO, "+0.00;-0.00") + "% and " + str.tostring(100 * (o2 - pO) / pO, "+0.00;-0.00") + "% from the open)" : tg + " " + t + ": " + pts(v) + " (" + str.tostring(100 * (v - pO) / pO, "+0.00;-0.00") + "% from the open)"
+                        LB.push(label.new(t1, (v + o2) / 2, tg + " " + tt, xloc = xloc.bar_time, style = label.style_label_left, color = #00000000, textcolor = c, size = size.tiny, tooltip = tp + ". R " + pct(100 * pR / pO) + " (" + pts(pR) + " pts), " + (imp ? "implied" : "average") + "."))
+                if pdI
+                    BX.push(box.new(time, top, t1, pO, xloc = xloc.bar_time, bgcolor = cPr, border_color = #00000000))
+                    BX.push(box.new(time, pO, t1, bot, xloc = xloc.bar_time, bgcolor = cDs, border_color = #00000000))
+                while LN.size() > keep * nLv
+                    LN.shift().delete()
+                while BX.size() > keep * 2
+                    BX.shift().delete()
+        else
+            pHi := math.max(pHi, high)
+            pLo := math.min(pLo, low)
+        if pR > 0
+            if not hU and high >= pO + pR / 2
+                hU  := true
+                msg += HN.get(h) + " R+ " + pts(pO + pR / 2) + ". "
+            if not hD and low <= pO - pR / 2
+                hD  := true
+                msg += HN.get(h) + " R− " + pts(pO - pR / 2) + ". "
+    [pO, pR, pHi, pLo, msg]
+
+[oD, rD, hiD, loD, mD] = ladder(0, onD, newD, keepD, 1)
+[oW, rW, hiW, loW, mW] = ladder(1, onW, newW, keepW, 2)
+[oM, rM, hiM, loM, mM] = ladder(2, onM, newM, keepM, 2)
+[oQ, rQ, hiQ, loQ, mQ] = ladder(3, onQ, newQ, keepQ, 3)
+string xMsg = mD + mW + mM + mQ
+if alI and xMsg != "" and barstate.isconfirmed
+    alert("Katen Kyōkotsu · " + syminfo.ticker + " · reached " + xMsg, alert.freq_once_per_bar_close)
+
+// ═══════════════════════════════════════════════════════════════ Card (minimal: one row per period, the tests in the tooltips)
+var table TC = na
+tipOf(int h) =>
+    string ev = h == 0 ? "Day: implied beat ADR20 by 15% (NQ) and 21% (ES) in 2018–24, 10% and 20% in 2025–26 (mean abs log error, p < 0.001); RTY 10% and 16%. One side of the open ± R/2 was reached on 79–81% of days, both on 7–8%." : h == 1 ? "Week (VIX9D over 5 sessions): against the last 4 weeks, ES 0.379 → 0.280 (p < 0.001) then 0.335 → 0.270 (p 0.005); NQ 0.330 → 0.255 (p < 0.001) then 0.348 → 0.293 (p 0.053). One side of the open ± R/2 reached in 79–87% of weeks, both in 5–8%." : h == 2 ? "Month (VIX9D over 21 sessions): against the last 3 months, ES 0.354 → 0.269 (p 0.003) then 0.420 → 0.249 (p 0.006). NQ did not pass in 2018–24 (p 0.22; 2025–26 p 0.019): treat NQ's month as untested. One side reached in 68–85% of months, both in 0–9%." : "Quarter (VIX3M over 63 sessions): against the last 3 quarters, NQ 0.387 → 0.285 (p 0.009) then 0.645 → 0.399 (p 0.024); ES 0.446 → 0.296 (p 0.002) then 0.596 → 0.353 (p 0.001), on 26 and 6–7 quarters: a small sample. One side reached in 71–88% of quarters, both in 8–17%."
+    "R = " + (imp ? "c × " + (h == 3 ? "VIX3M" : "VIX9D") + " ÷ 100 × √(" + str.tostring(DYS.get(h)) + " ÷ 252) × the open, c = " + str.tostring(CK.get(mkt * 4 + h), "0.00") : "the mean range of the last " + (h == 0 ? "20 days" : h == 1 ? "4 weeks" : h == 2 ? "3 months" : "3 quarters")) + ". Fitted 2018–24, scored once on 2025–26.\n" + ev + (mkt == 2 ? "\nRTY: constants fitted on daily ranges; calibration only." : "")
+if barstate.islast and act and showCrd
+    bool mob = layI == "Mobile"
+    if na(TC)
+        TC := table.new(posOf(crdPos), 4, 5, border_width = 0, frame_width = 1, frame_color = cHdr)
+    TC.clear(0, 0, 3, 4)
+    string tipH = "The ladder is a map, not a set of turning points: at the first touch of R±, ¼ or ⅓, price went 0.1R back toward EQ before 0.1R through it 35–56% of the time across 24 level-and-horizon tests (NQ + ES 1-minute), and none held in both periods. Implied vol sizes each period; it does not pick its side." + (mkt == 3 ? "\nThis market has no fitted constants: ES's are used, untested." : "")
+    TC.cell(0, 0, "KATEN KYŌKOTSU", text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+    TC.cell(1, 0, mkt == 0 ? "NQ" : mkt == 1 ? "ES" : mkt == 2 ? "RTY" : root, text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+    TC.cell(2, 0, mob ? "" : (imp ? "implied" : "average") + (mkt == 3 ? " · untested" : ""), text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+    TC.cell(3, 0, "", bgcolor = cHdr)
+    int r = 1
+    for h = 0 to 3
+        bool  on = h == 0 ? onD : h == 1 ? onW : h == 2 ? onM : onQ
+        float o  = h == 0 ? oD : h == 1 ? oW : h == 2 ? oM : oQ
+        float R  = h == 0 ? rD : h == 1 ? rW : h == 2 ? rM : rQ
+        float hi = h == 0 ? hiD : h == 1 ? hiW : h == 2 ? hiM : hiQ
+        float lo = h == 0 ? loD : h == 1 ? loW : h == 2 ? loM : loQ
+        if on and R > 0
+            float u = (hi - lo) / R
+            string tp = tipOf(h) + "\nUsed: " + str.tostring(u, "0.00") + "R (" + pts(hi - lo) + " pts of " + pts(R) + ")."
+            TC.cell(0, r, HN.get(h), text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tp)
+            TC.cell(1, r, pct(100 * R / o), text_color = cTxt, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tp)
+            TC.cell(2, r, mob ? "" : gauge(u, 8), text_color = cHdr, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tp)
+            TC.cell(3, r, str.tostring(u, "0.00") + "R", text_color = cSub, text_size = tSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tp)
+            r += 1
+if barstate.islast and not act and showCrd
+    if na(TC)
+        TC := table.new(posOf(crdPos), 1, 1, border_width = 0, frame_width = 1, frame_color = cHdr)
+    TC.cell(0, 0, "Katen Kyōkotsu · use an intraday chart", text_color = #ffffff, bgcolor = cHdr, text_size = tSz, text_font_family = font.family_monospace)
