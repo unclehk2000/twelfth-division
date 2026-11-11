@@ -1,0 +1,55 @@
+=== A / B: c (fish) and calibration; beyond = range >= R, either / both = open +- R/2 reached, err = mean abs log error ===
+NQ D c 1.54 | fish n 1761: beyond 50% either 79% both 7% err 0.325 (avg 0.378, beyond 42%) | test n 427: beyond 50% either 81% both 8% err 0.330 (avg 0.374, beyond 44%) |
+NQ W c 1.69 | fish n 354: beyond 50% either 87% both 8% err 0.255 (avg 0.330, beyond 45%) | test n 85: beyond 45% either 82% both 6% err 0.293 (avg 0.348, beyond 45%) |
+NQ M c 1.80 | fish n 79: beyond 51% either 85% both 9% err 0.289 (avg 0.322, beyond 47%) | test n 20: beyond 65% either 85% both 0% err 0.217 (avg 0.355, beyond 50%) |
+NQ Q c 1.59 | fish n 26: beyond 50% either 88% both 8% err 0.286 (avg 0.376, beyond 46%) | test n 6: beyond 50% either 83% both 17% err 0.338 (avg 0.581, beyond 50%) |
+ES D c 1.12 | fish n 1799: beyond 50% either 79% both 8% err 0.322 (avg 0.406, beyond 40%) | test n 468: beyond 47% either 80% both 8% err 0.316 (avg 0.390, beyond 41%) |
+ES W c 1.24 | fish n 364: beyond 50% either 83% both 5% err 0.280 (avg 0.374, beyond 45%) | test n 94: beyond 39% either 79% both 5% err 0.271 (avg 0.335, beyond 43%) |
+ES M c 1.37 | fish n 82: beyond 50% either 82% both 9% err 0.272 (avg 0.347, beyond 45%) | test n 22: beyond 36% either 68% both 0% err 0.225 (avg 0.393, beyond 36%) |
+ES Q c 1.13 | fish n 26: beyond 50% either 88% both 12% err 0.315 (avg 0.455, beyond 46%) | test n 7: beyond 43% either 71% both 14% err 0.294 (avg 0.539, beyond 43%) |
+RTY D c 1.48 | fish n 1752: beyond 50% either 81% both 7% err 0.297 (avg 0.322, beyond 42%) | test n 456: beyond 61% either 89% both 12% err 0.305 (avg 0.347, beyond 40%) |
+RTY W c 1.54 | fish n 364: beyond 50% either 83% both 6% err 0.302 (avg 0.340, beyond 46%) | test n 94: beyond 67% either 90% both 14% err 0.286 (avg 0.283, beyond 49%) |
+RTY M c 1.53 | fish n 82: beyond 50% either 85% both 4% err 0.296 (avg 0.333, beyond 41%) | test n 22: beyond 64% either 100% both 9% err 0.229 (avg 0.324, beyond 36%) |
+RTY Q c 1.36 | fish n 26: beyond 50% either 81% both 4% err 0.293 (avg 0.420, beyond 50%) | test n 7: beyond 71% either 86% both 14% err 0.210 (avg 0.341, beyond 43%) |
+=== C: first touch of each level, reversal 0.1R toward EQ before 0.1R through (NQ + ES, implied ladder) ===
+D R+      fish  50.2% n=1541  p=0.859 | test  45.4% n=392   p=0.068 | fails (fish)
+D 1/4 R+  fish  49.2% n=2554  p=0.406 | test  50.2% n=625   p=0.905 | fails (fish)
+D 1/3 R+  fish  49.2% n=2913  p=0.384 | test  51.0% n=717   p=0.576 | fails (fish)
+D 1/3 R-  fish  49.7% n=2752  p=0.732 | test  52.1% n=687   p=0.268 | fails (fish)
+D 1/4 R-  fish  49.8% n=2388  p=0.838 | test  50.9% n=583   p=0.649 | fails (fish)
+D R-      fish  51.2% n=1481  p=0.363 | test  49.0% n=388   p=0.685 | fails (fish)
+W R+      fish  45.1% n=337   p=0.071 | test  61.4% n=83    p=0.033 | fails (fish)
+W 1/4 R+  fish  43.2% n=526   p=0.002 | test  51.1% n=141   p=0.801 | fails (test flips)
+W 1/3 R+  fish  47.9% n=606   p=0.291 | test  43.5% n=161   p=0.096 | fails (fish)
+W 1/3 R-  fish  48.5% n=534   p=0.489 | test  51.5% n=132   p=0.729 | fails (fish)
+W 1/4 R-  fish  47.6% n=477   p=0.292 | test  49.6% n=113   p=0.925 | fails (fish)
+W R-      fish  47.4% n=306   p=0.360 | test  50.0% n=68    p=1.000 | fails (fish)
+M R+      fish  45.3% n=86    p=0.389 | test  26.3% n=19    p=0.022 | fails (fish)
+M 1/4 R+  fish  39.2% n=130   p=0.012 | test  46.4% n=28    p=0.710 | survives (test same sign, p≥0.05)
+M 1/3 R+  fish  40.4% n=141   p=0.021 | test  63.9% n=36    p=0.087 | fails (test flips)
+M 1/3 R-  fish  43.2% n=111   p=0.153 | test  43.3% n=30    p=0.469 | fails (fish)
+M 1/4 R-  fish  53.3% n=90    p=0.528 | test  51.7% n=29    p=0.855 | fails (fish)
+M R-      fish  47.5% n=59    p=0.698 | test  38.5% n=13    p=0.411 | fails (fish)
+Q R+      fish  50.0% n=34    p=1.000 | test  16.7% n=6     p=0.046 | fails (fish)
+Q 1/4 R+  fish  35.6% n=45    p=0.045 | test  54.5% n=11    p=0.773 | fails (test flips)
+Q 1/3 R+  fish  41.3% n=46    p=0.236 | test  41.7% n=12    p=0.575 | fails (fish)
+Q 1/3 R-  fish  55.9% n=34    p=0.496 | test  55.6% n=9     p=0.752 | fails (fish)
+Q 1/4 R-  fish  38.5% n=26    p=0.236 | test  77.8% n=9     p=0.059 | fails (fish)
+Q R-      fish  43.8% n=16    p=0.626 | test  33.3% n=6     p=0.429 | fails (fish)
+days where raw open = raw high or low (thin deferred prints): 52 of 2367
+RTY day c (adjusted points / raw close): 1.718
+fish: n 1761 ADR20 err 0.324 implied 0.292 (cut 10%, p 0.0000) | beyond R 50%
+test: n 456 ADR20 err 0.347 implied 0.291 (cut 16%, p 0.0000) | beyond R 49%
+IV/RV thirds 0.76 0.99
+t        0     1     2
+per                   
+fish  26.0  39.0  61.0
+test  19.0  36.0  62.0
+RTY W c 1.78 | test beyond R 54% (n 94)
+RTY M c 1.75 | test beyond R 59% (n 22)
+RTY Q c 1.55 | test beyond R 71% (n 7)
+RTY next session takes today's low, % by IV/RV third (state from the prior close):
+t        0     1     2
+per                   
+fish  43.0  46.0  54.0
+test  45.0  46.0  60.0
