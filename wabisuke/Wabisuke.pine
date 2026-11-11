@@ -1,0 +1,445 @@
+//@version=6
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Unclehk2000
+// DISCLAIMER: in the author's own words, this indicator is a pile of shit. It is built on data points (ZN / VIX3M correlation statistics) rather than ICT logic in context, and is kept only as a record. Do not trade from it.
+// Wabisuke · rates transmission. How much ZN (10-year note futures) weighs on the index today, and when. The regime is the
+// trailing 60-session correlation of the index's daily % returns with ZN's: pos above +0.2 (bonds and stocks rise together,
+// rates drive both), neg below −0.2 (bonds rally as stocks fall, the hedge regime), flat between; β60 is the index % per 1% ZN.
+// It draws the ZN shadow (where ZN × β60 would have put the index since 18:00), the CPI / NFP 08:30 pulse, regime switches,
+// and PO3 candles on the right with a ZN twin beside each one: the same candle as ZN × β60 would have printed it.
+// Tested on NQ + ES 1-minute and ZN 1-minute, Jan 2018 – Oct 2026, fitted on 2018–24 and scored once on 2025–26:
+// • ZN moves the index most in the 08:30 bar of release days in the pos regime: 5-minute correlation 0.81, then 0.90; NQ +2.0%,
+//   then +1.3% per 1% ZN. In the neg regime it trades against the index through the cash session (−0.30, then −0.15).
+// • The regime persists: today's 60-session correlation forecasts the next 60 (NQ r 0.66, then 0.68). Adding ZN's 60-session
+//   move and VIX3M lifted the 2025–26 R² from 0.15 to 0.34 (NQ) and 0.07 to 0.15 (ES): a ZN rally lowers the next-60
+//   correlation, a high VIX3M raises it.
+// • No lead: ZN's 08:30–08:45 move called NQ / ES into noon 43%, then 46%. ZN non-confirmation at 15m / 1H swings added
+//   nothing; a ZN twin disagreeing with its 1H candle said nothing about the next hour (51%, then 49.5%). The index did not
+//   converge to the shadow (it moved away from it over the next 2 hours 52% of the time in both periods), and a break of the
+//   08:30–08:44 pulse ran on like a random walk (31% / 25% reached a further pulse before its midpoint; a walk does 33%).
+// Not affiliated with or endorsed by ICT or Cboe.
+indicator("Wabisuke · Rates Transmission", "Wabisuke", overlay = true, scale = scale.right, max_lines_count = 300, max_labels_count = 300, max_boxes_count = 200)
+
+TZ = "America/New_York"
+
+// ═══════════════════════════════════════════════════════════════ Inputs
+gV = "View"
+themeI  = input.string("Auto", "Card theme", options = ["Auto", "Dark", "Light"], group = gV, display = display.none)
+lblSzI  = input.string("Small", "Text size", options = ["Tiny", "Small", "Normal"], group = gV, display = display.none)
+showCrd = input.bool(true, "Card", group = gV, inline = "cd", display = display.none)
+crdPos  = input.string("Top right", "", options = ["Top left", "Top center", "Top right", "Middle left", "Middle right", "Bottom left", "Bottom center", "Bottom right"], group = gV, inline = "cd", display = display.none)
+layI    = input.string("Desktop", "Layout", options = ["Desktop", "Mobile"], group = gV, tooltip = "Desktop: the regime, ZN now, the next 60 sessions and, on CPI / NFP days, the pulse. Mobile: the same rows, narrower.", display = display.none)
+txtM    = input.string("Auto (theme)", "Text colour", options = ["Auto (theme)", "Custom"], group = gV, inline = "tx", tooltip = "Auto: white text on a dark background, black on a light one. Custom: your own colours, for backgrounds where the automatic choice clashes. First swatch: the card text. Second: the chart text that follows the background (candle times, countdowns).", display = display.none)
+txtCd   = input.color(#131722, "", group = gV, inline = "tx", active = txtM == "Custom", display = display.none)
+txtCh   = input.color(#131722, "", group = gV, inline = "tx", active = txtM == "Custom", display = display.none)
+
+gZ = "ZN"
+znSym = input.symbol("CBOT:ZN1!", "Rates", group = gZ, tooltip = "10-year Treasury note futures, the market tested. The regime uses daily closes; the shadow, pulse and twins use the chart's own bars.", display = display.none)
+v3Sym = input.symbol("CBOE:VIX3M", "VIX3M", group = gZ, tooltip = "Cboe's 3-month S&P 500 implied volatility, one of the two drivers of the next-60 forecast.", display = display.none)
+shI   = input.bool(true, "ZN shadow", group = gZ, inline = "sh", display = display.none)
+cSh   = input.color(#ffa726, "", group = gZ, inline = "sh", tooltip = "Where the index would be if it had moved only by ZN × β60 since the 18:00 open. Context, not a signal: the index did not converge to it.", display = display.none)
+swI   = input.bool(true, "Regime switches", group = gZ, inline = "sw", display = display.none)
+swKp  = input.int(6, "", minval = 1, maxval = 40, group = gZ, inline = "sw", tooltip = "A tag at the 18:00 open of each session whose regime differs from the session before. The number: how many tags stay on the chart.", display = display.none)
+
+gP = "CPI / NFP pulse"
+puI    = input.bool(true, "Show", group = gP, inline = "pu", display = display.none)
+puKeep = input.int(4, "", minval = 1, maxval = 12, group = gP, inline = "pu", tooltip = "The number: how many release days stay on the chart. The 08:30–08:44 ET range on CPI and NFP days (charts of 15 minutes or less), with its midpoint, ZN's move over it and that move × β60, carried to 16:00. Release dates 2024 – Dec 2027 (BLS, with the 2025 shutdown moves).", display = display.none)
+puBrk  = input.bool(true, "Mark the first break", group = gP, tooltip = "Where price first trades beyond the pulse after 08:45. Tested: no continuation edge.", display = display.none)
+cPu    = input.color(#ab47bc, "Colour", group = gP, display = display.none)
+
+var g_P = "HTF candles (PO3)"
+pvOn   = input.bool(true, "Show", group = g_P, display = display.none)
+pvTw   = input.bool(true, "ZN twin", group = g_P, tooltip = "Beside each candle, its ZN twin: the same candle as ZN × β60 would have printed it from the candle's open. In the neg regime β is negative, so a ZN rally prints as a falling twin.", display = display.none)
+s1On   = input.bool(true, "Set 1", group = g_P, inline = "s1", display = display.none)
+s1Tf   = input.timeframe("60", "", group = g_P, inline = "s1", display = display.none)
+s1N    = input.int(4, "", minval = 1, maxval = 8, group = g_P, inline = "s1", display = display.none)
+s2On   = input.bool(true, "Set 2", group = g_P, inline = "s2", display = display.none)
+s2Tf   = input.timeframe("240", "", group = g_P, inline = "s2", display = display.none)
+s2N    = input.int(3, "", minval = 1, maxval = 8, group = g_P, inline = "s2", display = display.none)
+s3On   = input.bool(true, "Set 3", group = g_P, inline = "s3", display = display.none)
+s3Tf   = input.timeframe("D", "", group = g_P, inline = "s3", display = display.none)
+s3N    = input.int(2, "", minval = 1, maxval = 8, group = g_P, inline = "s3", tooltip = "Each set: on / off, its timeframe, and how many candles (1–8). Drawn left to right by timeframe. A set at or below the chart's timeframe is skipped. Built from the chart's own bars, so a set only shows candles that opened inside the loaded history.", display = display.none)
+pvOff  = input.int(12, "Offset (bars right of price)", minval = 1, maxval = 300, group = g_P, display = display.none)
+pvWI   = input.int(0, "Width · gap", minval = 0, maxval = 30, group = g_P, inline = "pw", display = display.none)
+pvGI   = input.int(0, "", minval = 0, maxval = 30, group = g_P, inline = "pw", tooltip = "Each candle's width and the gap between candles, in chart bars. 0 = auto: 6 and 3 on 1–2 minute charts, 4 and 2 up to 5 minutes, 2 and 2 above. The twin is half a candle wide.", display = display.none)
+pvStyI = input.string("ICT (green / black)", "Colours", options = ["ICT (green / black)", "Up / down (see-through)", "Custom"], group = g_P, tooltip = "As Hadō 99's candles. ICT: green up bodies, black down bodies, black borders and wicks, as on ICT's charts (white instead of black on a dark chart). Up / down: see-through green and red. Custom: the six colours below, up then down.", display = display.none)
+bool pvCu = pvStyI == "Custom"
+pvBdU  = input.color(#a5d6a7, "Body", group = g_P, inline = "pb", active = pvCu, display = display.none)
+pvBdD  = input.color(#2e2e2e, "", group = g_P, inline = "pb", active = pvCu, display = display.none)
+pvBrU  = input.color(#2e2e2e, "Border", group = g_P, inline = "pr", active = pvCu, display = display.none)
+pvBrD  = input.color(#2e2e2e, "", group = g_P, inline = "pr", active = pvCu, display = display.none)
+pvWkU  = input.color(#2e2e2e, "Wick", group = g_P, inline = "pk", active = pvCu, display = display.none)
+pvWkD  = input.color(#2e2e2e, "", group = g_P, inline = "pk", active = pvCu, display = display.none)
+cTw    = input.color(#ffa726, "ZN twin", group = g_P, display = display.none)
+pvWkW  = input.int(1, "Wick width", minval = 1, maxval = 4, group = g_P, display = display.none)
+pvStmI = input.bool(true, "Times", group = g_P, tooltip = "Each candle's open (intraday) or day under it.", display = display.none)
+pvInfI = input.bool(true, "Countdown", group = g_P, tooltip = "The set's timeframe and the time left in its forming candle, over the set.", display = display.none)
+pvLivI = input.bool(true, "Forming candle dashed", group = g_P, display = display.none)
+
+gA = "Alerts · create one with \"Any alert() function call\""
+alReg = input.bool(true, "Regime switch at the 18:00 open", group = gA, display = display.none)
+alPu  = input.bool(false, "First break of the CPI / NFP pulse", group = gA, display = display.none)
+
+// ═══════════════════════════════════════════════════════════════ Helpers
+bgLum  = 0.299 * color.r(chart.bg_color) + 0.587 * color.g(chart.bg_color) + 0.114 * color.b(chart.bg_color)
+isDark = themeI == "Dark" or (themeI == "Auto" and bgLum < 128)
+bool txC = txtM == "Custom"                          // View → Text colour: Custom replaces the automatic white / black
+cTxt   = txC ? txtCd : isDark ? #d1d4dc : #131722
+cBody  = isDark ? #161a23 : #f4f6f9
+cSub   = txC ? color.new(txtCd, 25) : isDark ? #8a93a6 : #5d6476
+fgAuto = txC ? txtCh : bgLum < 128 ? #d1d4dc : #131722  // chart text that follows the background
+subCh  = txC ? color.new(txtCh, 25) : bgLum < 128 ? #8a93a6 : #5d6476
+cHdr   = #ffa726
+cPos   = #26a69a
+cNeg   = #ef5350
+cFlat  = #787b86
+tSz = lblSzI == "Tiny" ? size.tiny : lblSzI == "Normal" ? size.normal : size.small
+tfSec = timeframe.in_seconds(timeframe.period)
+pts(float v) => na(v) ? "—" : str.tostring(v, "#,##0.##")
+sg(float v, string f) => na(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + str.tostring(math.abs(v), f)
+posOf(string p) =>
+    switch p
+        "Top left"      => position.top_left
+        "Top center"    => position.top_center
+        "Top right"     => position.top_right
+        "Middle left"   => position.middle_left
+        "Middle right"  => position.middle_right
+        "Bottom left"   => position.bottom_left
+        "Bottom center" => position.bottom_center
+        => position.bottom_right
+relOf(int t) => ((hour(t, TZ) * 60 + minute(t, TZ)) - 1080 + 1440) % 1440      // minutes after 18:00 ET
+tfNm(string tf) =>
+    int sc = timeframe.in_seconds(tf)
+    sc >= 2419200 ? "M" : sc >= 604800 ? "W" : sc >= 86400 ? "D" : sc >= 3600 ? str.tostring(int(sc / 3600)) + "H" : str.tostring(int(sc / 60)) + "m"
+leftS(int ms) =>
+    int sc = math.max(0, int(ms / 1000))
+    sc >= 86400 ? str.format("{0}d {1}h", int(sc / 86400), int((sc % 86400) / 3600)) : sc >= 3600 ? str.format("{0}h {1}m", int(sc / 3600), int((sc % 3600) / 60)) : str.format("{0}:{1}", int(sc / 60), str.tostring(sc % 60, "00"))
+clsOf(float r) => na(r) ? 1 : r > 0.2 ? 2 : r < -0.2 ? 0 : 1          // 0 neg, 1 flat, 2 pos
+clsNm(int c) => c == 2 ? "POS" : c == 0 ? "NEG" : "FLAT"
+clsCol(int c) => c == 2 ? cPos : c == 0 ? cNeg : cFlat
+
+// ═══════════════════════════════════════════════════════════════ Tested constants (fit 2018–24, scored 2025 – Oct 2026)
+// markets: 0 NQ, 1 ES (also used, untested, for any other market)
+string root = syminfo.root
+int    mkt  = root == "NQ" or root == "MNQ" ? 0 : 1
+bool   tested = root == "NQ" or root == "MNQ" or root == "ES" or root == "MES"
+// 5-minute ZN–index correlation and beta by regime (neg / flat / pos; regime from NQ's ρ60) and window (the 08:30 bar on
+// CPI / NFP days / the 08:30 bar on other days / cash 09:30–16:00 / overnight 18:00–08:00), 2018–24;
+// index = 12 × market + 4 × regime + window
+var array<float> MRH = array.from(0.06, -0.13, -0.30, -0.33, 0.64, 0.23, -0.04, -0.08, 0.81, 0.49, 0.22, 0.16, -0.02, -0.18, -0.31, -0.33, 0.61, 0.18, -0.07, -0.13, 0.81, 0.47, 0.22, 0.10)
+var array<float> MBT = array.from(0.13, -0.35, -1.74, -1.34, 1.38, 0.41, -0.18, -0.23, 2.00, 0.98, 0.85, 0.38, -0.04, -0.44, -1.57, -1.27, 0.98, 0.26, -0.23, -0.29, 1.55, 0.73, 0.61, 0.20)
+var array<string> WNM = array.from("08:30 data", "08:30", "cash", "overnight")
+// next-60-session correlation = a + b1 × rho60 + b2 × ZN 60-session move + b3 × VIX3M (NQ, then ES)
+var array<float> FC = array.from(-0.2364, 0.5534, -3.1082, 0.0101, -0.1789, 0.5257, -3.4980, 0.0060)
+// CPI and NFP release dates, 2024 – 2027 (BLS; the 2025 shutdown moved October CPI to the 24th and November NFP to the 20th)
+var array<int> CPI = array.from(20240111, 20240213, 20240312, 20240410, 20240515, 20240612, 20240711, 20240814, 20240911, 20241010, 20241113, 20241211, 20250115, 20250212, 20250312, 20250410, 20250513, 20250611, 20250715, 20250812, 20250911, 20251024, 20251218, 20260113, 20260213, 20260311, 20260410, 20260512, 20260610, 20260714, 20260812, 20260911, 20261014, 20261110, 20261210, 20270113, 20270211, 20270310, 20270413, 20270512, 20270610, 20270714, 20270811, 20270914, 20271014, 20271110, 20271210)
+var array<int> NFP = array.from(20240105, 20240202, 20240308, 20240405, 20240503, 20240607, 20240705, 20240802, 20240906, 20241004, 20241101, 20241206, 20250110, 20250207, 20250307, 20250404, 20250502, 20250606, 20250703, 20250801, 20250905, 20251120, 20251216, 20260109, 20260211, 20260306, 20260403, 20260508, 20260605, 20260702, 20260807, 20260904, 20261002, 20261106, 20261204, 20270108, 20270205, 20270305, 20270402, 20270507, 20270604, 20270702, 20270806, 20270903, 20271008, 20271105, 20271203)
+
+// ═══════════════════════════════════════════════════════════════ Data (no repaint)
+// the regime, computed on daily bars: ZN's daily closes are requested inside the index's daily context (a nested request),
+// so the 60 sessions come from daily history, not from the chart's loaded bars
+rb(string zs) =>
+    float zr  = request.security(zs, "D", close / close[1] - 1)
+    float ir  = close / close[1] - 1
+    float rho = ta.correlation(ir, zr, 60)
+    float bet = rho * ta.stdev(ir, 60) / ta.stdev(zr, 60)
+    float z60 = request.security(zs, "D", close / close[60] - 1)
+    [rho[1], bet[1], z60[1]]
+// both back-adjusted, so contract rolls stay out of the daily returns and ZN's 60-session move (the tests used within-contract returns)
+string znTk = ticker.modify(znSym, backadjustment = backadjustment.on)
+string ixTk = ticker.modify(syminfo.tickerid, backadjustment = backadjustment.on)
+[rho60, beta60, zn60] = request.security(ixTk, "D", rb(znTk), lookahead = barmerge.lookahead_on)
+[wC, wC1, wT] = request.security(v3Sym, "D", [close, close[1], time_tradingday], lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+float v3Done = na(wT) ? na : wT < time_tradingday ? wC : wC1         // the last VIX3M close that is final at this bar
+// ZN on the chart's own timeframe (same bars, no lookahead)
+[zO, zH, zL, zC] = request.security(znSym, timeframe.period, [open, high, low, close], ignore_invalid_symbol = true)
+
+// ═══════════════════════════════════════════════════════════════ The session: regime, switches, shadow, window
+int  ttd  = time_tradingday
+int  ymd  = year(ttd, "UTC") * 10000 + month(ttd, "UTC") * 100 + dayofmonth(ttd, "UTC")
+bool act  = timeframe.isintraday
+int  relM = relOf(time)
+bool newS = ttd != ttd[1]
+var float sO    = na
+var float z18   = na
+var float rhoS  = na
+var float betS  = na
+var float z60S  = na
+var float v3S   = na
+var int   cls   = 1
+var bool  seen  = false
+var int   swT   = na                                                 // last regime switch (session start time)
+var bool  isRel = false
+var string relNm = ""
+var array<label> SW = array.new<label>()
+if act and (newS or na(sO))
+    sO    := open
+    z18   := zO
+    rhoS  := rho60
+    betS  := beta60
+    z60S  := zn60
+    v3S   := v3Done
+    isRel := CPI.includes(ymd) or NFP.includes(ymd)
+    relNm := CPI.includes(ymd) ? "CPI" : NFP.includes(ymd) ? "NFP" : ""
+    int prev = cls
+    cls := clsOf(rhoS)
+    if seen and cls != prev
+        swT := time
+        if swI
+            SW.push(label.new(bar_index, low, "ZN " + clsNm(prev) + " → " + clsNm(cls), style = label.style_label_up, color = #00000000, textcolor = clsCol(cls), size = size.tiny, tooltip = "The ZN regime changed at this session's open: ρ60 " + sg(rhoS, "0.00") + ", β60 " + sg(betS, "0.00") + " (index % per 1% ZN). Pos above +0.2, neg below −0.2. Regimes persist: the next 60 sessions' correlation tracked today's at r 0.66 (NQ, 2018–24), then 0.68."))
+            if SW.size() > swKp
+                SW.shift().delete()
+        if alReg and barstate.isrealtime
+            alert("Wabisuke · " + syminfo.ticker + " · ZN regime now " + clsNm(cls) + " (ρ60 " + sg(rhoS, "0.00") + ", β60 " + sg(betS, "0.00") + ")", alert.freq_once_per_bar)
+    seen := not na(rhoS)
+float shadow = act and shI and not na(betS) and z18 > 0 ? sO * (1 + betS * (zC / z18 - 1)) : na
+plot(shadow, "ZN shadow", color = cSh, linewidth = 1, style = plot.style_linebr, display = display.pane)
+// the tested windows: the 08:30 5-minute bar, the cash session, overnight; between them, no window
+int win = relM >= 870 and relM < 875 ? (isRel ? 0 : 1) : relM >= 930 and relM < 1320 ? 2 : relM < 840 ? 3 : -1
+float fwd = na(rhoS) or na(z60S) or na(v3S) ? na : FC.get(mkt * 4) + FC.get(mkt * 4 + 1) * rhoS + FC.get(mkt * 4 + 2) * z60S + FC.get(mkt * 4 + 3) * v3S
+
+// ═══════════════════════════════════════════════════════════════ CPI / NFP pulse (08:30–08:44 ET), run to 16:00
+var array<box>   PB = array.new<box>()
+var array<line>  PL = array.new<line>()
+var array<label> PT = array.new<label>()
+var float puH  = na
+var float puL  = na
+var float puO  = na
+var float puZ0 = na
+var float puZm = na
+var int   puT0 = na
+var int   puD  = na                                                  // the pulse's trading day
+var bool  puBk = false
+var bool  puLn = false                                               // today's pulse lines exist
+var string puNm = ""
+bool inPu  = relM >= 870 and relM < 885
+bool puDay = puD == ymd
+if act and puI and isRel and tfSec <= 900
+    if inPu
+        if not puDay or not inPu[1]
+            puD  := ymd
+            puBk := false
+            puLn := false
+            puH  := high
+            puL  := low
+            puO  := open
+            puZ0 := zO
+            puT0 := time
+            puNm := relNm
+            PB.push(box.new(time, high, time + 15 * 60000, low, xloc = xloc.bar_time, bgcolor = color.new(cPu, 85), border_color = color.new(cPu, 40)))
+            if PB.size() > puKeep
+                PB.shift().delete()
+        else
+            puH := math.max(puH, high)
+            puL := math.min(puL, low)
+            PB.last().set_top(puH)
+            PB.last().set_bottom(puL)
+        puZm := puZ0 > 0 ? zC / puZ0 - 1 : na
+    else if puD == ymd and relM >= 885 and relM < 1320
+        if inPu[1]                                                      // first bar after the pulse: its lines and label
+            float md  = (puH + puL) / 2
+            PL.push(line.new(puT0, puH, time_close, puH, xloc = xloc.bar_time, color = color.new(cPu, 30), style = line.style_dotted))
+            PL.push(line.new(puT0, puL, time_close, puL, xloc = xloc.bar_time, color = color.new(cPu, 30), style = line.style_dotted))
+            PL.push(line.new(puT0, md, time_close, md, xloc = xloc.bar_time, color = color.new(cPu, 50), style = line.style_dashed))
+            puLn := true
+            while PL.size() > puKeep * 3
+                PL.shift().delete()
+            string tx = puNm + " pulse " + str.tostring(100 * (puH - puL) / puO, "0.00") + "% · ZN " + sg(100 * puZm, "0.00") + "% · ZN×β " + sg(100 * puZm * betS, "0.00") + "%"
+            string tp = puNm + " 08:30–08:44 range " + pts(puH - puL) + " pts (" + str.tostring(100 * (puH - puL) / puO, "0.00") + "%), midpoint " + pts(md) + ". ZN moved " + sg(100 * puZm, "0.00") + "%; × β60 (" + sg(betS, "0.00") + ") = " + sg(100 * puZm * betS, "0.00") + "% for the index.\nTypical 08:30–08:45 move, median (90th percentile), 2018–24: NQ 0.29% (1.24%), ES 0.22% (0.90%); the 08:30–08:44 range is about 3 × an ordinary day's (0.48% against 0.15%).\nZN's move here did not call the index into noon (43%, then 46%): the same move, not a lead."
+            PT.push(label.new(puT0, puH, tx, xloc = xloc.bar_time, style = label.style_label_lower_left, color = #00000000, textcolor = cPu, size = size.tiny, tooltip = tp))
+            while PT.size() > puKeep * 2
+                PT.shift().delete()
+        else if puLn                                                    // the lines follow price to 16:00
+            for i = 1 to 3
+                PL.get(PL.size() - i).set_x2(time_close)
+        if not puBk                                                     // the first break, from 08:45 on
+            bool bu = high > puH
+            bool bd = low < puL
+            if bu or bd
+                puBk := true
+                if puBrk and not (bu and bd)
+                    PT.push(label.new(time, bu ? high : low, bu ? "▲ break" : "▼ break", xloc = xloc.bar_time, style = bu ? label.style_label_down : label.style_label_up, color = #00000000, textcolor = cPu, size = size.tiny, tooltip = "The first trade beyond the pulse after 08:45. Tested: price then went a further 1 × the pulse before coming back to its midpoint on 31% (2018–24) and 25% (2025–26) of release days, against 33% for a random walk and 34% on ordinary days. No continuation edge."))
+                    while PT.size() > puKeep * 2
+                        PT.shift().delete()
+                if alPu and barstate.isrealtime
+                    alert("Wabisuke · " + syminfo.ticker + " · " + puNm + " pulse broken " + (bu ? "up" : "down") + " (no tested continuation edge)", alert.freq_once_per_bar)
+
+// ═══════════════════════════════════════════════════════════════ HTF candles (PO3) with ZN twins, built from the chart's bars
+type HC
+    float o
+    float h
+    float l
+    float c
+    float zo
+    float zh
+    float zl
+    float zc
+    int   t0
+sUse(string tf, bool on) => on and pvOn and act and timeframe.in_seconds(tf) > tfSec
+sUpd(array<HC> a, bool isNew, int keep) =>
+    if isNew
+        a.unshift(HC.new(open, high, low, close, zO, zH, zL, zC, time))
+        while a.size() > keep
+            a.pop()
+    else if a.size() > 0
+        HC c = a.first()
+        c.h  := math.max(c.h, high)
+        c.l  := math.min(c.l, low)
+        c.c  := close
+        c.zh := na(c.zh) ? zH : math.max(c.zh, zH)
+        c.zl := na(c.zl) ? zL : math.min(c.zl, zL)
+        if na(c.zo)
+            c.zo := zO
+        c.zc := zC
+    a.size()                                                         // explicit return, so the if's branches need no common type
+var array<HC> sc1 = array.new<HC>()
+var array<HC> sc2 = array.new<HC>()
+var array<HC> sc3 = array.new<HC>()
+bool su1 = sUse(s1Tf, s1On)
+bool su2 = sUse(s2Tf, s2On)
+bool su3 = sUse(s3Tf, s3On)
+bool ch1 = timeframe.change(s1Tf)
+bool ch2 = timeframe.change(s2Tf)
+bool ch3 = timeframe.change(s3Tf)
+if su1
+    sUpd(sc1, ch1, s1N)
+if su2
+    sUpd(sc2, ch2, s2N)
+if su3
+    sUpd(sc3, ch3, s3N)
+int sl1 = act ? time_close(s1Tf) : na
+int sl2 = act ? time_close(s2Tf) : na
+int sl3 = act ? time_close(s3Tf) : na
+var array<box>   pvB = array.new<box>()
+var array<line>  pvL = array.new<line>()
+var array<label> pvT = array.new<label>()
+// one candle (wicks stop at the body, so a see-through body shows no line inside it)
+candle(int x1, int x2, float o, float h, float l, float c, color bd, color br, color wk, bool live) =>
+    int   xm = x1 + int((x2 - x1) / 2)
+    float bt = math.max(o, c)
+    float bb = math.min(o, c)
+    if h > bt
+        pvL.push(line.new(xm, h, xm, bt, color = wk, width = pvWkW))
+    if l < bb
+        pvL.push(line.new(xm, bb, xm, l, color = wk, width = pvWkW))
+    pvB.push(box.new(x1, bt, x2, bb, border_color = br, bgcolor = bd, border_style = live and pvLivI ? line.style_dashed : line.style_solid))
+// one set: the candles left to right (newest on the right), each with its twin; returns the set's right edge
+drawSet(array<HC> a, int nIn, int x0, string tf, int tcl, int w, int g, float b) =>
+    int n  = math.min(nIn, a.size())
+    int tw = pvTw and not na(b) ? math.max(1, int(w / 2)) : 0
+    int xE = x0
+    if n > 0
+        bool ict = pvStyI == "ICT (green / black)"
+        int  sc  = timeframe.in_seconds(tf)
+        float top = na
+        for j = 0 to n - 1
+            int  m  = n - 1 - j                                      // newest = 0, drawn on the right
+            HC   h  = a.get(m)
+            bool up = h.c >= h.o
+            int  x1 = x0 + j * (w + tw + g)
+            color bd = pvCu ? (up ? pvBdU : pvBdD) : ict ? (up ? #a5d6a7 : fgAuto) : color.new(up ? cPos : cNeg, 70)
+            color br = pvCu ? (up ? pvBrU : pvBrD) : ict ? fgAuto : color.new(up ? cPos : cNeg, 30)
+            color wk = pvCu ? (up ? pvWkU : pvWkD) : ict ? fgAuto : color.new(up ? cPos : cNeg, 30)
+            candle(x1, x1 + w, h.o, h.h, h.l, h.c, bd, br, wk, m == 0)
+            float hiY = h.h
+            float loY = h.l
+            if tw > 0 and h.zo > 0
+                float f1 = h.o * (1 + b * (h.zh / h.zo - 1))
+                float f2 = h.o * (1 + b * (h.zl / h.zo - 1))
+                float fc = h.o * (1 + b * (h.zc / h.zo - 1))
+                candle(x1 + w, x1 + w + tw, h.o, math.max(f1, f2), math.min(f1, f2), fc, fc >= h.o ? color.new(cTw, 45) : #00000000, cTw, color.new(cTw, 20), m == 0)
+                hiY := math.max(hiY, math.max(f1, f2))
+                loY := math.min(loY, math.min(f1, f2))
+            top := na(top) ? hiY : math.max(top, hiY)
+            if pvStmI
+                int t6 = sc >= 86400 ? h.t0 + 6 * 3600000 : h.t0
+                pvT.push(label.new(x1 + int(w / 2), loY, str.format_time(t6, sc >= 604800 ? "dd MMM" : sc >= 86400 ? "EEE" : "HH:mm", TZ), style = label.style_label_up, color = #00000000, textcolor = subCh, size = size.tiny))
+        xE := x0 + (n - 1) * (w + tw + g) + w + tw
+        if pvInfI
+            pvT.push(label.new(int((x0 + xE) / 2), top, tfNm(tf) + " · " + leftS(tcl - (barstate.isrealtime ? timenow : time_close)), style = label.style_label_down, color = #00000000, textcolor = fgAuto, size = size.tiny, tooltip = "The index's " + tfNm(tf) + " candles" + (tw > 0 ? ", each with its ZN twin (amber): the candle ZN × β60 (" + sg(b, "0.00") + ") would have printed from the same open. A twin that disagrees with its candle said nothing about the next one (1H, NQ + ES: the next hour followed ZN 51%, then 49.5%)." : ".")))
+    xE
+if barstate.islast and (su1 or su2 or su3)
+    while pvB.size() > 0
+        pvB.pop().delete()
+    while pvL.size() > 0
+        pvL.pop().delete()
+    while pvT.size() > 0
+        pvT.pop().delete()
+    int w0 = pvWI > 0 ? pvWI : tfSec <= 120 ? 6 : tfSec <= 300 ? 4 : 2
+    int g0 = pvGI > 0 ? pvGI : tfSec <= 120 ? 3 : 2
+    int gs = w0 + 2 * g0
+    // left to right by timeframe
+    array<int> kS = array.new<int>()
+    array<int> kK = array.new<int>()
+    if su1 and sc1.size() > 0
+        kS.push(timeframe.in_seconds(s1Tf))
+        kK.push(1)
+    if su2 and sc2.size() > 0
+        kS.push(timeframe.in_seconds(s2Tf))
+        kK.push(2)
+    if su3 and sc3.size() > 0
+        kS.push(timeframe.in_seconds(s3Tf))
+        kK.push(3)
+    int cx = bar_index + pvOff
+    int nk = kS.size()
+    array<bool> done = array.new<bool>(nk, false)
+    if nk > 0
+        for r = 0 to nk - 1
+            int best = -1
+            for q = 0 to nk - 1
+                if not done.get(q) and (best < 0 or kS.get(q) < kS.get(best))
+                    best := q
+            done.set(best, true)
+            int k = kK.get(best)
+            int e = cx
+            if k == 1
+                e := drawSet(sc1, s1N, cx, s1Tf, sl1, w0, g0, betS)
+            else if k == 2
+                e := drawSet(sc2, s2N, cx, s2Tf, sl2, w0, g0, betS)
+            else
+                e := drawSet(sc3, s3N, cx, s3Tf, sl3, w0, g0, betS)
+            cx := e + gs
+
+// ═══════════════════════════════════════════════════════════════ Card (minimal: four rows, the tests in the tooltips)
+var table TC  = na
+var label LSh = na
+cRow(int r, string k, string v, string w, color vc, string tip) =>
+    TC.cell(0, r, k, text_color = cSub, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(1, r, v, text_color = vc, text_size = tSz, text_halign = text.align_left, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+    TC.cell(2, r, w, text_color = cSub, text_size = tSz, text_halign = text.align_right, bgcolor = cBody, text_font_family = font.family_monospace, tooltip = tip)
+if barstate.islast and act
+    // the shadow's name at its end, with its test
+    if shI and not na(shadow)
+        if na(LSh)
+            LSh := label.new(bar_index, shadow, "", style = label.style_label_left, color = #00000000, textcolor = cSh, size = size.tiny)
+        LSh.set_xy(bar_index, shadow)
+        float gap = 100 * (close / shadow - 1)
+        LSh.set_text("ZN gap " + sg(gap, "0.00") + "%")
+        LSh.set_tooltip("ZN shadow " + pts(shadow) + ": where the index would be if it had moved only by ZN × β60 (" + sg(betS, "0.00") + ") since the 18:00 open, so it starts at the open and then follows ZN. The gap (" + sg(gap, "0.00") + "%) is how far the index has moved on something other than rates since then. Context, not a signal: at 10:00, 12:00 and 14:00 the index moved away from the shadow over the next 2 hours 52% of the time in 2018–24 and in 2025–26 (NQ + ES), the opposite of converging.")
+    else if not na(LSh)
+        LSh.set_text("")
+    if showCrd
+        bool mob = layI == "Mobile"
+        if na(TC)
+            TC := table.new(posOf(crdPos), 3, 5, border_width = 0, frame_width = 1, frame_color = cHdr)
+        TC.clear(0, 0, 2, 4)
+        color rc = clsCol(cls)
+        string tipH = "ZN regime from the trailing 60-session correlation of daily % returns: pos above +0.2 (bonds and stocks rise together), neg below −0.2 (bonds rally as stocks fall), flat between. Wabisuke sizes ZN's weight on the index; it does not call direction: ZN's 08:30 move, its non-confirmation at swings and its 20-session trend all failed as leads." + (tested ? "" : "\nThis market uses ES's map and forecast, untested.") + (na(swT) ? "" : "\nLast switch: " + str.format_time(swT + 6 * 3600000, "dd MMM yyyy", TZ) + ".")
+        TC.cell(0, 0, "WABISUKE", text_color = #131722, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+        TC.cell(1, 0, mkt == 0 ? "NQ" : tested ? "ES" : root, text_color = #131722, bgcolor = cHdr, text_size = tSz, text_halign = text.align_left, text_font_family = font.family_monospace, tooltip = tipH)
+        TC.cell(2, 0, clsNm(cls), text_color = #ffffff, bgcolor = rc, text_size = tSz, text_halign = text.align_center, text_font_family = font.family_monospace, tooltip = tipH)
+        cRow(1, mob ? "ρ · β" : "ρ60 · β60", sg(rhoS, "0.00"), "β " + sg(betS, "0.00"), rc, "ρ60: correlation of the index's and ZN's daily % returns over the last 60 sessions. β60: the index % per 1% in ZN. Index % per 1% ZN by regime, trailing (then realised over the next 60), 2018–24: NQ pos +1.40 (+0.52), flat −0.06 (+0.30), neg −1.88 (−1.67); ES pos +0.76 (+0.31), flat −0.18 (+0.04), neg −1.75 (−1.34).")
+        int   wi = win < 0 ? 0 : mkt * 12 + cls * 4 + win
+        float wr = win < 0 ? na : MRH.get(wi)
+        float wb = win < 0 ? na : MBT.get(wi)
+        string wq = na(wr) ? "" : math.abs(wr) >= 0.4 ? "elastic" : math.abs(wr) >= 0.15 ? "linked" : "loose"
+        string wTip = "How tightly ZN and the index move together in this window under today's regime: 5-minute returns, 2018–24, regime from NQ's ρ60. " + (mkt == 0 ? "NQ" : "ES") + " ρ, in the order 08:30 bar on CPI / NFP days, 08:30 bar on other days, cash 09:30–16:00, overnight 18:00–08:00. Pos: " + sg(MRH.get(mkt * 12 + 8), "0.00") + ", " + sg(MRH.get(mkt * 12 + 9), "0.00") + ", " + sg(MRH.get(mkt * 12 + 10), "0.00") + ", " + sg(MRH.get(mkt * 12 + 11), "0.00") + ". Flat: " + sg(MRH.get(mkt * 12 + 4), "0.00") + ", " + sg(MRH.get(mkt * 12 + 5), "0.00") + ", " + sg(MRH.get(mkt * 12 + 6), "0.00") + ", " + sg(MRH.get(mkt * 12 + 7), "0.00") + ". Neg: " + sg(MRH.get(mkt * 12), "0.00") + ", " + sg(MRH.get(mkt * 12 + 1), "0.00") + ", " + sg(MRH.get(mkt * 12 + 2), "0.00") + ", " + sg(MRH.get(mkt * 12 + 3), "0.00") + ".\n2025–26 (NQ): pos 0.90 / 0.30 / 0.17 / 0.19; flat 0.11 / 0.12 / −0.32 / −0.25; neg 0.53 / 0.25 / −0.15 / −0.22 (the release cells on 36–66 bars). The pos column held. In neg the 08:30 bar turned positive (0.06 → 0.53 on releases); in flat the release bar weakened (0.64 → 0.11) and cash turned negative (−0.04 → −0.32).\nElastic |ρ| ≥ 0.40, linked 0.15–0.40, loose under 0.15. Outside the four windows: —."
+        cRow(2, "ZN now", win < 0 ? "—" : WNM.get(math.max(win, 0)) + (mob ? "" : " · " + wq), win < 0 ? "" : "ρ " + sg(wr, "0.00") + (mob ? "" : " · β " + sg(wb, "0.00")), win < 0 ? cSub : cTxt, wTip)
+        float df = fwd - rhoS
+        cRow(3, "next 60", "ρ ≈ " + sg(fwd, "0.00"), na(df) ? "" : df > 0.05 ? "drifts ↑" : df < -0.05 ? "drifts ↓" : "holds", na(fwd) ? cSub : clsCol(clsOf(fwd)), "Forecast of the next 60 sessions' correlation: " + str.tostring(FC.get(mkt * 4), "0.000") + " + " + str.tostring(FC.get(mkt * 4 + 1), "0.000") + " × ρ60 − " + str.tostring(math.abs(FC.get(mkt * 4 + 2)), "0.000") + " × ZN's 60-session move (" + sg(100 * z60S, "0.00") + "%) + " + str.tostring(FC.get(mkt * 4 + 3), "0.0000") + " × VIX3M (" + str.tostring(v3S, "0.00") + "). Fitted on 2018–24; on 2025–26 it explained 34% of the variance (NQ) against 15% for today's ρ60 alone (ES 15% against 7%). A ZN rally lowers the coming correlation; a high VIX3M raises it. Persistence alone: NQ r 0.66, then 0.68.")
+        if puD == ymd and relM >= 870 and relM < 1320 and not na(puO)
+            cRow(4, relNm + " pulse", str.tostring(100 * (puH - puL) / puO, "0.00") + "%", "ZN×β " + sg(100 * puZm * betS, "0.00") + "%", cPu, "Today's 08:30–08:44 range and ZN's move over it × β60. Typical 08:30–08:45 move, median (90th percentile), 2018–24: NQ 0.29% (1.24%), ES 0.22% (0.90%). The same move, not a lead: ZN's direction called the index into noon 43%, then 46%.")
+if barstate.islast and not act and showCrd
+    if na(TC)
+        TC := table.new(posOf(crdPos), 1, 1, border_width = 0, frame_width = 1, frame_color = cHdr)
+    TC.cell(0, 0, "Wabisuke · use an intraday chart", text_color = #131722, bgcolor = cHdr, text_size = tSz, text_font_family = font.family_monospace)

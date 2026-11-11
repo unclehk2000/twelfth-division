@@ -1,0 +1,128 @@
+TITLE (paste into the Title field)
+Wabisuke: ZN Rates Regime, ZN Shadow, CPI / NFP Pulse & PO3 Candles with ZN Twins
+
+DESCRIPTION (paste everything below the line into the Description field)
+────────────────────────────────────────────────────────────────────────
+
+[b]Wabisuke[/b] measures how much the 10-year note (ZN futures) weighs on NQ and ES today, and in which hours that weight lands. It does not call direction. It sizes the link between rates and the index, and every number comes from a test.
+• [b]The regime:[/b] the trailing 60-session correlation (ρ60) of the index's daily % returns with ZN's.
+  – [i]pos[/i] above +0.2: bonds and stocks rise together, so rates drive both;
+  – [i]neg[/i] below −0.2: bonds rally as stocks fall, the hedge regime;
+  – [i]flat[/i] in between.
+• [b]β60[/b] is the index % per 1% ZN, taken from the same 60 sessions. It is the weight.
+• [b]On price:[/b] the ZN shadow, the CPI / NFP 08:30 pulse, regime switches, and PO3 candles with a ZN twin beside each one.
+• A four-row card: the regime, ZN's grip in the current window, the next 60 sessions' forecast and, on release days, the pulse.
+• Tested on NQ and ES 1-minute data with ZN 1-minute, January 2018 – October 2026. Fitted on 2018–24, scored once on 2025–26.
+[i]A gauge of how tightly rates and stocks are coupled. ZN's moves did not lead the index in any test.[/i]
+
+
+[b]█ WHAT IT DRAWS ON PRICE[/b]
+
+• [b]ZN shadow[/b] (amber line): where the index would be if it had moved only by ZN × β60 since the 18:00 open. It starts at the open and then follows ZN; its label ([i]ZN gap ±x%[/i]) shows how far the index has moved on something other than rates today.
+• [b]CPI / NFP pulse[/b] (purple box): the 08:30–08:44 ET range on release days, with:
+  – its high, low and midpoint, carried to 16:00;
+  – a label with the pulse in % of the open, ZN's move over it, and that move × β60;
+  – [i]▲ break[/i] / [i]▼ break[/i] at the first trade beyond the pulse after 08:45.
+• [b]Regime switches:[/b] a tag at the 18:00 open of any session whose regime differs from the session before, such as [i]ZN POS → FLAT[/i].
+• Release dates are built in from 2024 to December 2027 (BLS calendar, including the 2025 shutdown moves). The pulse draws on charts of 15 minutes or less.
+
+
+[b]█ PO3 CANDLES AND THEIR ZN TWINS[/b]
+
+• Up to three sets of higher-timeframe candles to the right of price (1H × 4, 4H × 3 and D × 2 by default), in Hadō 99's candle style.
+• [b]Beside each candle, its ZN twin[/b] (amber, half width): the same candle as ZN × β60 would have printed it from the candle's open.
+  – Twin high and low = the open × (1 + β60 × ZN's move to its high and low); twin close = the open × (1 + β60 × ZN's move to its close).
+  – A filled twin closed up, a hollow twin closed down.
+  – In the neg regime β is negative, so a ZN rally prints as a falling twin.
+• Times under each candle; the set's timeframe and the time left in its forming candle over each set; the forming candle dashed.
+• Colours: [i]ICT (green / black)[/i], [i]Up / down (see-through)[/i] or [i]Custom[/i]. On a dark chart, ICT's black turns white.
+[i]The twins show how much of each candle was rates. A twin disagreeing with its candle is not a signal (see the tests).[/i]
+
+
+[b]█ CARD · FOUR ROWS[/b]
+
+• [b]Header:[/b] WABISUKE, the market, the regime ([i]POS[/i] / [i]FLAT[/i] / [i]NEG[/i]).
+• [b]ρ60 · β60:[/b] yesterday's 60-session correlation and beta.
+• [b]ZN now:[/b] the window the bar is in (the 08:30 bar, cash 09:30–16:00, overnight 18:00–08:00), its tested 5-minute correlation and beta under today's regime, and a word: [i]elastic[/i] (|ρ| ≥ 0.40), [i]linked[/i] (0.15–0.40) or [i]loose[/i] (under 0.15).
+• [b]next 60:[/b] the forecast correlation for the next 60 sessions, and whether it [i]drifts ↑[/i], [i]drifts ↓[/i] or [i]holds[/i] against today's.
+• [b]CPI / NFP pulse[/b] (release days only): the pulse in % and ZN's move × β60.
+• Each row's tooltip carries its numbers and its test. [b]Mobile[/b] shortens the rows.
+
+
+[b]█ WHAT THE TESTS FOUND[/b]
+
+A result counts only when it holds in 2018–24, holds again on 2025–26 (scored once), and holds on each market.
+
+[b]Where ZN's weight lands.[/b] 5-minute correlation of ZN with NQ, 2018–24, then 2025–26:
+• [b]pos regime:[/b] 08:30 bar on CPI / NFP days [b]0.81 → 0.90[/b]; 08:30 bar on other days 0.49 → 0.30; cash 0.22 → 0.17; overnight 0.16 → 0.19.
+  – NQ moved [b]+2.0%[/b] (then +1.3%) per 1% ZN in the release bar. ES +1.55% (then +0.99%).
+• [b]neg regime:[/b] cash −0.30 → −0.15; overnight −0.33 → −0.22. ZN trades against the index through the day.
+• [i]The pos column held in both periods. The others moved in 2025–26: in neg the release bar turned positive (0.06 → 0.53, on 36 bars); in flat it weakened (0.64 → 0.11) and the cash session turned negative (−0.04 → −0.32). Trust the pos map most.[/i]
+
+[b]The regime persists, and it can be forecast.[/b]
+• Today's ρ60 tracked the next 60 sessions' correlation at [b]r 0.66[/b] (NQ, 2018–24), then [b]0.68[/b].
+• Next-60 correlation = a + b1 × ρ60 + b2 × ZN's 60-session move + b3 × VIX3M:
+  – NQ: −0.236 + 0.553 × ρ60 − 3.108 × ZN move + 0.0101 × VIX3M;
+  – ES: −0.179 + 0.526 × ρ60 − 3.498 × ZN move + 0.0060 × VIX3M.
+• Scored on 2025–26, out of sample: R² [b]0.34 against 0.15[/b] for ρ60 alone (NQ), [b]0.15 against 0.07[/b] (ES).
+• [i]A ZN rally lowers the coming correlation; a high VIX3M raises it.[/i]
+
+[b]The release pulse is big, and it is not a breakout.[/b]
+• The 08:30–08:44 range: [b]0.48%[/b] of the open on release days against 0.15% on other days (2018–24; 0.50% against 0.14% in 2025–26).
+• After the first break, price reached a further 1 × the pulse before returning to its midpoint on [b]31%[/b] of release days (2018–24), then [b]25%[/b]. A random walk does 33%; ordinary days did 34%.
+• [i]No continuation edge. The break mark shows where it happened, not what follows.[/i]
+
+[b]No lead, anywhere.[/b]
+• ZN's 08:30–08:45 move called NQ / ES into noon [b]43%[/b] of the time (2018–24), then [b]46%[/b]. It is the same move, not a signal.
+• ZN non-confirmation at 15-minute and 1-hour swings added nothing. ZN's 20-session trend called nothing.
+• [b]ZN twins:[/b] when a 1H twin disagreed with its candle, the next hour followed ZN 51.1% (2018–24), then 49.5%. [i]Fails.[/i]
+• [b]The shadow:[/b] at 10:00, 12:00 and 14:00 the index moved away from its shadow over the next 2 hours 52% of the time, in both periods. It does not converge. [i]Read the gap as how much of the day is not rates.[/i]
+
+
+[b]█ HOW TO USE IT[/b]
+
+• [b]Know the regime before the session.[/b] In pos, a bond rally lifts the index; in neg, it is a flight from stocks. The same ZN print means opposite things.
+• [b]Weigh the windows.[/b] In the pos regime the 08:30 bar of a release day is where rates hit hardest (ρ 0.81–0.90). Away from 08:30, the link is loose to linked.
+• [b]Watch the drift.[/b] When [i]next 60[/i] drifts away from today's ρ60, the regime is likely to weaken; a switch tag confirms it at an 18:00 open.
+• [b]Use the shadow and the twins to see how much of the move was rates.[/b] A candle that matches its twin was a rates move; a candle against its twin was driven by something else.
+
+
+[b]█ SETTINGS[/b]
+
+• [b]View:[/b] card theme, text size, card position, layout (Desktop / Mobile), text colour (card and chart text).
+• [b]ZN:[/b] the ZN and VIX3M symbols, the shadow on / off and colour, regime-switch tags and how many are kept.
+• [b]CPI / NFP pulse:[/b] on / off, how many are kept, the first-break mark, colour.
+• [b]HTF candles (PO3):[/b]
+  – on / off and the ZN twin on / off;
+  – three sets, each with its timeframe and count;
+  – offset, width and gap (0 = auto);
+  – colours (ICT / Up / down / Custom, six custom colours), twin colour, wick width;
+  – times, countdown, forming candle dashed.
+• [b]Alerts:[/b] a regime switch at the 18:00 open; the first break of a CPI / NFP pulse. Create one with [i]Any alert() function call[/i].
+
+
+[b]█ NOTES[/b]
+
+• Wabisuke is pinned to the price scale, so the shadow, tags and candles stay on price. If it was added before this fix, right-click it → Pin to scale → Pin to right scale (or remove it and add it again).
+• Built for CME index futures on intraday charts. NQ and ES have fitted constants; micros use their parent. Any other market uses ES's map and forecast and is marked [i]untested[/i].
+• The test map's regime came from NQ's ρ60; the card uses the chart market's own.
+• The regime is computed on daily bars (a request inside the daily request), so its 60 sessions come from daily history, not from the chart's loaded bars. Everything uses yesterday's values: nothing repaints.
+• The PO3 sets are built from the chart's bars, so a set only shows candles that opened inside the loaded history.
+• The daily regime requests ZN and the index back-adjusted, so contract rolls stay out of the returns and ZN's 60-session move, as in the tests (within-contract returns).
+• VIX3M data on TradingView may need a Cboe data subscription.
+• Overlap with the other range indicators (the candles with Hadō 99, the release window with Gran Rey Cero) will be trimmed at the end stage.
+• Nothing here is financial advice.
+
+
+[b]█ WHY THE NAME[/b]
+
+[b]Wabisuke[/b] is Izuru Kira's zanpakutō in [i]Bleach[/i]. Its release command is [i]Omote o agero[/i], "raise your head", and every blow doubles the weight of whatever it strikes, until the target is pressed to the ground, head bowed. Here the blows are ZN's. β60 is the weight each 1% move in the 10-year note puts on the index, and in the pos regime, in the 08:30 bar of a CPI or NFP day, NQ moved 2% for every 1% in ZN: the weight, doubled. The shadow shows where that weight alone would have carried price; the twins show each candle as ZN would have struck it.
+
+
+[b]█ CREDITS[/b]
+
+• ICT concepts ([i]Michael J. Huddleston[/i]): PO3 (power of three) candles, intermarket analysis with bonds, the 08:30 news window.
+• The candle drawing follows Hadō 99's house style (same author).
+• VIX3M is Cboe's index; release dates from the U.S. Bureau of Labor Statistics calendar.
+• Wabisuke and Izuru Kira belong to Tite Kubo's [i]Bleach[/i] (Shueisha); the name is homage only.
+• Not affiliated with or endorsed by ICT or Cboe. Part of the Hueco Mundo megazord. Written from scratch; open source under MPL 2.0.
