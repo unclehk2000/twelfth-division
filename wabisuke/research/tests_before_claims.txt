@@ -1,0 +1,91 @@
+Wabisuke · tests before claims (HYDRA: fit 2018-24, scored once on 2025 - Oct 2026; pooled p < 0.05 clustered by day; same sign in both periods and each market)
+
+##### s_wabisuke.py: T1 release pulse first break, T2 shadow gap, T3 next-60 forecast, T4 1H ZN twin disagreement
+=== T1: first break of the 08:30-08:44 range, 1 x range further before back to its midpoint ===
+fish: release 30.7% (n 290, p vs 50 0.000) vs ordinary 33.8% (n 3114) Δ -3.1 (p 0.271) | NQ 26.6% ES 34.7% | release pulse median 0.48% vs ordinary 0.15%
+test: release 24.6% (n 69, p vs 50 0.000) vs ordinary 33.9% (n 770) Δ -9.3 (p 0.090) | NQ 17.6% ES 31.4% | release pulse median 0.50% vs ordinary 0.14%
+=== T2: shadow gap convergence over the next 2 hours (hit = moves against the gap) ===
+pos : fish  47.1% n=2100  p=0.032 (top third gap 46.5%) | test  48.0% n=729   p=0.368 (top third 47.3%) | survives (test same sign, p≥0.05)
+neg : fish  48.5% n=3711  p=0.129 (top third gap 47.7%) | test  48.8% n=551   p=0.631 (top third 45.6%) | fails (fish)
+flat: fish  47.9% n=2976  p=0.072 (top third gap 43.5%) | test  47.7% n=796   p=0.247 (top third 47.9%) | fails (fish)
+all : fish  48.0% n=8787  p=0.003 (top third gap 45.8%) | test  48.1% n=2076  p=0.144 (top third 46.9%) | survives (test same sign, p≥0.05)
+=== T4: next 1H candle follows the ZN-weighted candle: when it disagrees with the index candle vs when it agrees ===
+fish: disagree → next hour follows ZN 51.1% (n 23021) vs agree 49.7% (n 32638) Δ +1.4 (p 0.006) | disagree share 41%
+test: disagree → next hour follows ZN 49.5% (n 6041) vs agree 50.5% (n 7063) Δ -1.0 (p 0.338) | disagree share 46%
+=== T3: next-60-session ZN-index correlation forecast ===
+NQ ['rho60']: coef [-0.0044  0.6476] | test R2 0.154, MAE 0.198
+NQ ['rho60', 'zn60', 'vix3m']: coef [-0.2364  0.5534 -3.1082  0.0101] | test R2 0.343, MAE 0.171
+ES ['rho60']: coef [-0.0278  0.6314] | test R2 0.068, MAE 0.231
+ES ['rho60', 'zn60', 'vix3m']: coef [-0.1789  0.5257 -3.498   0.006 ] | test R2 0.150, MAE 0.219
+
+##### s_extra.py: 5-minute ZN/index map by regime and window, and index % per 1% ZN by regime
+=== 5-minute ZN/index correlation and beta by regime (trailing NQ rho60) and window ===
+ per regime                window  bars  rho_NQ  rho_ES  beta_NQ  beta_ES
+fish    neg    08:30 release days   258    0.06   -0.02     0.13    -0.04
+fish    neg      08:30 other days  3156   -0.13   -0.18    -0.35    -0.44
+fish    neg           09:30-16:00 43509   -0.30   -0.31    -1.74    -1.57
+fish    neg overnight 18:00-08:00 93338   -0.33   -0.33    -1.34    -1.27
+fish   flat    08:30 release days   288    0.64    0.61     1.38     0.98
+fish   flat      08:30 other days  2922    0.23    0.18     0.41     0.26
+fish   flat           09:30-16:00 40586   -0.04   -0.07    -0.18    -0.23
+fish   flat overnight 18:00-08:00 88420   -0.08   -0.13    -0.23    -0.29
+fish    pos    08:30 release days   198    0.81    0.81     2.00     1.55
+fish    pos      08:30 other days  2112    0.49    0.47     0.98     0.73
+fish    pos           09:30-16:00 29067    0.22    0.22     0.85     0.61
+fish    pos overnight 18:00-08:00 63316    0.16    0.10     0.38     0.20
+test    neg    08:30 release days    36    0.53    0.57     0.96     0.89
+test    neg      08:30 other days   492    0.25    0.24     0.51     0.39
+test    neg           09:30-16:00  6636   -0.15   -0.13    -0.72    -0.52
+test    neg overnight 18:00-08:00 14438   -0.22   -0.22    -0.76    -0.62
+test   flat    08:30 release days    48    0.11    0.10     0.19     0.14
+test   flat      08:30 other days   570    0.12    0.09     0.24     0.15
+test   flat           09:30-16:00  7695   -0.32   -0.33    -1.55    -1.36
+test   flat overnight 18:00-08:00 16928   -0.25   -0.26    -0.79    -0.69
+test    pos    08:30 release days    66    0.90    0.90     1.30     0.99
+test    pos      08:30 other days   670    0.30    0.47     0.78     0.56
+test    pos           09:30-16:00  9366    0.17    0.22     0.67     0.57
+test    pos overnight 18:00-08:00 20237    0.19    0.24     0.62     0.46
+=== index % per 1% ZN by regime: trailing 60-session beta, next 60 sessions realised ===
+           beta60  fwdbeta  fwdrho  mk
+per  reg                              
+fish neg    -1.88    -1.67   -0.37  NQ
+     flat   -0.06     0.30    0.09  NQ
+     pos     1.40     0.52    0.18  NQ
+test neg    -1.51    -0.38   -0.13  NQ
+     flat   -0.28    -1.42   -0.23  NQ
+     pos     1.72     1.58    0.29  NQ
+fish neg    -1.75    -1.34   -0.41  ES
+     flat   -0.18     0.04    0.02  ES
+     pos     0.76     0.31    0.17  ES
+test neg    -1.24    -0.15   -0.04  ES
+     flat   -0.15    -0.38   -0.13  ES
+     pos     1.29     1.03    0.41  ES
+=== next-session range: realised blend vs blend + VIX9D (mean |log error|) ===
+mk  per  realised_blend  plus_vix9d   delta      p    n
+NQ fish          0.3339      0.3139 -0.0199 0.0000 1638
+NQ test          0.3241      0.3161 -0.0080 0.3133  348
+
+##### s_events.py: CPI / NFP reactions (no lead)
+sessions 1833 {'none': 1614, 'CPI': 84, 'NFP': 71, 'FOMC': 64}
+CPI+NFP fish: n 128 | corr(ZN react, NQ react) +0.76 | ZN react sd 34.7bp NQ react sd 85.2bp
+CPI+NFP test: n 27 | corr(ZN react, NQ react) +0.66 | ZN react sd 34.9bp NQ react sd 49.8bp
+placebo (ordinary) fish: n 1313 | corr(ZN react, NQ react) +0.23 | ZN react sd 8.4bp NQ react sd 17.3bp
+placebo (ordinary) test: n 301 | corr(ZN react, NQ react) +0.37 | ZN react sd 7.4bp NQ react sd 15.2bp
+=== CPI+NFP ===
+NQ/ES own reaction continues       race | fish NQ  45.5% n=123   p=0.321 ES  47.0% n=117   p=0.519 pool  46.2% n=240   p=0.361 | test pool  41.3% n=46    p=0.350 NQ 37.5% ES 45.5% | fails (fish)
+NQ/ES own reaction continues       am   | fish NQ  49.2% n=128   p=0.860 ES  48.8% n=127   p=0.791 pool  49.0% n=255   p=0.804 | test pool  48.1% n=52    p=0.843 NQ 48.1% ES 48.0% | fails (fish)
+ZN reaction (ZN up = index up)     race | fish NQ  45.5% n=121   p=0.317 ES  48.3% n=116   p=0.711 pool  46.8% n=237   p=0.453 | test pool  40.4% n=47    p=0.304 NQ 33.3% ES 47.8% | fails (fish)
+ZN reaction (ZN up = index up)     am   | fish NQ  44.4% n=126   p=0.211 ES  41.3% n=126   p=0.047 pool  42.9% n=252   p=0.081 | test pool  46.3% n=54    p=0.699 NQ 44.4% ES 48.1% | fails (fish)
+ZN agrees with index: continue     race | fish NQ  44.2% n=86    p=0.280 ES  47.4% n=78    p=0.652 pool  45.7% n=164   p=0.399 | test pool  37.8% n=37    p=0.223 NQ 31.6% ES 44.4% | fails (fish)
+ZN agrees with index: continue     am   | fish NQ  45.5% n=88    p=0.395 ES  42.9% n=84    p=0.189 pool  44.2% n=172   p=0.233 | test pool  45.2% n=42    p=0.656 NQ 45.5% ES 45.0% | fails (fish)
+ZN disagrees: index follows ZN     race | fish NQ  48.6% n=35    p=0.868 ES  50.0% n=38    p=1.000 pool  49.3% n=73    p=0.927 | test pool  50.0% n=10    p=1.000 NQ 40.0% ES 60.0% | fails (fish)
+ZN disagrees: index follows ZN     am   | fish NQ  42.1% n=38    p=0.331 ES  38.1% n=42    p=0.116 pool  40.0% n=80    p=0.165 | test pool  50.0% n=12    p=1.000 NQ 40.0% ES 57.1% | fails (fish)
+=== placebo ===
+NQ/ES own reaction continues       race | fish NQ  50.4% n=1201  p=0.795 ES  51.0% n=1151  p=0.498 pool  50.7% n=2352  p=0.590 | test pool  47.3% n=546   p=0.286 NQ 46.2% ES 48.5% | fails (fish)
+NQ/ES own reaction continues       am   | fish NQ  47.7% n=1301  p=0.102 ES  49.7% n=1255  p=0.843 pool  48.7% n=2556  p=0.299 | test pool  42.7% n=593   p=0.004 NQ 41.7% ES 43.7% | fails (fish)
+ZN reaction (ZN up = index up)     race | fish NQ  50.8% n=1099  p=0.608 ES  50.4% n=1092  p=0.809 pool  50.6% n=2191  p=0.677 | test pool  54.5% n=501   p=0.112 NQ 56.9% ES 51.9% | fails (fish)
+ZN reaction (ZN up = index up)     am   | fish NQ  50.6% n=1194  p=0.685 ES  49.2% n=1190  p=0.562 pool  49.9% n=2384  p=0.925 | test pool  48.3% n=538   p=0.560 NQ 49.3% ES 47.4% | fails (fish)
+ZN agrees with index: continue     race | fish NQ  51.1% n=577   p=0.589 ES  52.1% n=528   p=0.338 pool  51.6% n=1105  p=0.400 | test pool  51.8% n=299   p=0.613 NQ 52.9% ES 50.7% | fails (fish)
+ZN agrees with index: continue     am   | fish NQ  48.1% n=622   p=0.336 ES  49.7% n=572   p=0.867 pool  48.8% n=1194  p=0.525 | test pool  42.0% n=324   p=0.021 NQ 41.5% ES 42.4% | fails (fish)
+ZN disagrees: index follows ZN     race | fish NQ  50.4% n=522   p=0.861 ES  48.8% n=564   p=0.556 pool  49.5% n=1086  p=0.809 | test pool  58.4% n=202   p=0.044 NQ 62.6% ES 53.7% | fails (fish)
+ZN disagrees: index follows ZN     am   | fish NQ  53.3% n=572   p=0.112 ES  48.7% n=618   p=0.520 pool  50.9% n=1190  p=0.621 | test pool  57.9% n=214   p=0.075 NQ 60.4% ES 55.3% | fails (fish)
