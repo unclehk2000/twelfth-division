@@ -1,0 +1,58 @@
+=== A: extension past k x R, race 0.25R further vs back (continue rate) ===
+k 0.50 fish: continue 49.1% (n 3156, p vs 50 0.302) NQ 49.1% ES 49.1% | up 50.4% / down 47.7%
+k 0.50 test: continue 51.8% (n 770, p vs 50 0.313) NQ 54.0% ES 49.7% | up 50.1% / down 53.5%
+   verdict vs 50%: fails (fish)
+k 0.77 fish: continue 51.7% (n 2318, p vs 50 0.105) NQ 52.1% ES 51.3% | up 54.5% / down 49.0% | vs 0.50R ext: Δ +2.6 pt (p 0.047)
+k 0.77 test: continue 50.4% (n 552, p vs 50 0.865) NQ 49.5% ES 51.3% | up 46.9% / down 53.1% | vs 0.50R ext: Δ -1.5 pt (p 0.591)
+   verdict vs 50%: fails (fish)
+k 1.00 fish: continue 55.3% (n 1453, p vs 50 0.000) NQ 55.6% ES 55.0% | up 57.0% / down 54.1% | vs 0.50R ext: Δ +6.3 pt (p 0.000)
+k 1.00 test: continue 47.6% (n 355, p vs 50 0.367) NQ 47.4% ES 47.8% | up 47.0% / down 48.0% | vs 0.50R ext: Δ -4.2 pt (p 0.191)
+   verdict vs 50%: fails (test flips)
+k 1.31 fish: continue 57.2% (n 696, p vs 50 0.000) NQ 56.8% ES 57.5% | up 59.7% / down 55.9% | vs 0.50R ext: Δ +8.1 pt (p 0.000)
+k 1.31 test: continue 54.5% (n 178, p vs 50 0.230) NQ 51.1% ES 58.1% | up 58.7% / down 52.2% | vs 0.50R ext: Δ +2.7 pt (p 0.525)
+   verdict vs 50%: survives (test same sign, p≥0.05)
+k 1.64 fish: continue 51.0% (n 294, p vs 50 0.727) NQ 49.3% ES 52.6% | up 49.2% / down 51.5% | vs 0.50R ext: Δ +1.9 pt (p 0.526)
+k 1.64 test: continue 52.5% (n 80, p vs 50 0.656) NQ 57.1% ES 47.4% | up 55.6% / down 51.6% | vs 0.50R ext: Δ +0.7 pt (p 0.907)
+   verdict vs 50%: fails (fish)
+=== B: next-band reach odds by crossing time (fish rate -> test rate, n) ===
+                   mean         size     
+per                fish   test  fish test
+band blk                                 
+0.61 02:00-08:30  0.925  0.951   817  184
+     08:30-12:00  0.842  0.810  1586  357
+     12:00-17:00  0.565  0.490   423   96
+     18:00-02:00  0.980  1.000   299  135
+0.77 02:00-08:30  0.840  0.819   413  116
+     08:30-12:00  0.721  0.716  1421  313
+     12:00-17:00  0.419  0.280   678  150
+     18:00-02:00  0.910  0.881   111   67
+1.00 02:00-08:30  0.774  0.860   146   57
+     08:30-12:00  0.608  0.573   851  199
+     12:00-17:00  0.324  0.261   717  142
+     18:00-02:00  0.837  0.818    43   22
+1.31 02:00-08:30  0.692  0.471    39   17
+     08:30-12:00  0.567  0.564   335   94
+     12:00-17:00  0.301  0.265   515  102
+     18:00-02:00  0.889  0.600     9    5
+test Brier: band x time block 0.1688 vs band only 0.1997 (n 2056)
+=== C: share of sessions ending beyond each band (fish / test) ===
+fish 0.61R: 92.1% 0.77R: 77.3% 1.00R: 51.8% 1.31R: 26.5% 1.64R: 11.2% | median 1.02R | n 3394
+test 0.61R: 92.0% 0.77R: 77.0% 1.00R: 50.1% 1.31R: 26.0% 1.64R: 10.8% | median 1.00R | n 839
+=== C2: where the session closes in its own range (0 = low, 1 = high), by final range ===
+per                                  fish                          test
+fb                                                                     
+under 0.77R  33% top quarter / 19% bottom  24% top quarter / 17% bottom
+0.77-1.31R   43% top quarter / 18% bottom  42% top quarter / 14% bottom
+over 1.31R   39% top quarter / 35% bottom  35% top quarter / 33% bottom
+=== RTY daily: IV/RV thirds and next range > ADR20 ===
+thirds 0.88 1.16
+             big  takelo
+per  t                  
+fish high  0.617   0.534
+     low   0.282   0.432
+     mid   0.368   0.452
+test high  0.690   0.648
+     low   0.217   0.448
+     mid   0.497   0.503
+fish high vs low third, range > ADR20:  61.7% vs  28.2% (Δ +33.5pt, p=0.000, n=567/567)
+test high vs low third, range > ADR20:  69.0% vs  21.7% (Δ +47.3pt, p=0.000, n=71/212)
